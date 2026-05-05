@@ -365,7 +365,38 @@ export async function fetchGroupsByRun(runId: string): Promise<Agrupamento[]> {
   return (data || []).map((g: any) => normAgrupamento(g, "", counts.get(g.id_cluster) || 0));
 }
 
-export async function fetchNextStepsByRun(runId: string): Promise<ProximoPasso[]> {
+// Mapa agrupamento_id -> array de falha_ids, usando agrupamentos_falhas (novo)
+// e fallback no fk_cluster de falhas (estrutura atual real do schema).
+export async function fetchGroupLinksByRun(runId: string): Promise<Record<string, string[]>> {
+  const out: Record<string, string[]> = {};
+  // 1) tentativa pela nova tabela
+  const { data: links, error } = await supabase
+    .from("agrupamentos_falhas")
+    .select("agrupamento_id, falha_id")
+    .eq("rodagem_id", runId);
+  if (!error && links && links.length > 0) {
+    links.forEach((l: any) => {
+      const k = String(l.agrupamento_id);
+      if (!out[k]) out[k] = [];
+      if (l.falha_id) out[k].push(String(l.falha_id));
+    });
+    return out;
+  }
+  // 2) fallback: falhas.fk_cluster (vínculo real já existente no schema)
+  const clusterIds = await clustersOfRun(runId);
+  if (clusterIds.length === 0) return out;
+  const { data: fs } = await supabase
+    .from("falhas")
+    .select("id_falha, fk_cluster")
+    .in("fk_cluster", clusterIds);
+  (fs || []).forEach((f: any) => {
+    const k = String(f.fk_cluster);
+    if (!out[k]) out[k] = [];
+    out[k].push(String(f.id_falha));
+  });
+  return out;
+}
+
   const clusterIds = await clustersOfRun(runId);
   if (clusterIds.length === 0) return [];
   const { data, error } = await supabase.from("proximos_passos").select("*").in("fk_cluster", clusterIds);
