@@ -29,15 +29,16 @@ const slugify = (s: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
+// Módulos OFICIAIS do sistema (filtro fixo da UI)
 const DEFAULT_MODULES = [
   { slug: "folha", nome: "Folha", ordem: 1 },
   { slug: "fiscal", nome: "Fiscal", ordem: 2 },
   { slug: "contabil", nome: "Contábil", ordem: 3 },
-  { slug: "geral", nome: "Geral", ordem: 4 },
-  { slug: "obrigacoes", nome: "Obrigações", ordem: 5 },
-  { slug: "cadastros", nome: "Cadastros", ordem: 6 },
-  { slug: "relatorios", nome: "Relatórios", ordem: 7 },
+  { slug: "gestao", nome: "Gestão", ordem: 4 },
+  { slug: "financeiro", nome: "Financeiro", ordem: 5 },
+  { slug: "geral", nome: "Geral", ordem: 6 },
 ];
+const OFFICIAL_SLUGS = new Set(DEFAULT_MODULES.map((m) => m.slug));
 
 // ---------- Normalizadores ----------
 function normModulo(row: any, ordem = 0): Modulo {
@@ -236,9 +237,9 @@ export async function fetchModules(): Promise<Modulo[]> {
     }
   });
 
-  return Array.from(bySlug.values()).sort(
-    (a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || a.nome.localeCompare(b.nome),
-  );
+  return Array.from(bySlug.values())
+    .filter((m) => OFFICIAL_SLUGS.has(m.slug))
+    .sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || a.nome.localeCompare(b.nome));
 }
 
 async function getModuloIdBySlug(slug: string): Promise<string | null> {
