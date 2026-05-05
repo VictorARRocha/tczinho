@@ -657,7 +657,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
                 {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
                 <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
               </div>
-              <Badge variant="outline" className="font-mono shrink-0">×{g.casos.length}</Badge>
+              <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
             </div>
             {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
             <div className="flex flex-wrap gap-2 mb-4">
