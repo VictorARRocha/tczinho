@@ -594,6 +594,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         severidade_predominante: top(g.sevs),
         acao_recomendada: null,
         casos: g.casos,
+        idsRelacionados: [],
         isVisual: true,
       }));
   }, [grupos, falhas, indices]);
