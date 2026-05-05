@@ -47,10 +47,13 @@ export function getSeverity(s: string | null | undefined) {
 
 export function getHealthStatus(status: string | null | undefined, score?: number | null) {
   const v = (status || "").toLowerCase();
-  if (v.includes("crit") || (score != null && score < 40)) return { label: status || "Crítico", className: "bg-destructive/15 text-destructive border-destructive/30", dot: "bg-destructive" };
-  if (v.includes("aten") || v.includes("warn") || (score != null && score < 75)) return { label: status || "Atenção", className: "bg-warning/15 text-warning border-warning/30", dot: "bg-warning" };
-  if (v.includes("saud") || v.includes("ok") || v.includes("heal") || (score != null && score >= 75)) return { label: status || "Saudável", className: "bg-success/15 text-success border-success/30", dot: "bg-success" };
-  return { label: status || "Sem dados", className: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
+  if (v.includes("saud") || v.includes("ok") || v.includes("heal") || (score != null && score >= 75)) {
+    return { label: "Saudável", className: "bg-success/15 text-success border-success/30", dot: "bg-success" };
+  }
+  if (v.includes("aten") || v.includes("warn") || v.includes("crit") || (score != null && score < 75)) {
+    return { label: "Atenção", className: "bg-warning/15 text-warning border-warning/30", dot: "bg-warning" };
+  }
+  return { label: "Sem dados", className: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
 }
 
 export function getConfidence(c: string | null | undefined) {
