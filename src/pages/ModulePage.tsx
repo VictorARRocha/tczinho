@@ -428,7 +428,7 @@ function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha)
   const cols = {
     prioridade: has("ordem_prioridade"),
     grupo: has("grupo") || has("subgrupo"),
-    erro: has("erro_principal") || has("mensagem_principal"),
+    descricao: falhas.some((f) => failureDescription(f)),
     classificacao: has("classificacao"),
     severidade: has("severidade"),
     confianca: has("confianca"),
