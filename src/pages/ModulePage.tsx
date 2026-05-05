@@ -112,8 +112,22 @@ export default function ModulePage() {
   );
 }
 
+function isMeaningful(v: any) {
+  if (v == null) return false;
+  if (typeof v === "string") { const s = v.trim(); return s !== "" && s !== "—" && s.toLowerCase() !== "sem informação"; }
+  return true;
+}
+
 function ModuleHeader({ modulo, rodagem, onRefresh }: { modulo: Modulo | null; rodagem: Rodagem | null; onRefresh: () => void }) {
   const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
+  const fields: { label: string; value: any }[] = rodagem ? [
+    { label: "Sistema", value: rodagem.sistema },
+    { label: "Ambiente", value: rodagem.ambiente },
+    { label: "Branch", value: rodagem.branch },
+    { label: "Versão", value: rodagem.versao_sistema },
+    { label: "Máquina", value: rodagem.maquina },
+    { label: "Análise", value: formatDateTime(rodagem.data_analise) },
+  ].filter((f) => isMeaningful(f.value)) : [];
   return (
     <Card className="glass-card p-6 lg:p-8 relative overflow-hidden">
       <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-gradient-primary opacity-10 blur-3xl" />
@@ -125,21 +139,18 @@ function ModuleHeader({ modulo, rodagem, onRefresh }: { modulo: Modulo | null; r
               <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />{health.label}
             </Badge>
           </div>
-          {rodagem && (
+          {fields.length > 0 && (
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
-              <span><strong className="text-foreground/80">Sistema:</strong> {rodagem.sistema || "—"}</span>
-              <span><strong className="text-foreground/80">Ambiente:</strong> {rodagem.ambiente || "—"}</span>
-              <span><strong className="text-foreground/80">Branch:</strong> {rodagem.branch || "—"}</span>
-              <span><strong className="text-foreground/80">Versão:</strong> {rodagem.versao_sistema || "—"}</span>
-              <span><strong className="text-foreground/80">Máquina:</strong> {rodagem.maquina || "—"}</span>
-              <span><strong className="text-foreground/80">Análise:</strong> {formatDateTime(rodagem.data_analise)}</span>
+              {fields.map((f) => (
+                <span key={f.label}><strong className="text-foreground/80">{f.label}:</strong> {f.value}</span>
+              ))}
             </div>
           )}
         </div>
         <div className="flex items-center gap-3">
-          {rodagem && (
+          {rodagem?.score_saude != null && (
             <div className="text-right">
-              <div className="text-4xl font-bold gradient-text">{rodagem.score_saude ?? "—"}</div>
+              <div className="text-4xl font-bold gradient-text">{rodagem.score_saude}</div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Score de saúde</div>
             </div>
           )}
