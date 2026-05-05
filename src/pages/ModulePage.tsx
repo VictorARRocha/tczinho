@@ -548,7 +548,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados : [];
+        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean) : [];
         let casos = resolveCasos(rel);
         // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
         if (casos.length === 0 && g.titulo) {
@@ -567,6 +567,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           severidade_predominante: g.severidade_predominante,
           acao_recomendada: g.acao_recomendada,
           casos,
+          idsRelacionados: rel,
         };
       });
     }
