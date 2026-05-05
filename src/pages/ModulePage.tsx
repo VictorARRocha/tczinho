@@ -325,35 +325,18 @@ function ResumoTab({ rodagem, falhas, passos, onSelect }: { rodagem: Rodagem; fa
         </div>
       )}
 
-      {(grupoData.length > 0 || rotinaData.length > 0) && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {grupoData.length > 0 && (
-            <Card className="glass-card p-6">
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por grupo</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={grupoData} layout="vertical" margin={{ left: 20 }}>
-                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
-          {rotinaData.length > 0 && (
-            <Card className="glass-card p-6">
-              <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por rotina funcional</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={rotinaData} layout="vertical" margin={{ left: 20 }}>
-                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
-                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-                  <Bar dataKey="value" fill="hsl(var(--functional))" radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
-        </div>
+      {rotinaData.length > 0 && (
+        <Card className="glass-card p-6">
+          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por rotina funcional</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={rotinaData} layout="vertical" margin={{ left: 20 }}>
+              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
+              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+              <Bar dataKey="value" fill="hsl(var(--functional))" radius={[0, 6, 6, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </Card>
       )}
 
       <Card className="glass-card p-6">
