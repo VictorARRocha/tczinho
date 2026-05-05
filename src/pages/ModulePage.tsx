@@ -90,7 +90,7 @@ export default function ModulePage() {
         <ChevronLeft className="h-3 w-3" /> Visão geral
       </Link>
 
-      <ModuleHeader modulo={modulo} rodagem={rodagem} onRefresh={() => loadAll(rodagem?.id)} />
+      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={(id) => loadAll(id)} onRefresh={() => loadAll(rodagem?.id)} />
 
       {!rodagem ? (
         <Card className="glass-card p-12 text-center mt-8">
@@ -102,18 +102,14 @@ export default function ModulePage() {
           <TabsList className="bg-card border border-border">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
-            <TabsTrigger value="evidencias">Evidências</TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
-            <TabsTrigger value="passos">Próximos passos</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
-          <TabsContent value="evidencias" className="mt-6"><EvidenciasTab falhas={falhas} evidencias={evidencias} onSelect={setSelectedFalha} /></TabsContent>
-          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} /></TabsContent>
-          <TabsContent value="passos" className="mt-6"><PassosTab passos={passos} /></TabsContent>
-          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} onPick={(id) => loadAll(id)} /></TabsContent>
+          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} /></TabsContent>
+          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
         </Tabs>
       )}
 
