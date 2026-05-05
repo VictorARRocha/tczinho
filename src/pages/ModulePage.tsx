@@ -108,7 +108,7 @@ export default function ModulePage() {
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
-          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} /></TabsContent>
+          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
         </Tabs>
       )}
@@ -494,57 +494,150 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function AgrupamentosTab({ grupos, falhas }: { grupos: Agrupamento[]; falhas: Falha[] }) {
-  // Se não houver grupos reais, agrupa visualmente pelas falhas
-  const visual = useMemo(() => {
-    if (grupos.length > 0) return [];
-    const agg = new Map<string, { titulo: string; tipo: string; quantidade: number; classes: Map<string, number>; sevs: Map<string, number> }>();
+function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; onSelect: (f: Falha) => void }) {
+  // Mapa de falhas por ID e por arquivo (para casar com arquivos_relacionados)
+  const failuresByZip = useMemo(() => {
+    const m = new Map<string, Falha>();
+    falhas.forEach((f) => { if (f.arquivo_zip) m.set(String(f.arquivo_zip).toLowerCase(), f); });
+    return m;
+  }, [falhas]);
+
+  type Item = {
+    id: string;
+    titulo: string;
+    tipo: string | null;
+    descricao: string | null;
+    quantidade: number;
+    classificacao_predominante: string | null;
+    severidade_predominante: string | null;
+    acao_recomendada: string | null;
+    casos: Falha[];
+    isVisual?: boolean;
+  };
+
+  const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+  const items: Item[] = useMemo(() => {
+    if (grupos.length > 0) {
+      return grupos.map((g: any) => {
+        let casos: Falha[] = [];
+        const rel = g.arquivos_relacionados;
+        if (Array.isArray(rel) && rel.length > 0) {
+          casos = rel.map((r: any) => failuresByZip.get(String(r).toLowerCase())).filter(Boolean) as Falha[];
+        }
+        // fallback: associar pela classificação/severidade predominante quando vazio
+        if (casos.length === 0 && g.titulo) {
+          casos = falhas.filter((f) => f.grupo === g.titulo);
+        }
+        return {
+          id: g.id,
+          titulo: g.titulo || "Agrupamento",
+          tipo: g.tipo,
+          descricao: g.descricao,
+          quantidade: g.quantidade || casos.length,
+          classificacao_predominante: g.classificacao_predominante,
+          severidade_predominante: g.severidade_predominante,
+          acao_recomendada: g.acao_recomendada,
+          casos,
+        };
+      });
+    }
+    // Agrupamento visual a partir das falhas
+    const agg = new Map<string, { titulo: string; tipo: string; casos: Falha[]; classes: Map<string, number>; sevs: Map<string, number> }>();
     falhas.forEach((f) => {
-      const key = f.grupo || f.classificacao || f.severidade || "Outros";
-      const cur = agg.get(key) || { titulo: key, tipo: "Grupo", quantidade: 0, classes: new Map(), sevs: new Map() };
-      cur.quantidade += 1;
+      const key = f.grupo || f.classificacao || f.severidade || f.rotina_funcional || "Outros";
+      const tipo = f.grupo ? "Grupo" : f.classificacao ? "Classificação" : f.severidade ? "Severidade" : f.rotina_funcional ? "Rotina funcional" : "Outros";
+      const cur = agg.get(key) || { titulo: key, tipo, casos: [], classes: new Map(), sevs: new Map() };
+      cur.casos.push(f);
       if (f.classificacao) cur.classes.set(f.classificacao, (cur.classes.get(f.classificacao) || 0) + 1);
       if (f.severidade) cur.sevs.set(f.severidade, (cur.sevs.get(f.severidade) || 0) + 1);
       agg.set(key, cur);
     });
-    const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
     return Array.from(agg.values())
-      .sort((a, b) => b.quantidade - a.quantidade)
-      .slice(0, 8)
-      .map((g) => ({ id: g.titulo, titulo: g.titulo, tipo: g.tipo, quantidade: g.quantidade, classificacao_predominante: top(g.classes), severidade_predominante: top(g.sevs), descricao: null as any, acao_recomendada: null as any, isVisual: true }));
-  }, [grupos, falhas]);
+      .sort((a, b) => b.casos.length - a.casos.length)
+      .map((g) => ({
+        id: g.titulo,
+        titulo: g.titulo,
+        tipo: g.tipo,
+        descricao: null,
+        quantidade: g.casos.length,
+        classificacao_predominante: top(g.classes),
+        severidade_predominante: top(g.sevs),
+        acao_recomendada: null,
+        casos: g.casos,
+        isVisual: true,
+      }));
+  }, [grupos, falhas, failuresByZip]);
 
-  const items: any[] = grupos.length > 0 ? grupos : visual;
   if (items.length === 0) return <Empty text="Sem agrupamentos." />;
 
+  const visualAviso = items.some((i) => i.isVisual);
+
   return (
-    <div className="space-y-3">
-      {visual.length > 0 && (
-        <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (a tabela <code>agrupamentos</code> está vazia para esta rodagem).</p>
+    <div className="space-y-4">
+      {visualAviso && (
+        <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
       )}
-      <div className="grid gap-4 md:grid-cols-2">
-        {items.map((g) => (
-          <Card key={g.id} className="glass-card p-5">
-            <div className="flex items-start justify-between mb-3 gap-3">
-              <div className="min-w-0">
-                {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
-                <h3 className="font-semibold mt-0.5 truncate">{g.titulo}</h3>
-              </div>
-              <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
+      {items.map((g) => (
+        <Card key={g.id} className="glass-card p-5">
+          <div className="flex items-start justify-between mb-3 gap-3">
+            <div className="min-w-0">
+              {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
+              <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
             </div>
-            {g.descricao && <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{g.descricao}</p>}
-            <div className="flex flex-wrap gap-2 mb-3">
-              {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
-              {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
+            <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
+          </div>
+          {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
+            {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
+          </div>
+          {g.acao_recomendada && (
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs mb-4">
+              <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
             </div>
-            {g.acao_recomendada && (
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs">
-                <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
+          )}
+
+          {g.casos.length > 0 ? (
+            <div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                Casos que quebraram ({g.casos.length})
               </div>
-            )}
-          </Card>
-        ))}
-      </div>
+              <div className="space-y-2">
+                {g.casos.map((f) => {
+                  const desc = failureDescription(f);
+                  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
+                  return (
+                    <div key={f.id} className="rounded-lg bg-secondary/40 p-3 hover:bg-secondary/70 transition-smooth">
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">{titulo}</div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                            {f.arquivo_zip && <span className="truncate max-w-[200px]">{f.arquivo_zip}</span>}
+                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                            {f.rotina_funcional && <span>{f.rotina_funcional}</span>}
+                          </div>
+                          {desc && desc !== titulo && (
+                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                          )}
+                          <div className="flex flex-wrap items-center gap-2 mt-2">
+                            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+                            {f.severidade && <SeverityBadge value={f.severidade} />}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => onSelect(f)}>Ver detalhe</Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
+          )}
+        </Card>
+      ))}
     </div>
   );
 }
