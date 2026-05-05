@@ -545,18 +545,53 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
 
   const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
+  const norm = (s: any) => String(s ?? "").toLowerCase().trim();
+
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean) : [];
+        const rel = Array.isArray(g.arquivos_relacionados)
+          ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
+          : [];
+
+        // 1) tentar via arquivos_relacionados (id, id_caso_teste, arquivo_zip)
         let casos = resolveCasos(rel);
-        // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
-        if (casos.length === 0 && g.titulo) {
-          casos = falhas.filter((f) => f.grupo === g.titulo);
+
+        // 2) fallback por título / grupo / classificação / severidade / rotina
+        if (casos.length === 0) {
+          const titulo = norm(g.titulo);
+          const desc = norm(g.descricao);
+          const tipo = norm(g.tipo);
+          const cls = norm(g.classificacao_predominante);
+          const sev = norm(g.severidade_predominante);
+          const seen = new Set<string>();
+          const add = (f: Falha) => { if (!seen.has(f.id)) { seen.add(f.id); casos.push(f); } };
+
+          falhas.forEach((f) => {
+            const grupo = norm(f.grupo);
+            const subgrupo = norm(f.subgrupo);
+            const rot = norm(f.rotina_funcional);
+            const fcls = norm(f.classificacao);
+            const fsev = norm(f.severidade);
+
+            if (titulo && (grupo === titulo || subgrupo === titulo || rot === titulo)) return add(f);
+            if (tipo && (grupo === tipo || subgrupo === tipo)) return add(f);
+            if (cls && fcls === cls && sev && fsev === sev) return add(f);
+            if (titulo && rot && titulo.includes(rot)) return add(f);
+            if (titulo && grupo && titulo.includes(grupo)) return add(f);
+            if (desc && rot && desc.includes(rot)) return add(f);
+          });
+
+          // se mesmo assim vazio, tenta só por classificação OU severidade predominante
+          if (casos.length === 0 && (cls || sev)) {
+            falhas.forEach((f) => {
+              if (cls && norm(f.classificacao) === cls) return add(f);
+              if (sev && norm(f.severidade) === sev) return add(f);
+            });
+          }
         }
-        const quantidade = typeof g.quantidade === "number" && g.quantidade > 0
-          ? g.quantidade
-          : (rel.length || casos.length);
+
+        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : rel.length);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
@@ -571,7 +606,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         };
       });
     }
-    // Agrupamento visual a partir das falhas
+    // 3) Sem agrupamentos no DB: gera direto a partir das falhas (por grupo, classif, sev, rotina)
     const agg = new Map<string, { titulo: string; tipo: string; casos: Falha[]; classes: Map<string, number>; sevs: Map<string, number> }>();
     falhas.forEach((f) => {
       const key = f.grupo || f.classificacao || f.severidade || f.rotina_funcional || "Outros";
