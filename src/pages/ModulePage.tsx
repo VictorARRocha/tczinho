@@ -594,7 +594,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         casos: g.casos,
         isVisual: true,
       }));
-  }, [grupos, falhas, failuresByZip]);
+  }, [grupos, falhas, indices]);
 
   if (items.length === 0) return <Empty text="Sem agrupamentos." />;
 
