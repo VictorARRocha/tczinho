@@ -397,6 +397,7 @@ export async function fetchGroupLinksByRun(runId: string): Promise<Record<string
   return out;
 }
 
+export async function fetchNextStepsByRun(runId: string): Promise<ProximoPasso[]> {
   const clusterIds = await clustersOfRun(runId);
   if (clusterIds.length === 0) return [];
   const { data, error } = await supabase.from("proximos_passos").select("*").in("fk_cluster", clusterIds);
