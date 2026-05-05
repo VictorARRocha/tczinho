@@ -458,9 +458,9 @@ function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha)
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               {cols.prioridade && <TableHead className="w-12">#</TableHead>}
-              <TableHead>Arquivo / Caso</TableHead>
+              <TableHead>Caso de teste</TableHead>
               {cols.grupo && <TableHead>Grupo</TableHead>}
-              {cols.erro && <TableHead>Erro principal</TableHead>}
+              {cols.descricao && <TableHead>Descrição</TableHead>}
               {cols.classificacao && <TableHead>Classificação</TableHead>}
               {cols.severidade && <TableHead>Severidade</TableHead>}
               {cols.confianca && <TableHead>Confiança</TableHead>}
