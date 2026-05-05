@@ -237,9 +237,9 @@ export async function fetchModules(): Promise<Modulo[]> {
     }
   });
 
-  return Array.from(bySlug.values()).sort(
-    (a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || a.nome.localeCompare(b.nome),
-  );
+  return Array.from(bySlug.values())
+    .filter((m) => OFFICIAL_SLUGS.has(m.slug))
+    .sort((a, b) => (a.ordem ?? 99) - (b.ordem ?? 99) || a.nome.localeCompare(b.nome));
 }
 
 async function getModuloIdBySlug(slug: string): Promise<string | null> {
