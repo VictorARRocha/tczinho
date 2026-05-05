@@ -80,7 +80,7 @@ export async function fetchModules(): Promise<Modulo[]> {
 }
 
 // ---------- helpers genéricos ----------
-async function safeQuery<T>(run: () => Promise<{ data: any; error: any }>): Promise<T[]> {
+async function safeQuery<T>(run: () => any): Promise<T[]> {
   try {
     const { data, error } = await run();
     if (error) {
