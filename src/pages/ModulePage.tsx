@@ -667,59 +667,68 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
           )}
 
           {g.casos.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Casos que quebraram ({g.casos.length})
-              </div>
-              <div className="space-y-2">
-                {g.casos.map((f) => {
-                  const desc = failureDescription(f);
-                  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
-                  const rid = f.rotina_funcional || f.subgrupo || "";
-                  return (
-                    <div
-                      key={f.id}
-                      className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
-                      onClick={() => onSelect(f)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {rid ? `[${rid}] ` : ""}{titulo}
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
-                            {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
-                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
-                            {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
-                          </div>
-                          {desc && (
-                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
-                          )}
-                        </div>
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : g.idsRelacionados.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                IDs relacionados ({g.idsRelacionados.length})
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {g.idsRelacionados.map((rid, i) => (
-                  <Badge key={`${rid}-${i}`} variant="secondary" className="font-mono text-[11px]">{rid}</Badge>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
-          )}
+            <GroupCasesList casos={g.casos} onSelect={onSelect} />
+          ) : g.semVinculo ? (
+            <p className="text-xs text-muted-foreground italic">
+              Este agrupamento ainda não possui vínculos gravados. O Codex precisa preencher a tabela <code>agrupamentos_falhas</code>.
+            </p>
+          ) : null}
         </Card>
       ))}
+    </div>
+  );
+}
+
+function GroupCasesList({ casos, onSelect }: { casos: Falha[]; onSelect: (f: Falha) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Casos vinculados a esta quebra ({casos.length})
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "Ocultar casos" : "Ver casos"}
+        </Button>
+      </div>
+      {open && (
+        <div className="space-y-2">
+          {casos.map((f) => {
+            const desc = failureDescription(f);
+            const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
+            const rid = f.rotina_funcional || f.subgrupo || "";
+            return (
+              <div
+                key={f.id}
+                className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
+                onClick={() => onSelect(f)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {rid ? `[${rid}] ` : ""}{titulo}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                      {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                      {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
+                      {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                      {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+                      {f.severidade && <SeverityBadge value={f.severidade} />}
+                    </div>
+                    {desc && (
+                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
