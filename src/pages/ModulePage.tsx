@@ -260,23 +260,19 @@ function ResumoTab({ rodagem, falhas, passos, onSelect }: { rodagem: Rodagem; fa
 
   return (
     <div className="space-y-6">
-      <Card className="glass-card p-6">
-        <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
-        {hasDiagText ? (
-          <>
-            {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
-            {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
-            {isMeaningful(rodagem.conclusao_geral) && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conclusão</div>
-                <p className="text-sm">{rodagem.conclusao_geral}</p>
-              </div>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{fallbackDiag}</p>
-        )}
-      </Card>
+      {hasDiagText && (
+        <Card className="glass-card p-6">
+          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
+          {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
+          {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
+          {isMeaningful(rodagem.conclusao_geral) && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conclusão</div>
+              <p className="text-sm">{rodagem.conclusao_geral}</p>
+            </div>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
