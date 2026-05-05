@@ -478,7 +478,7 @@ function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha)
                   {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground">{f.id_caso_teste}</div>}
                 </TableCell>
                 {cols.grupo && <TableCell className="text-xs">{f.grupo}{f.subgrupo && <span className="text-muted-foreground"> / {f.subgrupo}</span>}</TableCell>}
-                {cols.erro && <TableCell className="max-w-[280px]"><div className="truncate text-sm">{f.erro_principal || f.mensagem_principal || "—"}</div></TableCell>}
+                {cols.descricao && <TableCell className="max-w-[320px]"><div className="line-clamp-2 text-xs text-muted-foreground">{failureDescription(f) || "—"}</div></TableCell>}
                 {cols.classificacao && <TableCell><ClassificationBadge value={f.classificacao} /></TableCell>}
                 {cols.severidade && <TableCell><SeverityBadge value={f.severidade} /></TableCell>}
                 {cols.confianca && <TableCell><ConfidenceBadge value={f.confianca} /></TableCell>}
