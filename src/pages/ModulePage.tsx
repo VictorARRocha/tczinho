@@ -228,13 +228,13 @@ function ResumoTab({ rodagem, falhas, passos, onSelect }: { rodagem: Rodagem; fa
   const grupoData = useMemo(() => {
     const m = new Map<string, number>();
     falhas.forEach((f) => { if (f.grupo) m.set(f.grupo, (m.get(f.grupo) || 0) + 1); });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [falhas]);
 
   const rotinaData = useMemo(() => {
     const m = new Map<string, number>();
     falhas.forEach((f) => { if (f.rotina_funcional) m.set(f.rotina_funcional, (m.get(f.rotina_funcional) || 0) + 1); });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [falhas]);
 
   const cards: { label: string; value: number; tone?: string; force?: boolean }[] = [
