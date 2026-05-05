@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso } from "@/types/db";
+import type { Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem } from "@/types/db";
 
 // =====================================================================
 // Mapeamento para o schema REAL do Supabase (Tczinho):
