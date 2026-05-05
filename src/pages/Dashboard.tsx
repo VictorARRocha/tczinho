@@ -83,6 +83,14 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
   const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const hasData = !!rodagem;
 
+  const stats = hasData ? [
+    { icon: AlertTriangle, label: "Falhas", value: rodagem!.total_falhas, tone: "text-foreground", force: true },
+    { icon: ShieldAlert, label: "Funcional", value: rodagem!.total_possivel_funcional, tone: "text-functional" },
+    { icon: Bot, label: "Automação", value: rodagem!.total_automacao, tone: "text-automation" },
+    { icon: Database, label: "Massa/Dados", value: rodagem!.total_massa_dados, tone: "text-data-mass" },
+    { icon: HelpCircle, label: "Inconclusivo", value: rodagem!.total_inconclusivo, tone: "text-inconclusive" },
+  ].filter((s) => s.force || (s.value ?? 0) > 0) : [];
+
   return (
     <Link to={`/modulo/${modulo.slug}`} className="group">
       <Card className={`relative overflow-hidden p-6 glass-card transition-smooth hover:-translate-y-0.5 hover:border-primary/40 ${!hasData ? "opacity-80" : ""}`}>
@@ -92,7 +100,7 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
           <div>
             <h3 className="text-xl font-bold tracking-tight">{modulo.nome}</h3>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {hasData ? formatRelative(rodagem!.data_analise) : "Nenhuma rodagem encontrada"}
+              {hasData ? formatRelative(rodagem!.data_analise) : "Sem dados"}
             </p>
           </div>
           <Badge variant="outline" className={`${health.className} gap-1.5 font-medium`}>
@@ -103,18 +111,15 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
 
         {hasData ? (
           <>
-            <div className="mb-5 flex items-baseline gap-2">
-              <span className="text-4xl font-bold gradient-text">{rodagem!.score_saude ?? "—"}</span>
-              <span className="text-xs text-muted-foreground">score de saúde</span>
-            </div>
+            {rodagem!.score_saude != null && (
+              <div className="mb-5 flex items-baseline gap-2">
+                <span className="text-4xl font-bold gradient-text">{rodagem!.score_saude}</span>
+                <span className="text-xs text-muted-foreground">score de saúde</span>
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-2.5 mb-4">
-              <Stat icon={AlertTriangle} label="Falhas" value={rodagem!.total_falhas} tone="text-foreground" />
-              <Stat icon={ShieldAlert} label="Funcional" value={rodagem!.total_possivel_funcional} tone="text-functional" />
-              <Stat icon={Bot} label="Automação" value={rodagem!.total_automacao} tone="text-automation" />
-              <Stat icon={Database} label="Massa/Dados" value={rodagem!.total_massa_dados} tone="text-data-mass" />
-              <Stat icon={HelpCircle} label="Inconclusivo" value={rodagem!.total_inconclusivo} tone="text-inconclusive" />
-              <Stat icon={Activity} label="Analisados" value={rodagem!.total_analisados} tone="text-muted-foreground" />
+            <div className={`grid gap-2.5 mb-4 ${stats.length > 2 ? "grid-cols-2" : "grid-cols-1"}`}>
+              {stats.map((s) => <Stat key={s.label} icon={s.icon} label={s.label} value={s.value} tone={s.tone} />)}
             </div>
 
             {rodagem!.diagnostico_curto && (
@@ -125,7 +130,7 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
           </>
         ) : (
           <div className="py-6 text-center">
-            <p className="text-sm text-muted-foreground">Aguardando primeira rodagem do TestComplete.</p>
+            <p className="text-sm text-muted-foreground">Aguardando primeira rodagem.</p>
           </div>
         )}
 
