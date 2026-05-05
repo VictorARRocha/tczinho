@@ -42,6 +42,7 @@ export default function ModulePage() {
   const [grupos, setGrupos] = useState<Agrupamento[]>([]);
   const [passos, setPassos] = useState<ProximoPasso[]>([]);
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
+  const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState("resumo");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
@@ -57,13 +58,13 @@ export default function ModulePage() {
       const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(slug)));
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf] = await Promise.all([
+        const [f, e, g, p, perf, links] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
-          fetchPerformanceByRun(r.id),
+          fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
         ]);
-        setFalhas(f); setEvidencias(e); setGrupos(g); setPassos(p); setPerformance(perf);
+        setFalhas(f); setEvidencias(e); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]);
+        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
       }
     } catch (e: any) {
       toast.error("Erro ao carregar módulo", { description: e?.message });
