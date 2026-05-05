@@ -814,6 +814,17 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [caseFilter, setCaseFilter] = useState<string>("");
 
+  const filtered = useMemo(() => {
+    let out = [...data];
+    if (statusFilter) out = out.filter((d) => d.status === statusFilter);
+    if (caseFilter) out = out.filter((d) => d.codigo_teste === caseFilter);
+    if (q) {
+      const k = q.toLowerCase();
+      out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
+    }
+    return out.sort((a, b) => Math.abs(b.delay_segundos) - Math.abs(a.delay_segundos));
+  }, [data, q, statusFilter, caseFilter]);
+
   if (data.length === 0) {
     return (
       <Card className="glass-card p-12 text-center">
