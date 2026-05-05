@@ -102,17 +102,19 @@ export default function ModulePage() {
           <p className="mt-2 text-sm text-muted-foreground">Este módulo ainda não recebeu análise do Codex/Python.</p>
         </Card>
       ) : (
-        <Tabs defaultValue="resumo" className="mt-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
           <TabsList className="bg-card border border-border">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
+            <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">({performance.length})</span>}</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} performance={performance} onSelect={setSelectedFalha} onOpenPerformance={() => setActiveTab("performance")} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
         </Tabs>
       )}
