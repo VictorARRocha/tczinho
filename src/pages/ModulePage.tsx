@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
-  fetchPerformanceByRun,
+  fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules,
 } from "@/services/qa";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
@@ -42,6 +42,7 @@ export default function ModulePage() {
   const [grupos, setGrupos] = useState<Agrupamento[]>([]);
   const [passos, setPassos] = useState<ProximoPasso[]>([]);
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
+  const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState("resumo");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
@@ -57,13 +58,13 @@ export default function ModulePage() {
       const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(slug)));
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf] = await Promise.all([
+        const [f, e, g, p, perf, links] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
-          fetchPerformanceByRun(r.id),
+          fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
         ]);
-        setFalhas(f); setEvidencias(e); setGrupos(g); setPassos(p); setPerformance(perf);
+        setFalhas(f); setEvidencias(e); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]);
+        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
       }
     } catch (e: any) {
       toast.error("Erro ao carregar módulo", { description: e?.message });
@@ -113,7 +114,7 @@ export default function ModulePage() {
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} performance={performance} onSelect={setSelectedFalha} onOpenPerformance={() => setActiveTab("performance")} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
-          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
         </Tabs>
@@ -521,8 +522,7 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; onSelect: (f: Falha) => void }) {
-  // Índices para casar arquivos_relacionados com falhas (por id, id_caso_teste ou arquivo_zip)
+function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; links: Record<string, string[]>; onSelect: (f: Falha) => void }) {
   const indices = useMemo(() => {
     const byId = new Map<string, Falha>();
     const byCaso = new Map<string, Falha[]>();
@@ -566,74 +566,50 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
     severidade_predominante: string | null;
     acao_recomendada: string | null;
     casos: Falha[];
-    idsRelacionados: string[];
+    semVinculo?: boolean;
     isVisual?: boolean;
   };
 
   const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-  const norm = (s: any) => String(s ?? "").toLowerCase().trim();
-
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados)
-          ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
-          : [];
+        // FONTE PRIMÁRIA: agrupamentos_falhas (com fallback fk_cluster no service)
+        const linkedIds = links[String(g.id)] || [];
+        let casos = resolveCasos(linkedIds);
 
-        // 1) tentar via arquivos_relacionados (id, id_caso_teste, arquivo_zip)
-        let casos = resolveCasos(rel);
-
-        // 2) fallback por título / grupo / classificação / severidade / rotina
+        // FALLBACK: arquivos_relacionados
+        let semVinculo = false;
         if (casos.length === 0) {
-          const titulo = norm(g.titulo);
-          const desc = norm(g.descricao);
-          const tipo = norm(g.tipo);
-          const cls = norm(g.classificacao_predominante);
-          const sev = norm(g.severidade_predominante);
-          const seen = new Set<string>();
-          const add = (f: Falha) => { if (!seen.has(f.id)) { seen.add(f.id); casos.push(f); } };
-
-          falhas.forEach((f) => {
-            const grupo = norm(f.grupo);
-            const subgrupo = norm(f.subgrupo);
-            const rot = norm(f.rotina_funcional);
-            const fcls = norm(f.classificacao);
-            const fsev = norm(f.severidade);
-
-            if (titulo && (grupo === titulo || subgrupo === titulo || rot === titulo)) return add(f);
-            if (tipo && (grupo === tipo || subgrupo === tipo)) return add(f);
-            if (cls && fcls === cls && sev && fsev === sev) return add(f);
-            if (titulo && rot && titulo.includes(rot)) return add(f);
-            if (titulo && grupo && titulo.includes(grupo)) return add(f);
-            if (desc && rot && desc.includes(rot)) return add(f);
-          });
-
-          // se mesmo assim vazio, tenta só por classificação OU severidade predominante
-          if (casos.length === 0 && (cls || sev)) {
-            falhas.forEach((f) => {
-              if (cls && norm(f.classificacao) === cls) return add(f);
-              if (sev && norm(f.severidade) === sev) return add(f);
-            });
-          }
+          const rel = Array.isArray(g.arquivos_relacionados)
+            ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
+            : [];
+          casos = resolveCasos(rel);
+          if (casos.length === 0) semVinculo = true;
         }
 
-        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : rel.length);
+        const cls = new Map<string, number>(); const sevs = new Map<string, number>();
+        casos.forEach((f) => {
+          if (f.classificacao) cls.set(f.classificacao, (cls.get(f.classificacao) || 0) + 1);
+          if (f.severidade) sevs.set(f.severidade, (sevs.get(f.severidade) || 0) + 1);
+        });
+        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : 0);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
           tipo: g.tipo,
           descricao: g.descricao,
           quantidade,
-          classificacao_predominante: g.classificacao_predominante,
-          severidade_predominante: g.severidade_predominante,
+          classificacao_predominante: g.classificacao_predominante || top(cls),
+          severidade_predominante: g.severidade_predominante || top(sevs),
           acao_recomendada: g.acao_recomendada,
           casos,
-          idsRelacionados: rel,
+          semVinculo,
         };
       });
     }
-    // 3) Sem agrupamentos no DB: gera direto a partir das falhas (por grupo, classif, sev, rotina)
+    // Sem agrupamentos no DB: gera direto a partir das falhas
     const agg = new Map<string, { titulo: string; tipo: string; casos: Falha[]; classes: Map<string, number>; sevs: Map<string, number> }>();
     falhas.forEach((f) => {
       const key = f.grupo || f.classificacao || f.severidade || f.rotina_funcional || "Outros";
@@ -656,10 +632,9 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         severidade_predominante: top(g.sevs),
         acao_recomendada: null,
         casos: g.casos,
-        idsRelacionados: [],
         isVisual: true,
       }));
-  }, [grupos, falhas, indices]);
+  }, [grupos, falhas, links, indices]);
 
   if (items.length === 0) return <Empty text="Sem agrupamentos." />;
 
@@ -692,59 +667,68 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           )}
 
           {g.casos.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Casos que quebraram ({g.casos.length})
-              </div>
-              <div className="space-y-2">
-                {g.casos.map((f) => {
-                  const desc = failureDescription(f);
-                  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
-                  const rid = f.rotina_funcional || f.subgrupo || "";
-                  return (
-                    <div
-                      key={f.id}
-                      className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
-                      onClick={() => onSelect(f)}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {rid ? `[${rid}] ` : ""}{titulo}
-                          </div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
-                            {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
-                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
-                            {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
-                          </div>
-                          {desc && (
-                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
-                          )}
-                        </div>
-                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : g.idsRelacionados.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                IDs relacionados ({g.idsRelacionados.length})
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {g.idsRelacionados.map((rid, i) => (
-                  <Badge key={`${rid}-${i}`} variant="secondary" className="font-mono text-[11px]">{rid}</Badge>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
-          )}
+            <GroupCasesList casos={g.casos} onSelect={onSelect} />
+          ) : g.semVinculo ? (
+            <p className="text-xs text-muted-foreground italic">
+              Este agrupamento ainda não possui vínculos gravados. O Codex precisa preencher a tabela <code>agrupamentos_falhas</code>.
+            </p>
+          ) : null}
         </Card>
       ))}
+    </div>
+  );
+}
+
+function GroupCasesList({ casos, onSelect }: { casos: Falha[]; onSelect: (f: Falha) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          Casos vinculados a esta quebra ({casos.length})
+        </div>
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+          {open ? "Ocultar casos" : "Ver casos"}
+        </Button>
+      </div>
+      {open && (
+        <div className="space-y-2">
+          {casos.map((f) => {
+            const desc = failureDescription(f);
+            const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
+            const rid = f.rotina_funcional || f.subgrupo || "";
+            return (
+              <div
+                key={f.id}
+                className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
+                onClick={() => onSelect(f)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">
+                      {rid ? `[${rid}] ` : ""}{titulo}
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                      {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                      {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
+                      {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                      {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+                      {f.severidade && <SeverityBadge value={f.severidade} />}
+                    </div>
+                    {desc && (
+                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                    )}
+                  </div>
+                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
