@@ -868,17 +868,6 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
 
   const cases = Array.from(new Set(data.map((d) => d.codigo_teste).filter(Boolean))) as string[];
 
-  const filtered = useMemo(() => {
-    let out = [...data];
-    if (statusFilter) out = out.filter((d) => d.status === statusFilter);
-    if (caseFilter) out = out.filter((d) => d.codigo_teste === caseFilter);
-    if (q) {
-      const k = q.toLowerCase();
-      out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
-    }
-    return out.sort((a, b) => Math.abs(b.delay_segundos) - Math.abs(a.delay_segundos));
-  }, [data, q, statusFilter, caseFilter]);
-
   const hasName = data.some((d) => d.nome_teste && d.nome_teste.trim());
 
   const copyRow = (d: AtrasoRodagem) => {
