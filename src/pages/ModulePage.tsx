@@ -41,6 +41,8 @@ export default function ModulePage() {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
   const [grupos, setGrupos] = useState<Agrupamento[]>([]);
   const [passos, setPassos] = useState<ProximoPasso[]>([]);
+  const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
+  const [activeTab, setActiveTab] = useState("resumo");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
 
