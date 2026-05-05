@@ -667,23 +667,35 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           {g.casos.length > 0 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Quebraram {g.casos.length}x
+                Casos que quebraram ({g.casos.length})
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {g.casos.map((f) => {
+                  const desc = failureDescription(f);
                   const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
                   const rid = f.rotina_funcional || f.subgrupo || "";
-                  const label = rid ? `[${rid}] ${titulo}` : titulo;
                   return (
                     <div
                       key={f.id}
-                      className="flex items-center justify-between gap-3 rounded-md bg-secondary/40 hover:bg-secondary/70 transition-smooth px-3 py-2 cursor-pointer"
+                      className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
                       onClick={() => onSelect(f)}
                     >
-                      <div className="text-sm truncate">{label}</div>
-                      <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground font-mono">
-                        {f.id_caso_teste && <span>#{f.id_caso_teste}</span>}
-                        {rid && <span>{rid}</span>}
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {rid ? `[${rid}] ` : ""}{titulo}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                            {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
+                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                            {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
+                          </div>
+                          {desc && (
+                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
                       </div>
                     </div>
                   );
@@ -693,7 +705,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           ) : g.idsRelacionados.length > 0 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Quebraram {g.idsRelacionados.length}x
+                IDs relacionados ({g.idsRelacionados.length})
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {g.idsRelacionados.map((rid, i) => (
