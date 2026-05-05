@@ -495,12 +495,39 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; onSelect: (f: Falha) => void }) {
-  // Mapa de falhas por ID e por arquivo (para casar com arquivos_relacionados)
-  const failuresByZip = useMemo(() => {
-    const m = new Map<string, Falha>();
-    falhas.forEach((f) => { if (f.arquivo_zip) m.set(String(f.arquivo_zip).toLowerCase(), f); });
-    return m;
+  // Índices para casar arquivos_relacionados com falhas (por id, id_caso_teste ou arquivo_zip)
+  const indices = useMemo(() => {
+    const byId = new Map<string, Falha>();
+    const byCaso = new Map<string, Falha[]>();
+    const byZip = new Map<string, Falha>();
+    falhas.forEach((f) => {
+      if (f.id) byId.set(String(f.id).toLowerCase(), f);
+      if (f.id_caso_teste) {
+        const k = String(f.id_caso_teste).toLowerCase();
+        const arr = byCaso.get(k) || [];
+        arr.push(f);
+        byCaso.set(k, arr);
+      }
+      if (f.arquivo_zip) byZip.set(String(f.arquivo_zip).toLowerCase(), f);
+    });
+    return { byId, byCaso, byZip };
   }, [falhas]);
+
+  const resolveCasos = (rel: any): Falha[] => {
+    if (!Array.isArray(rel)) return [];
+    const out: Falha[] = [];
+    const seen = new Set<string>();
+    rel.forEach((r) => {
+      const k = String(r ?? "").toLowerCase().trim();
+      if (!k) return;
+      const matches: Falha[] = [];
+      const a = indices.byId.get(k); if (a) matches.push(a);
+      const b = indices.byCaso.get(k); if (b) matches.push(...b);
+      const c = indices.byZip.get(k); if (c) matches.push(c);
+      matches.forEach((m) => { if (!seen.has(m.id)) { seen.add(m.id); out.push(m); } });
+    });
+    return out;
+  };
 
   type Item = {
     id: string;
