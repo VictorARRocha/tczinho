@@ -93,13 +93,16 @@ export interface Evidencia {
   falha_id: string;
   rodagem_id: string;
   modulo_slug: string;
-  tipo: 'zip' | 'txt' | 'print' | 'outro' | string;
+  tipo: 'zip' | 'rar' | 'txt' | 'log' | 'pdf' | 'print' | 'outro' | string;
   nome_arquivo: string | null;
+  bucket?: string | null;
   storage_path: string | null;
   public_url: string | null;
   signed_url: string | null;
+  url_expira_em?: string | null;
   conteudo_texto: string | null;
   mime_type: string | null;
+  extensao?: string | null;
   tamanho_bytes: number | null;
   print_util: boolean;
   imagem_descricao: string | null;
