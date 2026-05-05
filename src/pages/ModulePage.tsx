@@ -547,21 +547,21 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        let casos: Falha[] = [];
-        const rel = g.arquivos_relacionados;
-        if (Array.isArray(rel) && rel.length > 0) {
-          casos = rel.map((r: any) => failuresByZip.get(String(r).toLowerCase())).filter(Boolean) as Falha[];
-        }
-        // fallback: associar pela classificação/severidade predominante quando vazio
+        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados : [];
+        let casos = resolveCasos(rel);
+        // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
         if (casos.length === 0 && g.titulo) {
           casos = falhas.filter((f) => f.grupo === g.titulo);
         }
+        const quantidade = typeof g.quantidade === "number" && g.quantidade > 0
+          ? g.quantidade
+          : (rel.length || casos.length);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
           tipo: g.tipo,
           descricao: g.descricao,
-          quantidade: g.quantidade || casos.length,
+          quantidade,
           classificacao_predominante: g.classificacao_predominante,
           severidade_predominante: g.severidade_predominante,
           acao_recomendada: g.acao_recomendada,
