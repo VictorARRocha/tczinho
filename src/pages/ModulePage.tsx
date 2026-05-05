@@ -573,71 +573,123 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
 
   const visualAviso = items.some((i) => i.isVisual);
 
+  const [q, setQ] = useState("");
+  const [fGrupo, setFGrupo] = useState("");
+  const [fClass, setFClass] = useState("");
+  const [fSev, setFSev] = useState("");
+  const [fRot, setFRot] = useState("");
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+
+  const opts = useMemo(() => ({
+    grupos: Array.from(new Set(falhas.map((f) => f.grupo).filter(Boolean))) as string[],
+    classes: Array.from(new Set(falhas.map((f) => f.classificacao).filter(Boolean))) as string[],
+    sevs: Array.from(new Set(falhas.map((f) => f.severidade).filter(Boolean))) as string[],
+    rotinas: Array.from(new Set(falhas.map((f) => f.rotina_funcional).filter(Boolean))) as string[],
+  }), [falhas]);
+
+  const matchesFalha = (f: Falha) => {
+    if (q && !`${f.caso_teste_provavel || ""} ${f.id_caso_teste || ""} ${f.arquivo_zip || ""} ${failureDescription(f)}`.toLowerCase().includes(q.toLowerCase())) return false;
+    if (fGrupo && f.grupo !== fGrupo) return false;
+    if (fClass && f.classificacao !== fClass) return false;
+    if (fSev && f.severidade !== fSev) return false;
+    if (fRot && f.rotina_funcional !== fRot) return false;
+    return true;
+  };
+
+  const filteredItems = items
+    .map((g) => ({ ...g, casos: g.casos.filter(matchesFalha) }))
+    .filter((g) => g.casos.length > 0 || (!q && !fGrupo && !fClass && !fSev && !fRot));
+
   return (
     <div className="space-y-4">
       {visualAviso && (
         <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
       )}
-      {items.map((g) => (
-        <Card key={g.id} className="glass-card p-5">
-          <div className="flex items-start justify-between mb-3 gap-3">
-            <div className="min-w-0">
-              {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
-              <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
-            </div>
-            <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
-          </div>
-          {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
-            {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
-          </div>
-          {g.acao_recomendada && (
-            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs mb-4">
-              <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
-            </div>
-          )}
 
-          {g.casos.length > 0 ? (
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Casos que quebraram ({g.casos.length})
+      <Card className="glass-card p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Buscar por caso, ID ou descrição..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {opts.grupos.length > 0 && <Select label="Grupo" value={fGrupo} onChange={setFGrupo} options={opts.grupos} />}
+          {opts.classes.length > 0 && <Select label="Classificação" value={fClass} onChange={setFClass} options={opts.classes} />}
+          {opts.sevs.length > 0 && <Select label="Severidade" value={fSev} onChange={setFSev} options={opts.sevs} />}
+          {opts.rotinas.length > 0 && <Select label="Rotina" value={fRot} onChange={setFRot} options={opts.rotinas} />}
+        </div>
+      </Card>
+
+      {filteredItems.length === 0 && <Empty text="Nenhum agrupamento corresponde aos filtros." />}
+
+      {filteredItems.map((g) => {
+        const isOpen = open[g.id] ?? true;
+        return (
+          <Card key={g.id} className="glass-card p-5">
+            <div className="flex items-start justify-between mb-3 gap-3">
+              <div className="min-w-0">
+                {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
+                <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
               </div>
-              <div className="space-y-2">
-                {g.casos.map((f) => {
-                  const desc = failureDescription(f);
-                  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
-                  return (
-                    <div key={f.id} className="rounded-lg bg-secondary/40 p-3 hover:bg-secondary/70 transition-smooth">
-                      <div className="flex items-start gap-3">
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">{titulo}</div>
-                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
-                            {f.arquivo_zip && <span className="truncate max-w-[200px]">{f.arquivo_zip}</span>}
-                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
-                            {f.rotina_funcional && <span>{f.rotina_funcional}</span>}
-                          </div>
-                          {desc && desc !== titulo && (
-                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
-                          )}
-                          <div className="flex flex-wrap items-center gap-2 mt-2">
-                            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-                            {f.severidade && <SeverityBadge value={f.severidade} />}
+              <Badge variant="outline" className="font-mono shrink-0">×{g.casos.length}</Badge>
+            </div>
+            {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
+              {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
+            </div>
+            {g.acao_recomendada && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs mb-4">
+                <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
+              </div>
+            )}
+
+            {g.casos.length > 0 ? (
+              <div>
+                <button
+                  onClick={() => setOpen((o) => ({ ...o, [g.id]: !isOpen }))}
+                  className="w-full flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground mb-2"
+                >
+                  <span>Casos que quebraram ({g.casos.length})</span>
+                  <span className="text-xs normal-case">{isOpen ? "Ocultar" : "Ver casos"}</span>
+                </button>
+                {isOpen && (
+                  <div className="space-y-2">
+                    {g.casos.map((f) => {
+                      const desc = failureDescription(f);
+                      const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
+                      return (
+                        <div key={f.id} className="rounded-lg bg-secondary/40 p-3 hover:bg-secondary/70 transition-smooth cursor-pointer" onClick={() => onSelect(f)}>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{titulo}</div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                                {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                                {f.arquivo_zip && <span className="truncate max-w-[200px]">{f.arquivo_zip}</span>}
+                                {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                                {f.rotina_funcional && <span>{f.rotina_funcional}</span>}
+                              </div>
+                              {desc && desc !== titulo && (
+                                <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                              )}
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+                                {f.severidade && <SeverityBadge value={f.severidade} />}
+                              </div>
+                            </div>
+                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
                           </div>
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => onSelect(f)}>Ver detalhe</Button>
-                      </div>
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ) : (
-            <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
-          )}
-        </Card>
-      ))}
+            ) : (
+              <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
+            )}
+          </Card>
+        );
+      })}
     </div>
   );
 }
