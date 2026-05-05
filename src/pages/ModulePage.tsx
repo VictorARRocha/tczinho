@@ -714,6 +714,17 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
                   </div>
                 )}
               </div>
+            ) : g.idsRelacionados.length > 0 ? (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                  IDs relacionados ({g.idsRelacionados.length})
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {g.idsRelacionados.map((rid, i) => (
+                    <Badge key={`${rid}-${i}`} variant="secondary" className="font-mono text-[11px]">{rid}</Badge>
+                  ))}
+                </div>
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
             )}
