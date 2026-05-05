@@ -228,28 +228,35 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
       </Card>
     );
   }
-  if (ev.tipo === "zip") {
+  const isArchive = ev.tipo === "zip" || ev.tipo === "rar";
+  if (isArchive || ev.tipo === "pdf" || ev.tipo === "outro") {
+    const upper = (ev.tipo || "ARQUIVO").toUpperCase();
+    const label = isArchive ? `Baixar .${upper}` : ev.tipo === "pdf" ? "Baixar PDF" : "Baixar arquivo";
+    const size = formatBytes(ev.tamanho_bytes);
     return (
       <Card className="p-3 flex items-center gap-3">
-        <FileArchive className="h-5 w-5 text-data-mass" />
+        <FileArchive className={`h-5 w-5 ${ev.tipo === "rar" ? "text-warning" : "text-data-mass"}`} />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{ev.nome_arquivo || "ZIP original"}</div>
-          {ev.tamanho_bytes && <div className="text-[11px] text-muted-foreground">{(ev.tamanho_bytes / 1024).toFixed(1)} KB</div>}
+          <div className="text-sm font-medium truncate">{ev.nome_arquivo || `Arquivo ${upper}`}</div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+            <span className="px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{upper}</span>
+            {size && <span>{size}</span>}
+            {ev.mime_type && <span className="truncate">{ev.mime_type}</span>}
+          </div>
         </div>
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer" download>
-            <Button size="sm" variant="outline"><Download className="h-3 w-3 mr-1" />Baixar ZIP</Button>
-          </a>
-        ) : (
-          <span className="text-xs text-muted-foreground">Sem URL</span>
-        )}
+        <Button size="sm" variant="outline" onClick={() => handleDownload(ev)}>
+          <Download className="h-3 w-3 mr-1" />{label}
+        </Button>
       </Card>
     );
   }
   return (
-    <Card className="p-3 text-sm">
-      {ev.nome_arquivo || ev.tipo}
-      {url && <a href={url} className="ml-2 text-primary text-xs" target="_blank" rel="noreferrer">Abrir</a>}
+    <Card className="p-3 flex items-center gap-3 text-sm">
+      <FileText className="h-4 w-4 text-muted-foreground" />
+      <span className="flex-1 truncate">{ev.nome_arquivo || ev.tipo}</span>
+      <Button size="sm" variant="outline" onClick={() => handleDownload(ev)}>
+        <Download className="h-3 w-3 mr-1" />Baixar
+      </Button>
     </Card>
   );
 }
