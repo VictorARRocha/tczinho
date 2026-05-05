@@ -124,6 +124,23 @@ export interface Agrupamento {
   created_at: string;
 }
 
+export interface AtrasoRodagem {
+  id: string;
+  rodagem_id: string;
+  modulo_slug?: string | null;
+  codigo_teste: string | null;
+  nome_teste: string | null;
+  tempo_padrao: string | null; // HH:MM:SS
+  tempo_atual: string | null;  // HH:MM:SS
+  delay_detectado: string | null; // HH:MM:SS (pode ser negativo se for ganho)
+  delay_segundos: number;       // computado
+  base_segundos: number;        // computado
+  atual_segundos: number;       // computado
+  variacao_pct: number;         // computado
+  status: 'mais_lento' | 'mais_rapido' | 'igual';
+  created_at: string;
+}
+
 export interface ProximoPasso {
   id: string;
   rodagem_id: string;
