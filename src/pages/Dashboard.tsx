@@ -4,7 +4,7 @@ import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/servic
 import type { Modulo, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ArrowUpRight, Activity, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
+import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
 import { formatRelative, getHealthStatus } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
