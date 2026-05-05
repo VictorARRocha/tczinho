@@ -284,6 +284,27 @@ function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerfo
         {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
       </div>
 
+      {performance.length > 0 && (() => {
+        const slow = performance.filter((p) => p.status === "mais_lento");
+        const fast = performance.filter((p) => p.status === "mais_rapido");
+        const maxDelay = slow.reduce((a, b) => (b.delay_segundos > a ? b.delay_segundos : a), 0);
+        return (
+          <Card className="glass-card p-5 flex items-center gap-4 flex-wrap">
+            <div className="h-10 w-10 rounded-lg bg-primary/15 text-primary grid place-items-center"><Gauge className="h-5 w-5" /></div>
+            <div className="flex-1 min-w-[200px]">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">Performance da rodagem</div>
+              <div className="text-sm mt-0.5">
+                <span className="text-destructive font-mono font-semibold">{slow.length}</span> mais lento{slow.length === 1 ? "" : "s"}
+                {" · "}
+                <span className="text-success font-mono font-semibold">{fast.length}</span> mais rápido{fast.length === 1 ? "" : "s"}
+                {maxDelay > 0 && <> · <span className="text-muted-foreground">maior atraso </span><span className="font-mono">{formatDuration(maxDelay)}</span></>}
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={onOpenPerformance}>Ver performance <ArrowRight className="h-3.5 w-3.5" /></Button>
+          </Card>
+        );
+      })()}
+
       {(classData.length > 0 || sevData.length > 0) && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="glass-card p-6">
