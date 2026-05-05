@@ -341,6 +341,7 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
     </div>
   );
 }
+function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha) => void }) {
   const [q, setQ] = useState("");
   const [classif, setClassif] = useState<string>("");
   const [sev, setSev] = useState<string>("");
@@ -361,6 +362,18 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
   }), [falhas, q, classif, sev, conf, hasPrint, hasTxt, hasZip]);
 
   const uniq = (key: keyof Falha) => Array.from(new Set(falhas.map((f) => f[key]).filter(Boolean))) as string[];
+  const has = (key: keyof Falha) => falhas.some((f) => isMeaningful(f[key] as any));
+
+  const cols = {
+    prioridade: has("ordem_prioridade"),
+    grupo: has("grupo") || has("subgrupo"),
+    erro: has("erro_principal") || has("mensagem_principal"),
+    classificacao: has("classificacao"),
+    severidade: has("severidade"),
+    confianca: has("confianca"),
+    evidencias: has("arquivo_print") || has("arquivo_txt") || has("arquivo_zip"),
+  };
+  const colCount = 1 + Object.values(cols).filter(Boolean).length;
 
   return (
     <div className="space-y-4">
@@ -370,12 +383,12 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
           <Input placeholder="Buscar em todas as falhas..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <Select label="Classificação" value={classif} onChange={setClassif} options={uniq("classificacao")} />
-          <Select label="Severidade" value={sev} onChange={setSev} options={uniq("severidade")} />
-          <Select label="Confiança" value={conf} onChange={setConf} options={uniq("confianca")} />
-          <ToggleChip label="Tem print" active={hasPrint} onClick={() => setHasPrint((v) => !v)} />
-          <ToggleChip label="Tem TXT" active={hasTxt} onClick={() => setHasTxt((v) => !v)} />
-          <ToggleChip label="Tem ZIP" active={hasZip} onClick={() => setHasZip((v) => !v)} />
+          {cols.classificacao && <Select label="Classificação" value={classif} onChange={setClassif} options={uniq("classificacao")} />}
+          {cols.severidade && <Select label="Severidade" value={sev} onChange={setSev} options={uniq("severidade")} />}
+          {cols.confianca && <Select label="Confiança" value={conf} onChange={setConf} options={uniq("confianca")} />}
+          {has("arquivo_print") && <ToggleChip label="Tem print" active={hasPrint} onClick={() => setHasPrint((v) => !v)} />}
+          {has("arquivo_txt") && <ToggleChip label="Tem TXT" active={hasTxt} onClick={() => setHasTxt((v) => !v)} />}
+          {has("arquivo_zip") && <ToggleChip label="Tem ZIP" active={hasZip} onClick={() => setHasZip((v) => !v)} />}
         </div>
       </Card>
 
@@ -383,40 +396,40 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead className="w-12">#</TableHead>
+              {cols.prioridade && <TableHead className="w-12">#</TableHead>}
               <TableHead>Arquivo / Caso</TableHead>
-              <TableHead>Grupo</TableHead>
-              <TableHead>Erro principal</TableHead>
-              <TableHead>Classificação</TableHead>
-              <TableHead>Severidade</TableHead>
-              <TableHead>Confiança</TableHead>
-              <TableHead className="text-center">Evidências</TableHead>
+              {cols.grupo && <TableHead>Grupo</TableHead>}
+              {cols.erro && <TableHead>Erro principal</TableHead>}
+              {cols.classificacao && <TableHead>Classificação</TableHead>}
+              {cols.severidade && <TableHead>Severidade</TableHead>}
+              {cols.confianca && <TableHead>Confiança</TableHead>}
+              {cols.evidencias && <TableHead className="text-center">Evidências</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center text-sm text-muted-foreground py-12">Nenhuma falha corresponde aos filtros.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={colCount} className="text-center text-sm text-muted-foreground py-12">Nenhuma falha corresponde aos filtros.</TableCell></TableRow>
             ) : filtered.map((f) => (
               <TableRow key={f.id} className="border-border cursor-pointer hover:bg-secondary/40" onClick={() => onSelect(f)}>
-                <TableCell className="font-mono text-xs text-muted-foreground">{f.ordem_prioridade ?? "—"}</TableCell>
+                {cols.prioridade && <TableCell className="font-mono text-xs text-muted-foreground">{f.ordem_prioridade ?? "—"}</TableCell>}
                 <TableCell>
                   <div className="font-medium text-sm truncate max-w-[240px]">{f.caso_teste_provavel || f.arquivo_zip || "—"}</div>
                   {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground">{f.id_caso_teste}</div>}
                 </TableCell>
-                <TableCell className="text-xs">
-                  {f.grupo}{f.subgrupo && <span className="text-muted-foreground"> / {f.subgrupo}</span>}
-                </TableCell>
-                <TableCell className="max-w-[280px]"><div className="truncate text-sm">{f.erro_principal || f.mensagem_principal || "—"}</div></TableCell>
-                <TableCell><ClassificationBadge value={f.classificacao} /></TableCell>
-                <TableCell><SeverityBadge value={f.severidade} /></TableCell>
-                <TableCell><ConfidenceBadge value={f.confianca} /></TableCell>
-                <TableCell>
-                  <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                    {f.arquivo_print && <ImageIcon className="h-3.5 w-3.5 text-primary" />}
-                    {f.arquivo_txt && <FileText className="h-3.5 w-3.5 text-warning" />}
-                    {f.arquivo_zip && <FileArchive className="h-3.5 w-3.5 text-data-mass" />}
-                  </div>
-                </TableCell>
+                {cols.grupo && <TableCell className="text-xs">{f.grupo}{f.subgrupo && <span className="text-muted-foreground"> / {f.subgrupo}</span>}</TableCell>}
+                {cols.erro && <TableCell className="max-w-[280px]"><div className="truncate text-sm">{f.erro_principal || f.mensagem_principal || "—"}</div></TableCell>}
+                {cols.classificacao && <TableCell><ClassificationBadge value={f.classificacao} /></TableCell>}
+                {cols.severidade && <TableCell><SeverityBadge value={f.severidade} /></TableCell>}
+                {cols.confianca && <TableCell><ConfidenceBadge value={f.confianca} /></TableCell>}
+                {cols.evidencias && (
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
+                      {f.arquivo_print && <ImageIcon className="h-3.5 w-3.5 text-primary" />}
+                      {f.arquivo_txt && <FileText className="h-3.5 w-3.5 text-warning" />}
+                      {f.arquivo_zip && <FileArchive className="h-3.5 w-3.5 text-data-mass" />}
+                    </div>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
