@@ -138,35 +138,43 @@ function normFalha(row: any, rodagem_id = "", modulo_slug = ""): Falha {
   };
 }
 
-function inferTipo(t?: string | null, path?: string | null): string {
+function inferTipo(t?: string | null, path?: string | null, mime?: string | null): string {
   const v = (t || "").toLowerCase();
-  if (v.includes("print") || v.includes("img") || v.includes("png") || v.includes("jpg")) return "print";
-  if (v.includes("txt") || v.includes("log")) return "txt";
-  if (v.includes("zip")) return "zip";
+  const m = (mime || "").toLowerCase();
   const ext = (path || "").toLowerCase().split(".").pop() || "";
-  if (["png", "jpg", "jpeg", "gif", "webp"].includes(ext)) return "print";
-  if (["txt", "log"].includes(ext)) return "txt";
-  if (ext === "zip") return "zip";
+  if (v === "rar" || ext === "rar" || m.includes("rar")) return "rar";
+  if (v.includes("print") || v.includes("img") || ["png", "jpg", "jpeg", "gif", "webp"].includes(ext) || m.startsWith("image/")) return "print";
+  if (v === "log" || ext === "log") return "log";
+  if (v.includes("txt") || ext === "txt" || m.startsWith("text/")) return "txt";
+  if (v === "pdf" || ext === "pdf" || m.includes("pdf")) return "pdf";
+  if (v.includes("zip") || ext === "zip" || m.includes("zip")) return "zip";
   return v || "outro";
 }
 
 function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
-  const tipo = inferTipo(row?.tipo_arquivo, row?.caminho_evidencia);
+  const path = row?.storage_path ?? row?.caminho_evidencia ?? null;
+  const mime = row?.mime_type ?? null;
+  const tipo = inferTipo(row?.tipo ?? row?.tipo_arquivo, path, mime);
+  const nome = row?.nome_arquivo ?? (path ? String(path).split("/").pop() || null : null);
+  const ext = row?.extensao ?? (nome ? (nome.split(".").pop() || "").toLowerCase() : null);
   return {
-    id: row?.id_evidencia,
-    falha_id: row?.fk_falha,
+    id: row?.id_evidencia ?? row?.id,
+    falha_id: row?.fk_falha ?? row?.falha_id,
     rodagem_id,
     modulo_slug,
     tipo,
-    nome_arquivo: row?.caminho_evidencia ? String(row.caminho_evidencia).split("/").pop() || null : null,
-    storage_path: row?.caminho_evidencia ?? null,
-    public_url: row?.caminho_evidencia ?? null,
-    signed_url: null,
-    conteudo_texto: row?.conteudo_resumo ?? null,
-    mime_type: null,
-    tamanho_bytes: null,
+    nome_arquivo: nome,
+    bucket: row?.bucket ?? "evidencias-rodagens",
+    storage_path: path,
+    public_url: row?.public_url ?? null,
+    signed_url: row?.signed_url ?? null,
+    url_expira_em: row?.url_expira_em ?? null,
+    conteudo_texto: row?.conteudo_texto ?? row?.conteudo_resumo ?? null,
+    mime_type: mime,
+    extensao: ext,
+    tamanho_bytes: row?.tamanho_bytes ?? null,
     print_util: tipo === "print",
-    imagem_descricao: row?.correlacao_visual ?? null,
+    imagem_descricao: row?.imagem_descricao ?? row?.correlacao_visual ?? null,
     created_at: row?.created_at ?? "",
   };
 }

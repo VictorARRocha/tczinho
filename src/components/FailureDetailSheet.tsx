@@ -2,11 +2,38 @@ import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
+import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "./Badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+
+function formatBytes(b?: number | null) {
+  if (!b || b <= 0) return null;
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0; let n = b;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n < 10 ? 1 : 0)} ${u[i]}`;
+}
+
+async function resolveDownloadUrl(ev: Evidencia): Promise<string | null> {
+  if (ev.public_url) return ev.public_url;
+  if (ev.signed_url) return ev.signed_url;
+  const bucket = ev.bucket || STORAGE_BUCKET;
+  const path = ev.storage_path;
+  if (!bucket || !path) return null;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  if (error) { toast.error("Falha ao gerar link"); return null; }
+  return data?.signedUrl || null;
+}
+
+async function handleDownload(ev: Evidencia) {
+  const url = await resolveDownloadUrl(ev);
+  if (!url) { toast.error("Sem URL disponível"); return; }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 
 interface Props {
   falha: Falha | null;
@@ -101,7 +128,7 @@ export function FailureDetailSheet({ falha, open, onClose }: Props) {
 
           <Section title={`Evidências (${evidencias.length})`}>
             {evidencias.length === 0 ? (
-              <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência disponível.</Card>
+              <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
             ) : (
               <div className="space-y-3">
                 {evidencias.map((e) => <EvidenceItem key={e.id} ev={e} />)}
@@ -201,28 +228,35 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
       </Card>
     );
   }
-  if (ev.tipo === "zip") {
+  const isArchive = ev.tipo === "zip" || ev.tipo === "rar";
+  if (isArchive || ev.tipo === "pdf" || ev.tipo === "outro") {
+    const upper = (ev.tipo || "ARQUIVO").toUpperCase();
+    const label = isArchive ? `Baixar .${upper}` : ev.tipo === "pdf" ? "Baixar PDF" : "Baixar arquivo";
+    const size = formatBytes(ev.tamanho_bytes);
     return (
       <Card className="p-3 flex items-center gap-3">
-        <FileArchive className="h-5 w-5 text-data-mass" />
+        <FileArchive className={`h-5 w-5 ${ev.tipo === "rar" ? "text-warning" : "text-data-mass"}`} />
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium truncate">{ev.nome_arquivo || "ZIP original"}</div>
-          {ev.tamanho_bytes && <div className="text-[11px] text-muted-foreground">{(ev.tamanho_bytes / 1024).toFixed(1)} KB</div>}
+          <div className="text-sm font-medium truncate">{ev.nome_arquivo || `Arquivo ${upper}`}</div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-0.5">
+            <span className="px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground font-mono">{upper}</span>
+            {size && <span>{size}</span>}
+            {ev.mime_type && <span className="truncate">{ev.mime_type}</span>}
+          </div>
         </div>
-        {url ? (
-          <a href={url} target="_blank" rel="noreferrer" download>
-            <Button size="sm" variant="outline"><Download className="h-3 w-3 mr-1" />Baixar ZIP</Button>
-          </a>
-        ) : (
-          <span className="text-xs text-muted-foreground">Sem URL</span>
-        )}
+        <Button size="sm" variant="outline" onClick={() => handleDownload(ev)}>
+          <Download className="h-3 w-3 mr-1" />{label}
+        </Button>
       </Card>
     );
   }
   return (
-    <Card className="p-3 text-sm">
-      {ev.nome_arquivo || ev.tipo}
-      {url && <a href={url} className="ml-2 text-primary text-xs" target="_blank" rel="noreferrer">Abrir</a>}
+    <Card className="p-3 flex items-center gap-3 text-sm">
+      <FileText className="h-4 w-4 text-muted-foreground" />
+      <span className="flex-1 truncate">{ev.nome_arquivo || ev.tipo}</span>
+      <Button size="sm" variant="outline" onClick={() => handleDownload(ev)}>
+        <Download className="h-3 w-3 mr-1" />Baixar
+      </Button>
     </Card>
   );
 }
