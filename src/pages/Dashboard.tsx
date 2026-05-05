@@ -1,0 +1,164 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/qa";
+import type { Modulo, Rodagem } from "@/types/db";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { ArrowUpRight, Activity, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
+import { formatRelative, getHealthStatus } from "@/lib/format";
+import { toast } from "sonner";
+import { Skeleton } from "@/components/ui/skeleton";
+
+interface ModuleData {
+  modulo: Modulo;
+  rodagem: Rodagem | null;
+}
+
+export default function Dashboard() {
+  const [data, setData] = useState<ModuleData[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    try {
+      const modulos = await fetchModules();
+      const results = await Promise.all(
+        modulos.map(async (m) => ({ modulo: m, rodagem: await fetchLatestRunByModule(m.slug).catch(() => null) })),
+      );
+      setData(results);
+    } catch (e: any) {
+      toast.error("Erro ao conectar Supabase", { description: e?.message });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const off = subscribeToTable("rodagens", (p) => {
+      if (p.eventType === "INSERT") {
+        const slug = p.new?.modulo_slug;
+        toast.success(`Nova rodagem recebida${slug ? ` — ${slug}` : ""}`);
+      }
+      load();
+    });
+    return off;
+  }, []);
+
+  return (
+    <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
+      <div className="mb-10">
+        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-4">
+          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+          Sistema ÚNICO · TestComplete 12/14
+        </div>
+        <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
+          <span className="gradient-text">TCzinho</span> — SCI QA Agent
+        </h1>
+        <p className="mt-3 text-base text-muted-foreground max-w-2xl">
+          Monitoramento inteligente de rodagens automatizadas do TestComplete. Acompanhe falhas, evidências e prioridades em tempo real.
+        </p>
+      </div>
+
+      <div className="mb-6 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Módulos</h2>
+        <span className="text-xs text-muted-foreground">{data.length} módulos · atualização automática</span>
+      </div>
+
+      {loading ? (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+        </div>
+      ) : data.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {data.map(({ modulo, rodagem }) => <ModuleCard key={modulo.id} modulo={modulo} rodagem={rodagem} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | null }) {
+  const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
+  const hasData = !!rodagem;
+
+  return (
+    <Link to={`/modulo/${modulo.slug}`} className="group">
+      <Card className={`relative overflow-hidden p-6 glass-card transition-smooth hover:-translate-y-0.5 hover:border-primary/40 ${!hasData ? "opacity-80" : ""}`}>
+        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+
+        <div className="flex items-start justify-between mb-5">
+          <div>
+            <h3 className="text-xl font-bold tracking-tight">{modulo.nome}</h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {hasData ? formatRelative(rodagem!.data_analise) : "Nenhuma rodagem encontrada"}
+            </p>
+          </div>
+          <Badge variant="outline" className={`${health.className} gap-1.5 font-medium`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
+            {health.label}
+          </Badge>
+        </div>
+
+        {hasData ? (
+          <>
+            <div className="mb-5 flex items-baseline gap-2">
+              <span className="text-4xl font-bold gradient-text">{rodagem!.score_saude ?? "—"}</span>
+              <span className="text-xs text-muted-foreground">score de saúde</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5 mb-4">
+              <Stat icon={AlertTriangle} label="Falhas" value={rodagem!.total_falhas} tone="text-foreground" />
+              <Stat icon={ShieldAlert} label="Funcional" value={rodagem!.total_possivel_funcional} tone="text-functional" />
+              <Stat icon={Bot} label="Automação" value={rodagem!.total_automacao} tone="text-automation" />
+              <Stat icon={Database} label="Massa/Dados" value={rodagem!.total_massa_dados} tone="text-data-mass" />
+              <Stat icon={HelpCircle} label="Inconclusivo" value={rodagem!.total_inconclusivo} tone="text-inconclusive" />
+              <Stat icon={Activity} label="Analisados" value={rodagem!.total_analisados} tone="text-muted-foreground" />
+            </div>
+
+            {rodagem!.diagnostico_curto && (
+              <p className="text-sm text-muted-foreground line-clamp-2 border-t border-border/60 pt-3">
+                {rodagem!.diagnostico_curto}
+              </p>
+            )}
+          </>
+        ) : (
+          <div className="py-6 text-center">
+            <p className="text-sm text-muted-foreground">Aguardando primeira rodagem do TestComplete.</p>
+          </div>
+        )}
+
+        <div className="mt-4 flex items-center justify-end text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+          Abrir módulo <ArrowUpRight className="ml-1 h-3 w-3" />
+        </div>
+      </Card>
+    </Link>
+  );
+}
+
+function Stat({ icon: Icon, label, value, tone }: { icon: any; label: string; value: number; tone: string }) {
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-secondary/40 px-2.5 py-2">
+      <Icon className={`h-3.5 w-3.5 ${tone}`} />
+      <div className="flex flex-col leading-tight">
+        <span className={`text-sm font-semibold font-mono ${tone}`}>{value ?? 0}</span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <Card className="glass-card p-12 text-center">
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <Database className="h-5 w-5 text-muted-foreground" />
+      </div>
+      <h3 className="text-lg font-semibold">Sem dados reais ainda</h3>
+      <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+        Nenhum módulo encontrado. Execute as migrations no Supabase do projeto Tczinho para começar.
+      </p>
+    </Card>
+  );
+}
