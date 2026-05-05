@@ -257,3 +257,33 @@ drop policy if exists "public read evidencias bucket" on storage.objects;
 create policy "public read evidencias bucket"
   on storage.objects for select
   using (bucket_id = 'evidencias-rodagens');
+
+-- ---------------------------------------------------------------------
+-- 10) Tabela de vínculo agrupamentos <-> falhas
+-- ---------------------------------------------------------------------
+create table if not exists public.agrupamentos_falhas (
+  id uuid primary key default gen_random_uuid(),
+  agrupamento_id text references public.agrupamentos(id_cluster) on delete cascade,
+  falha_id text references public.falhas(id_falha) on delete cascade,
+  rodagem_id text references public.rodagens(id_rodagem) on delete cascade,
+  modulo_slug text,
+  created_at timestamptz default now(),
+  unique (agrupamento_id, falha_id)
+);
+
+create index if not exists idx_agrupamentos_falhas_agrup on public.agrupamentos_falhas(agrupamento_id);
+create index if not exists idx_agrupamentos_falhas_falha on public.agrupamentos_falhas(falha_id);
+create index if not exists idx_agrupamentos_falhas_rodagem on public.agrupamentos_falhas(rodagem_id);
+
+alter table public.agrupamentos_falhas enable row level security;
+drop policy if exists "public read agrupamentos_falhas" on public.agrupamentos_falhas;
+create policy "public read agrupamentos_falhas" on public.agrupamentos_falhas for select using (true);
+
+do $$
+begin
+  begin
+    execute 'alter publication supabase_realtime add table public.agrupamentos_falhas';
+  exception when duplicate_object then null;
+  end;
+  execute 'alter table public.agrupamentos_falhas replica identity full';
+end $$;
