@@ -522,8 +522,7 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; onSelect: (f: Falha) => void }) {
-  // Índices para casar arquivos_relacionados com falhas (por id, id_caso_teste ou arquivo_zip)
+function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; links: Record<string, string[]>; onSelect: (f: Falha) => void }) {
   const indices = useMemo(() => {
     const byId = new Map<string, Falha>();
     const byCaso = new Map<string, Falha[]>();
@@ -567,74 +566,50 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
     severidade_predominante: string | null;
     acao_recomendada: string | null;
     casos: Falha[];
-    idsRelacionados: string[];
+    semVinculo?: boolean;
     isVisual?: boolean;
   };
 
   const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
-  const norm = (s: any) => String(s ?? "").toLowerCase().trim();
-
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados)
-          ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
-          : [];
+        // FONTE PRIMÁRIA: agrupamentos_falhas (com fallback fk_cluster no service)
+        const linkedIds = links[String(g.id)] || [];
+        let casos = resolveCasos(linkedIds);
 
-        // 1) tentar via arquivos_relacionados (id, id_caso_teste, arquivo_zip)
-        let casos = resolveCasos(rel);
-
-        // 2) fallback por título / grupo / classificação / severidade / rotina
+        // FALLBACK: arquivos_relacionados
+        let semVinculo = false;
         if (casos.length === 0) {
-          const titulo = norm(g.titulo);
-          const desc = norm(g.descricao);
-          const tipo = norm(g.tipo);
-          const cls = norm(g.classificacao_predominante);
-          const sev = norm(g.severidade_predominante);
-          const seen = new Set<string>();
-          const add = (f: Falha) => { if (!seen.has(f.id)) { seen.add(f.id); casos.push(f); } };
-
-          falhas.forEach((f) => {
-            const grupo = norm(f.grupo);
-            const subgrupo = norm(f.subgrupo);
-            const rot = norm(f.rotina_funcional);
-            const fcls = norm(f.classificacao);
-            const fsev = norm(f.severidade);
-
-            if (titulo && (grupo === titulo || subgrupo === titulo || rot === titulo)) return add(f);
-            if (tipo && (grupo === tipo || subgrupo === tipo)) return add(f);
-            if (cls && fcls === cls && sev && fsev === sev) return add(f);
-            if (titulo && rot && titulo.includes(rot)) return add(f);
-            if (titulo && grupo && titulo.includes(grupo)) return add(f);
-            if (desc && rot && desc.includes(rot)) return add(f);
-          });
-
-          // se mesmo assim vazio, tenta só por classificação OU severidade predominante
-          if (casos.length === 0 && (cls || sev)) {
-            falhas.forEach((f) => {
-              if (cls && norm(f.classificacao) === cls) return add(f);
-              if (sev && norm(f.severidade) === sev) return add(f);
-            });
-          }
+          const rel = Array.isArray(g.arquivos_relacionados)
+            ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
+            : [];
+          casos = resolveCasos(rel);
+          if (casos.length === 0) semVinculo = true;
         }
 
-        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : rel.length);
+        const cls = new Map<string, number>(); const sevs = new Map<string, number>();
+        casos.forEach((f) => {
+          if (f.classificacao) cls.set(f.classificacao, (cls.get(f.classificacao) || 0) + 1);
+          if (f.severidade) sevs.set(f.severidade, (sevs.get(f.severidade) || 0) + 1);
+        });
+        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : 0);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
           tipo: g.tipo,
           descricao: g.descricao,
           quantidade,
-          classificacao_predominante: g.classificacao_predominante,
-          severidade_predominante: g.severidade_predominante,
+          classificacao_predominante: g.classificacao_predominante || top(cls),
+          severidade_predominante: g.severidade_predominante || top(sevs),
           acao_recomendada: g.acao_recomendada,
           casos,
-          idsRelacionados: rel,
+          semVinculo,
         };
       });
     }
-    // 3) Sem agrupamentos no DB: gera direto a partir das falhas (por grupo, classif, sev, rotina)
+    // Sem agrupamentos no DB: gera direto a partir das falhas
     const agg = new Map<string, { titulo: string; tipo: string; casos: Falha[]; classes: Map<string, number>; sevs: Map<string, number> }>();
     falhas.forEach((f) => {
       const key = f.grupo || f.classificacao || f.severidade || f.rotina_funcional || "Outros";
@@ -657,10 +632,9 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         severidade_predominante: top(g.sevs),
         acao_recomendada: null,
         casos: g.casos,
-        idsRelacionados: [],
         isVisual: true,
       }));
-  }, [grupos, falhas, indices]);
+  }, [grupos, falhas, links, indices]);
 
   if (items.length === 0) return <Empty text="Sem agrupamentos." />;
 
