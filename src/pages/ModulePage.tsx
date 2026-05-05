@@ -539,6 +539,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
     severidade_predominante: string | null;
     acao_recomendada: string | null;
     casos: Falha[];
+    idsRelacionados: string[];
     isVisual?: boolean;
   };
 
@@ -547,7 +548,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados : [];
+        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean) : [];
         let casos = resolveCasos(rel);
         // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
         if (casos.length === 0 && g.titulo) {
@@ -566,6 +567,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           severidade_predominante: g.severidade_predominante,
           acao_recomendada: g.acao_recomendada,
           casos,
+          idsRelacionados: rel,
         };
       });
     }
@@ -592,6 +594,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         severidade_predominante: top(g.sevs),
         acao_recomendada: null,
         casos: g.casos,
+        idsRelacionados: [],
         isVisual: true,
       }));
   }, [grupos, falhas, indices]);
@@ -710,6 +713,17 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
                     })}
                   </div>
                 )}
+              </div>
+            ) : g.idsRelacionados.length > 0 ? (
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
+                  IDs relacionados ({g.idsRelacionados.length})
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {g.idsRelacionados.map((rid, i) => (
+                    <Badge key={`${rid}-${i}`} variant="secondary" className="font-mono text-[11px]">{rid}</Badge>
+                  ))}
+                </div>
               </div>
             ) : (
               <p className="text-xs text-muted-foreground italic">Nenhum caso vinculado a este agrupamento.</p>
