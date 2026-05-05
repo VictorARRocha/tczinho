@@ -52,7 +52,7 @@ export default function Dashboard() {
           Sistema ÚNICO · TestComplete 12/14
         </div>
         <h1 className="text-4xl lg:text-5xl font-bold tracking-tight">
-          <span className="gradient-text">TCzinho</span> — SCI QA Agent
+          <span className="gradient-text">TC SCI</span>
         </h1>
         <p className="mt-3 text-base text-muted-foreground max-w-2xl">
           Monitoramento inteligente de rodagens automatizadas do TestComplete. Acompanhe falhas, evidências e prioridades em tempo real.
