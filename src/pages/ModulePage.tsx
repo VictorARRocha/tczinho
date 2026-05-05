@@ -183,76 +183,138 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
     { name: "Alta", value: rodagem.total_alta, color: "hsl(var(--destructive))" },
     { name: "Média", value: rodagem.total_media, color: "hsl(var(--warning))" },
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
-  ];
+  ].filter((d) => d.value > 0);
+
+  const grupoData = useMemo(() => {
+    const m = new Map<string, number>();
+    falhas.forEach((f) => { if (f.grupo) m.set(f.grupo, (m.get(f.grupo) || 0) + 1); });
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+  }, [falhas]);
+
+  const rotinaData = useMemo(() => {
+    const m = new Map<string, number>();
+    falhas.forEach((f) => { if (f.rotina_funcional) m.set(f.rotina_funcional, (m.get(f.rotina_funcional) || 0) + 1); });
+    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 6);
+  }, [falhas]);
+
+  const cards: { label: string; value: number; tone?: string; force?: boolean }[] = [
+    { label: "Falhas", value: rodagem.total_falhas, force: true },
+    { label: "Funcional", value: rodagem.total_possivel_funcional, tone: "text-functional" },
+    { label: "Automação", value: rodagem.total_automacao, tone: "text-automation" },
+    { label: "Massa/Dados", value: rodagem.total_massa_dados, tone: "text-data-mass" },
+    { label: "Ambiente", value: rodagem.total_ambiente, tone: "text-environment" },
+    { label: "Inconclusivo", value: rodagem.total_inconclusivo, tone: "text-inconclusive" },
+    { label: "Sev. Alta", value: rodagem.total_alta, tone: "text-destructive" },
+    { label: "Sev. Média", value: rodagem.total_media, tone: "text-warning" },
+    { label: "Sev. Baixa", value: rodagem.total_baixa, tone: "text-success" },
+  ].filter((c) => c.force || c.value > 0);
 
   const principais = [...falhas]
     .sort((a, b) => severityRank(b.severidade) - severityRank(a.severidade) || ((a.ordem_prioridade ?? 999) - (b.ordem_prioridade ?? 999)))
     .slice(0, 5);
 
+  const hasDiagText = isMeaningful(rodagem.diagnostico_curto) || isMeaningful(rodagem.diagnostico_detalhado) || isMeaningful(rodagem.conclusao_geral);
+  const fallbackDiag = rodagem.total_falhas > 0
+    ? "Foram encontradas falhas nesta rodagem. Analise os casos listados abaixo."
+    : "Nenhuma falha encontrada nesta rodagem.";
+
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
-        <StatCard label="Compactados" value={rodagem.total_compactados} />
-        <StatCard label="Analisados" value={rodagem.total_analisados} />
-        <StatCard label="Falhas" value={rodagem.total_falhas} />
-        <StatCard label="Automação" value={rodagem.total_automacao} tone="text-automation" />
-        <StatCard label="Massa/Dados" value={rodagem.total_massa_dados} tone="text-data-mass" />
-        <StatCard label="Ambiente" value={rodagem.total_ambiente} tone="text-environment" />
-        <StatCard label="Funcional" value={rodagem.total_possivel_funcional} tone="text-functional" />
-        <StatCard label="Inconclusivo" value={rodagem.total_inconclusivo} tone="text-inconclusive" />
-        <StatCard label="Sev. Alta" value={rodagem.total_alta} tone="text-destructive" />
-        <StatCard label="Sev. Média" value={rodagem.total_media} tone="text-warning" />
-        <StatCard label="Sev. Baixa" value={rodagem.total_baixa} tone="text-success" />
-      </div>
-
       <Card className="glass-card p-6">
         <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
-        {rodagem.diagnostico_curto && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
-        {rodagem.diagnostico_detalhado && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
-        {rodagem.conclusao_geral && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conclusão</div>
-            <p className="text-sm">{rodagem.conclusao_geral}</p>
-          </div>
+        {hasDiagText ? (
+          <>
+            {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
+            {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
+            {isMeaningful(rodagem.conclusao_geral) && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conclusão</div>
+                <p className="text-sm">{rodagem.conclusao_geral}</p>
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-muted-foreground">{fallbackDiag}</p>
         )}
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card className="glass-card p-6">
-          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por classificação</h3>
-          {classData.length === 0 ? <Empty /> : (
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={classData} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {classData.map((d, i) => <Cell key={i} fill={d.color} stroke="hsl(var(--background))" strokeWidth={2} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
-          <div className="flex flex-wrap gap-2 justify-center mt-2">
-            {classData.map((d) => (
-              <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.name} <span className="font-mono text-muted-foreground">{d.value}</span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card className="glass-card p-6">
-          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por severidade</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={sevData}>
-              <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-              <Bar dataKey="value" radius={[6, 6, 0, 0]}>
-                {sevData.map((d, i) => <Cell key={i} fill={d.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
       </div>
+
+      {(classData.length > 0 || sevData.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="glass-card p-6">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por classificação</h3>
+            {classData.length === 0 ? <Empty text="Sem dados de classificação para exibir." /> : (
+              <>
+                <ResponsiveContainer width="100%" height={220}>
+                  <PieChart>
+                    <Pie data={classData} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={2}>
+                      {classData.map((d, i) => <Cell key={i} fill={d.color} stroke="hsl(var(--background))" strokeWidth={2} />)}
+                    </Pie>
+                    <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="flex flex-wrap gap-2 justify-center mt-2">
+                  {classData.map((d) => (
+                    <div key={d.name} className="flex items-center gap-1.5 text-xs">
+                      <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.name} <span className="font-mono text-muted-foreground">{d.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </Card>
+
+          <Card className="glass-card p-6">
+            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por severidade</h3>
+            {sevData.length === 0 ? <Empty text="Sem dados de severidade para exibir." /> : (
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={sevData}>
+                  <XAxis dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} />
+                  <YAxis stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                  <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                    {sevData.map((d, i) => <Cell key={i} fill={d.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </Card>
+        </div>
+      )}
+
+      {(grupoData.length > 0 || rotinaData.length > 0) && (
+        <div className="grid gap-4 md:grid-cols-2">
+          {grupoData.length > 0 && (
+            <Card className="glass-card p-6">
+              <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por grupo</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={grupoData} layout="vertical" margin={{ left: 20 }}>
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+          {rotinaData.length > 0 && (
+            <Card className="glass-card p-6">
+              <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por rotina funcional</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={rotinaData} layout="vertical" margin={{ left: 20 }}>
+                  <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
+                  <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                  <Bar dataKey="value" fill="hsl(var(--functional))" radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </Card>
+          )}
+        </div>
+      )}
 
       <Card className="glass-card p-6">
         <h3 className="text-sm font-semibold mb-4">Principais falhas</h3>
@@ -260,13 +322,16 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
           <div className="space-y-2">
             {principais.map((f) => (
               <button key={f.id} onClick={() => onSelect(f)} className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth text-left">
-                <span className="font-mono text-xs text-muted-foreground w-6">#{f.ordem_prioridade ?? "—"}</span>
+                {f.ordem_prioridade != null && <span className="font-mono text-xs text-muted-foreground w-6">#{f.ordem_prioridade}</span>}
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{f.erro_titulo || f.caso_teste_provavel || f.arquivo_zip}</div>
-                  <div className="text-xs text-muted-foreground truncate">{f.erro_principal || f.mensagem_principal}</div>
+                  <div className="text-sm font-medium truncate">{f.erro_titulo || f.caso_teste_provavel || f.arquivo_zip || "Falha"}</div>
+                  {(f.erro_principal || f.mensagem_principal) && (
+                    <div className="text-xs text-muted-foreground truncate">{f.erro_principal || f.mensagem_principal}</div>
+                  )}
+                  {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground/80">{f.id_caso_teste}</div>}
                 </div>
-                <SeverityBadge value={f.severidade} />
-                <ClassificationBadge value={f.classificacao} />
+                {f.severidade && <SeverityBadge value={f.severidade} />}
+                {f.classificacao && <ClassificationBadge value={f.classificacao} />}
                 <ArrowRight className="h-4 w-4 text-muted-foreground" />
               </button>
             ))}
@@ -276,8 +341,6 @@ function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Fa
     </div>
   );
 }
-
-function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha) => void }) {
   const [q, setQ] = useState("");
   const [classif, setClassif] = useState<string>("");
   const [sev, setSev] = useState<string>("");
