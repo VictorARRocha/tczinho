@@ -36,8 +36,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-display text-sm font-bold tracking-tight">TCzinho</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">SCI QA Agent</span>
+              <span className="font-display text-sm font-bold tracking-tight">TC SCI</span>
             </div>
           )}
         </NavLink>
@@ -53,14 +52,6 @@ export function AppSidebar() {
                   <NavLink to="/">
                     <LayoutDashboard />
                     <span>Visão geral</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/atividade"}>
-                  <NavLink to="/atividade">
-                    <Activity />
-                    <span>Atividade</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>

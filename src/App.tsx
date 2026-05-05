@@ -22,7 +22,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/modulo/:slug" element={<ModulePage />} />
             <Route path="/importar" element={<ImportPage />} />
-            <Route path="/atividade" element={<Index />} />
+            
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
