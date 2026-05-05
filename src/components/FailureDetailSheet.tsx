@@ -128,7 +128,7 @@ export function FailureDetailSheet({ falha, open, onClose }: Props) {
 
           <Section title={`Evidências (${evidencias.length})`}>
             {evidencias.length === 0 ? (
-              <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência disponível.</Card>
+              <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
             ) : (
               <div className="space-y-3">
                 {evidencias.map((e) => <EvidenceItem key={e.id} ev={e} />)}
