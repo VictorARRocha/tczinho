@@ -210,7 +210,7 @@ function StatCard({ label, value, tone = "" }: { label: string; value: number | 
   );
 }
 
-function ResumoTab({ rodagem, falhas, onSelect }: { rodagem: Rodagem; falhas: Falha[]; onSelect: (f: Falha) => void }) {
+function ResumoTab({ rodagem, falhas, passos, onSelect }: { rodagem: Rodagem; falhas: Falha[]; passos: ProximoPasso[]; onSelect: (f: Falha) => void }) {
   const classData = [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
