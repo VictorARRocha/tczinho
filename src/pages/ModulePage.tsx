@@ -3,7 +3,7 @@ import { useParams, Link } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
-  fetchPerformanceByRun,
+  fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules,
 } from "@/services/qa";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
