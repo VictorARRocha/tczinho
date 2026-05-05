@@ -545,18 +545,53 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
 
   const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
+  const norm = (s: any) => String(s ?? "").toLowerCase().trim();
+
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean) : [];
+        const rel = Array.isArray(g.arquivos_relacionados)
+          ? g.arquivos_relacionados.map((x: any) => String(x)).filter(Boolean)
+          : [];
+
+        // 1) tentar via arquivos_relacionados (id, id_caso_teste, arquivo_zip)
         let casos = resolveCasos(rel);
-        // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
-        if (casos.length === 0 && g.titulo) {
-          casos = falhas.filter((f) => f.grupo === g.titulo);
+
+        // 2) fallback por título / grupo / classificação / severidade / rotina
+        if (casos.length === 0) {
+          const titulo = norm(g.titulo);
+          const desc = norm(g.descricao);
+          const tipo = norm(g.tipo);
+          const cls = norm(g.classificacao_predominante);
+          const sev = norm(g.severidade_predominante);
+          const seen = new Set<string>();
+          const add = (f: Falha) => { if (!seen.has(f.id)) { seen.add(f.id); casos.push(f); } };
+
+          falhas.forEach((f) => {
+            const grupo = norm(f.grupo);
+            const subgrupo = norm(f.subgrupo);
+            const rot = norm(f.rotina_funcional);
+            const fcls = norm(f.classificacao);
+            const fsev = norm(f.severidade);
+
+            if (titulo && (grupo === titulo || subgrupo === titulo || rot === titulo)) return add(f);
+            if (tipo && (grupo === tipo || subgrupo === tipo)) return add(f);
+            if (cls && fcls === cls && sev && fsev === sev) return add(f);
+            if (titulo && rot && titulo.includes(rot)) return add(f);
+            if (titulo && grupo && titulo.includes(grupo)) return add(f);
+            if (desc && rot && desc.includes(rot)) return add(f);
+          });
+
+          // se mesmo assim vazio, tenta só por classificação OU severidade predominante
+          if (casos.length === 0 && (cls || sev)) {
+            falhas.forEach((f) => {
+              if (cls && norm(f.classificacao) === cls) return add(f);
+              if (sev && norm(f.severidade) === sev) return add(f);
+            });
+          }
         }
-        const quantidade = typeof g.quantidade === "number" && g.quantidade > 0
-          ? g.quantidade
-          : (rel.length || casos.length);
+
+        const quantidade = casos.length || (typeof g.quantidade === "number" && g.quantidade > 0 ? g.quantidade : rel.length);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
@@ -571,7 +606,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         };
       });
     }
-    // Agrupamento visual a partir das falhas
+    // 3) Sem agrupamentos no DB: gera direto a partir das falhas (por grupo, classif, sev, rotina)
     const agg = new Map<string, { titulo: string; tipo: string; casos: Falha[]; classes: Map<string, number>; sevs: Map<string, number> }>();
     falhas.forEach((f) => {
       const key = f.grupo || f.classificacao || f.severidade || f.rotina_funcional || "Outros";
@@ -632,23 +667,35 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           {g.casos.length > 0 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Quebraram {g.casos.length}x
+                Casos que quebraram ({g.casos.length})
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 {g.casos.map((f) => {
+                  const desc = failureDescription(f);
                   const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
                   const rid = f.rotina_funcional || f.subgrupo || "";
-                  const label = rid ? `[${rid}] ${titulo}` : titulo;
                   return (
                     <div
                       key={f.id}
-                      className="flex items-center justify-between gap-3 rounded-md bg-secondary/40 hover:bg-secondary/70 transition-smooth px-3 py-2 cursor-pointer"
+                      className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
                       onClick={() => onSelect(f)}
                     >
-                      <div className="text-sm truncate">{label}</div>
-                      <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground font-mono">
-                        {f.id_caso_teste && <span>#{f.id_caso_teste}</span>}
-                        {rid && <span>{rid}</span>}
+                      <div className="flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {rid ? `[${rid}] ` : ""}{titulo}
+                          </div>
+                          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
+                            {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
+                            {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
+                            {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
+                            {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
+                          </div>
+                          {desc && (
+                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
                       </div>
                     </div>
                   );
@@ -658,7 +705,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
           ) : g.idsRelacionados.length > 0 ? (
             <div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-2">
-                Quebraram {g.idsRelacionados.length}x
+                IDs relacionados ({g.idsRelacionados.length})
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {g.idsRelacionados.map((rid, i) => (
