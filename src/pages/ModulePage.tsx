@@ -12,14 +12,24 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, Layers, ArrowRight } from "lucide-react";
+import { ChevronLeft, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb } from "lucide-react";
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+
+// Descrição clara do problema da falha — usa o melhor texto disponível
+function failureDescription(f: Falha): string {
+  const order = [f.erro_principal, f.mensagem_principal, f.erro_titulo, f.trecho_relevante, f.hipotese_principal, f.primeira_acao_recomendada, f.descricao_caso, f.caso_teste_provavel];
+  for (const v of order) {
+    if (v && String(v).trim() && String(v).trim() !== "—") return String(v).trim();
+  }
+  return "";
+}
 
 export default function ModulePage() {
   const { slug = "" } = useParams();
