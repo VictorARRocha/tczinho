@@ -495,12 +495,39 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
 }
 
 function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; onSelect: (f: Falha) => void }) {
-  // Mapa de falhas por ID e por arquivo (para casar com arquivos_relacionados)
-  const failuresByZip = useMemo(() => {
-    const m = new Map<string, Falha>();
-    falhas.forEach((f) => { if (f.arquivo_zip) m.set(String(f.arquivo_zip).toLowerCase(), f); });
-    return m;
+  // Índices para casar arquivos_relacionados com falhas (por id, id_caso_teste ou arquivo_zip)
+  const indices = useMemo(() => {
+    const byId = new Map<string, Falha>();
+    const byCaso = new Map<string, Falha[]>();
+    const byZip = new Map<string, Falha>();
+    falhas.forEach((f) => {
+      if (f.id) byId.set(String(f.id).toLowerCase(), f);
+      if (f.id_caso_teste) {
+        const k = String(f.id_caso_teste).toLowerCase();
+        const arr = byCaso.get(k) || [];
+        arr.push(f);
+        byCaso.set(k, arr);
+      }
+      if (f.arquivo_zip) byZip.set(String(f.arquivo_zip).toLowerCase(), f);
+    });
+    return { byId, byCaso, byZip };
   }, [falhas]);
+
+  const resolveCasos = (rel: any): Falha[] => {
+    if (!Array.isArray(rel)) return [];
+    const out: Falha[] = [];
+    const seen = new Set<string>();
+    rel.forEach((r) => {
+      const k = String(r ?? "").toLowerCase().trim();
+      if (!k) return;
+      const matches: Falha[] = [];
+      const a = indices.byId.get(k); if (a) matches.push(a);
+      const b = indices.byCaso.get(k); if (b) matches.push(...b);
+      const c = indices.byZip.get(k); if (c) matches.push(c);
+      matches.forEach((m) => { if (!seen.has(m.id)) { seen.add(m.id); out.push(m); } });
+    });
+    return out;
+  };
 
   type Item = {
     id: string;
@@ -520,21 +547,21 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
   const items: Item[] = useMemo(() => {
     if (grupos.length > 0) {
       return grupos.map((g: any) => {
-        let casos: Falha[] = [];
-        const rel = g.arquivos_relacionados;
-        if (Array.isArray(rel) && rel.length > 0) {
-          casos = rel.map((r: any) => failuresByZip.get(String(r).toLowerCase())).filter(Boolean) as Falha[];
-        }
-        // fallback: associar pela classificação/severidade predominante quando vazio
+        const rel = Array.isArray(g.arquivos_relacionados) ? g.arquivos_relacionados : [];
+        let casos = resolveCasos(rel);
+        // fallback: se não casou nada via arquivos_relacionados, tenta por título == grupo
         if (casos.length === 0 && g.titulo) {
           casos = falhas.filter((f) => f.grupo === g.titulo);
         }
+        const quantidade = typeof g.quantidade === "number" && g.quantidade > 0
+          ? g.quantidade
+          : (rel.length || casos.length);
         return {
           id: g.id,
           titulo: g.titulo || "Agrupamento",
           tipo: g.tipo,
           descricao: g.descricao,
-          quantidade: g.quantidade || casos.length,
+          quantidade,
           classificacao_predominante: g.classificacao_predominante,
           severidade_predominante: g.severidade_predominante,
           acao_recomendada: g.acao_recomendada,
@@ -567,7 +594,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
         casos: g.casos,
         isVisual: true,
       }));
-  }, [grupos, falhas, failuresByZip]);
+  }, [grupos, falhas, indices]);
 
   if (items.length === 0) return <Empty text="Sem agrupamentos." />;
 
@@ -630,7 +657,7 @@ function AgrupamentosTab({ grupos, falhas, onSelect }: { grupos: Agrupamento[]; 
                 {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
                 <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
               </div>
-              <Badge variant="outline" className="font-mono shrink-0">×{g.casos.length}</Badge>
+              <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
             </div>
             {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
             <div className="flex flex-wrap gap-2 mb-4">
