@@ -377,6 +377,62 @@ export async function fetchNextStepsByRun(runId: string): Promise<ProximoPasso[]
 }
 
 // =====================================================================
+// PERFORMANCE (atrasos_rodagem)
+// =====================================================================
+function parseHmsToSeconds(v: any): number {
+  if (v == null) return 0;
+  if (typeof v === "number") return v;
+  const s = String(v).trim();
+  if (!s) return 0;
+  const neg = s.startsWith("-");
+  const clean = neg ? s.slice(1) : s;
+  const parts = clean.split(":").map((x) => Number(x) || 0);
+  let total = 0;
+  if (parts.length === 3) total = parts[0] * 3600 + parts[1] * 60 + parts[2];
+  else if (parts.length === 2) total = parts[0] * 60 + parts[1];
+  else total = parts[0];
+  return neg ? -total : total;
+}
+
+function normAtraso(row: any): AtrasoRodagem {
+  const base = parseHmsToSeconds(row?.tempo_padrao);
+  const atual = parseHmsToSeconds(row?.tempo_atual);
+  const delay = row?.delay_detectado != null
+    ? parseHmsToSeconds(row.delay_detectado)
+    : (atual - base);
+  const variacao = base > 0 ? (delay / base) * 100 : 0;
+  let status: AtrasoRodagem["status"] = "igual";
+  if (delay > 0) status = "mais_lento";
+  else if (delay < 0) status = "mais_rapido";
+  return {
+    id: row?.id_atraso ?? row?.id ?? `${row?.fk_rodagem}-${row?.codigo_teste}`,
+    rodagem_id: row?.fk_rodagem ?? row?.rodagem_id ?? "",
+    modulo_slug: row?.modulo_slug ?? null,
+    codigo_teste: row?.codigo_teste ?? row?.id_caso_teste ?? null,
+    nome_teste: row?.nome_teste ?? row?.caso_teste ?? null,
+    tempo_padrao: row?.tempo_padrao ?? null,
+    tempo_atual: row?.tempo_atual ?? null,
+    delay_detectado: row?.delay_detectado ?? null,
+    delay_segundos: delay,
+    base_segundos: base,
+    atual_segundos: atual,
+    variacao_pct: variacao,
+    status,
+    created_at: row?.created_at ?? "",
+  };
+}
+
+export async function fetchPerformanceByRun(runId: string): Promise<AtrasoRodagem[]> {
+  if (!runId) return [];
+  const { data, error } = await supabase.from("atrasos_rodagem").select("*").eq("fk_rodagem", runId);
+  if (error) {
+    console.error("[fetchPerformanceByRun]", error);
+    return [];
+  }
+  return (data || []).map(normAtraso);
+}
+
+// =====================================================================
 // Dashboard agregado (opcional)
 // =====================================================================
 export async function fetchModuleDashboardData(slug: string) {
