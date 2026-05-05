@@ -5,6 +5,7 @@ export interface Modulo {
   descricao: string | null;
   icone: string | null;
   ativo: boolean;
+  ordem?: number;
   created_at: string;
 }
 
