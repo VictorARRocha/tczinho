@@ -2,11 +2,38 @@ import { useEffect, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
+import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "./Badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+
+function formatBytes(b?: number | null) {
+  if (!b || b <= 0) return null;
+  const u = ["B", "KB", "MB", "GB"];
+  let i = 0; let n = b;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return `${n.toFixed(n < 10 ? 1 : 0)} ${u[i]}`;
+}
+
+async function resolveDownloadUrl(ev: Evidencia): Promise<string | null> {
+  if (ev.public_url) return ev.public_url;
+  if (ev.signed_url) return ev.signed_url;
+  const bucket = ev.bucket || STORAGE_BUCKET;
+  const path = ev.storage_path;
+  if (!bucket || !path) return null;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
+  if (error) { toast.error("Falha ao gerar link"); return null; }
+  return data?.signedUrl || null;
+}
+
+async function handleDownload(ev: Evidencia) {
+  const url = await resolveDownloadUrl(ev);
+  if (!url) { toast.error("Sem URL disponível"); return; }
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 
 interface Props {
   falha: Falha | null;
