@@ -515,110 +515,62 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function EvidenciasTab({ falhas, evidencias, onSelect }: { falhas: Falha[]; evidencias: Evidencia[]; onSelect: (f: Falha) => void }) {
-  const byFailure = useMemo(() => {
-    const m = new Map<string, Evidencia[]>();
-    evidencias.forEach((e) => { const arr = m.get(e.falha_id) || []; arr.push(e); m.set(e.falha_id, arr); });
-    return m;
-  }, [evidencias]);
-  if (falhas.length === 0) return <Empty text="Sem evidências para exibir." />;
+function AgrupamentosTab({ grupos, falhas }: { grupos: Agrupamento[]; falhas: Falha[] }) {
+  // Se não houver grupos reais, agrupa visualmente pelas falhas
+  const visual = useMemo(() => {
+    if (grupos.length > 0) return [];
+    const agg = new Map<string, { titulo: string; tipo: string; quantidade: number; classes: Map<string, number>; sevs: Map<string, number> }>();
+    falhas.forEach((f) => {
+      const key = f.grupo || f.classificacao || f.severidade || "Outros";
+      const cur = agg.get(key) || { titulo: key, tipo: "Grupo", quantidade: 0, classes: new Map(), sevs: new Map() };
+      cur.quantidade += 1;
+      if (f.classificacao) cur.classes.set(f.classificacao, (cur.classes.get(f.classificacao) || 0) + 1);
+      if (f.severidade) cur.sevs.set(f.severidade, (cur.sevs.get(f.severidade) || 0) + 1);
+      agg.set(key, cur);
+    });
+    const top = (m: Map<string, number>) => Array.from(m.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    return Array.from(agg.values())
+      .sort((a, b) => b.quantidade - a.quantidade)
+      .slice(0, 8)
+      .map((g) => ({ id: g.titulo, titulo: g.titulo, tipo: g.tipo, quantidade: g.quantidade, classificacao_predominante: top(g.classes), severidade_predominante: top(g.sevs), descricao: null as any, acao_recomendada: null as any, isVisual: true }));
+  }, [grupos, falhas]);
+
+  const items: any[] = grupos.length > 0 ? grupos : visual;
+  if (items.length === 0) return <Empty text="Sem agrupamentos." />;
+
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {falhas.map((f) => {
-        const evs = byFailure.get(f.id) || [];
-        const print = evs.find((e) => e.tipo === "print");
-        const url = print?.public_url || print?.signed_url;
-        return (
-          <Card key={f.id} className="glass-card overflow-hidden cursor-pointer hover:border-primary/40 transition-smooth" onClick={() => onSelect(f)}>
-            <div className="aspect-video bg-secondary/40 flex items-center justify-center overflow-hidden">
-              {url ? <img src={url} alt="" className="w-full h-full object-cover" /> : <ImageIcon className="h-8 w-8 text-muted-foreground" />}
-            </div>
-            <div className="p-4 space-y-2">
-              <div className="text-sm font-medium truncate">{f.caso_teste_provavel || f.arquivo_zip}</div>
-              <div className="text-xs text-muted-foreground line-clamp-2">{f.erro_principal}</div>
-              <div className="flex items-center gap-2 pt-1">
-                {evs.some((e) => e.tipo === "txt") && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px]"><FileText className="h-3 w-3 mr-1" />TXT</Badge>}
-                {evs.some((e) => e.tipo === "zip") && <Badge variant="outline" className="bg-data-mass/10 text-data-mass border-data-mass/30 text-[10px]"><FileArchive className="h-3 w-3 mr-1" />ZIP</Badge>}
-                {url && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px]"><ImageIcon className="h-3 w-3 mr-1" />Print</Badge>}
+    <div className="space-y-3">
+      {visual.length > 0 && (
+        <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (a tabela <code>agrupamentos</code> está vazia para esta rodagem).</p>
+      )}
+      <div className="grid gap-4 md:grid-cols-2">
+        {items.map((g) => (
+          <Card key={g.id} className="glass-card p-5">
+            <div className="flex items-start justify-between mb-3 gap-3">
+              <div className="min-w-0">
+                {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
+                <h3 className="font-semibold mt-0.5 truncate">{g.titulo}</h3>
               </div>
+              <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
             </div>
-          </Card>
-        );
-      })}
-    </div>
-  );
-}
-
-function AgrupamentosTab({ grupos }: { grupos: Agrupamento[] }) {
-  if (grupos.length === 0) return <Empty text="Sem agrupamentos." />;
-  return (
-    <div className="grid gap-4 md:grid-cols-2">
-      {grupos.map((g) => (
-        <Card key={g.id} className="glass-card p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>
-              <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
+            {g.descricao && <p className="text-sm text-muted-foreground mb-3 line-clamp-3">{g.descricao}</p>}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
+              {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
             </div>
-            <Badge variant="outline" className="font-mono">×{g.quantidade}</Badge>
-          </div>
-          {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
-          <div className="flex flex-wrap gap-2 mb-3">
-            <ClassificationBadge value={g.classificacao_predominante} />
-            <SeverityBadge value={g.severidade_predominante} />
-          </div>
-          {g.acao_recomendada && (
-            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs">
-              <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
-            </div>
-          )}
-        </Card>
-      ))}
-    </div>
-  );
-}
-
-function PassosTab({ passos }: { passos: ProximoPasso[] }) {
-  const cats = [
-    { key: "qa", label: "QA", color: "text-primary" },
-    { key: "automacao", label: "Automação", color: "text-automation" },
-    { key: "funcional", label: "Funcional", color: "text-functional" },
-    { key: "desenvolvimento", label: "Desenvolvimento", color: "text-data-mass" },
-  ];
-  if (passos.length === 0) return <Empty text="Nenhum próximo passo definido." />;
-  return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      {cats.map((c) => {
-        const items = passos.filter((p) => (p.categoria || "").toLowerCase() === c.key);
-        return (
-          <Card key={c.key} className="glass-card p-4">
-            <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
-              <Layers className={`h-4 w-4 ${c.color}`} />
-              <h3 className="text-sm font-semibold">{c.label}</h3>
-              <span className="ml-auto text-xs text-muted-foreground font-mono">{items.length}</span>
-            </div>
-            {items.length === 0 ? <p className="text-xs text-muted-foreground py-4 text-center">Nada por aqui.</p> : (
-              <div className="space-y-2">
-                {items.map((p) => (
-                  <div key={p.id} className="flex items-start gap-2 p-2 rounded-md bg-secondary/40">
-                    <Checkbox checked={p.concluido} className="mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className={`text-sm ${p.concluido ? "line-through text-muted-foreground" : ""}`}>{p.descricao}</div>
-                      {p.relacionado_a && <div className="text-[10px] text-muted-foreground font-mono mt-0.5">{p.relacionado_a}</div>}
-                      {p.prioridade && <Badge variant="outline" className="mt-1 text-[10px] h-4">{p.prioridade}</Badge>}
-                    </div>
-                  </div>
-                ))}
+            {g.acao_recomendada && (
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs">
+                <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
               </div>
             )}
           </Card>
-        );
-      })}
+        ))}
+      </div>
     </div>
   );
 }
 
-function HistoricoTab({ runs, onPick }: { runs: Rodagem[]; onPick: (id: string) => void }) {
+function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?: string; onPick: (id: string) => void }) {
   if (runs.length === 0) return <Empty text="Sem histórico." />;
   return (
     <Card className="glass-card overflow-hidden">
@@ -626,34 +578,27 @@ function HistoricoTab({ runs, onPick }: { runs: Rodagem[]; onPick: (id: string) 
         <TableHeader>
           <TableRow className="border-border hover:bg-transparent">
             <TableHead>Data</TableHead>
-            <TableHead>Ambiente</TableHead>
             <TableHead>Branch</TableHead>
             <TableHead>Versão</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="text-right">Score</TableHead>
             <TableHead className="text-right">Falhas</TableHead>
             <TableHead className="text-right">Funcional</TableHead>
-            <TableHead className="text-right">Automação</TableHead>
-            <TableHead className="text-right">Massa/Dados</TableHead>
             <TableHead></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {runs.map((r) => {
             const h = getHealthStatus(r.status_label || r.status_geral, r.score_saude);
+            const active = r.id === currentId;
             return (
-              <TableRow key={r.id} className="border-border">
+              <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
                 <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                <TableCell className="text-xs">{r.ambiente || "—"}</TableCell>
                 <TableCell className="font-mono text-xs">{r.branch || "—"}</TableCell>
                 <TableCell className="font-mono text-xs">{r.versao_sistema || "—"}</TableCell>
                 <TableCell><Badge variant="outline" className={h.className}>{h.label}</Badge></TableCell>
-                <TableCell className="text-right font-mono">{r.score_saude ?? "—"}</TableCell>
                 <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
                 <TableCell className="text-right font-mono text-functional">{r.total_possivel_funcional}</TableCell>
-                <TableCell className="text-right font-mono text-automation">{r.total_automacao}</TableCell>
-                <TableCell className="text-right font-mono text-data-mass">{r.total_massa_dados}</TableCell>
-                <TableCell><Button size="sm" variant="ghost" onClick={() => onPick(r.id)}>Abrir</Button></TableCell>
+                <TableCell><Button size="sm" variant={active ? "default" : "ghost"} onClick={() => onPick(r.id)}>{active ? "Atual" : "Abrir"}</Button></TableCell>
               </TableRow>
             );
           })}
