@@ -360,24 +360,45 @@ function ResumoTab({ rodagem, falhas, passos, onSelect }: { rodagem: Rodagem; fa
         <h3 className="text-sm font-semibold mb-4">Principais falhas</h3>
         {principais.length === 0 ? <Empty text="Sem falhas registradas." /> : (
           <div className="space-y-2">
-            {principais.map((f) => (
-              <button key={f.id} onClick={() => onSelect(f)} className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth text-left">
-                {f.ordem_prioridade != null && <span className="font-mono text-xs text-muted-foreground w-6">#{f.ordem_prioridade}</span>}
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{f.erro_titulo || f.caso_teste_provavel || f.arquivo_zip || "Falha"}</div>
-                  {(f.erro_principal || f.mensagem_principal) && (
-                    <div className="text-xs text-muted-foreground truncate">{f.erro_principal || f.mensagem_principal}</div>
-                  )}
-                  {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground/80">{f.id_caso_teste}</div>}
-                </div>
-                {f.severidade && <SeverityBadge value={f.severidade} />}
-                {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-                <ArrowRight className="h-4 w-4 text-muted-foreground" />
-              </button>
-            ))}
+            {principais.map((f) => {
+              const desc = failureDescription(f);
+              const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Falha";
+              return (
+                <button key={f.id} onClick={() => onSelect(f)} className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth text-left">
+                  {f.ordem_prioridade != null && <span className="font-mono text-xs text-muted-foreground w-6">#{f.ordem_prioridade}</span>}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium truncate">{titulo}</div>
+                    {desc && desc !== titulo && (
+                      <div className="text-xs text-muted-foreground truncate">{desc}</div>
+                    )}
+                    {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground/80">{f.id_caso_teste}</div>}
+                  </div>
+                  {f.severidade && <SeverityBadge value={f.severidade} />}
+                  {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              );
+            })}
           </div>
         )}
       </Card>
+
+      {passos.length > 0 && (
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Lightbulb className="h-4 w-4 text-warning" /> Ações sugeridas</h3>
+          <div className="space-y-2">
+            {passos.slice(0, 6).map((p) => (
+              <div key={p.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/40">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm">{p.descricao}</div>
+                  {p.relacionado_a && <div className="text-[11px] text-muted-foreground mt-0.5">{p.relacionado_a}</div>}
+                </div>
+                {p.prioridade && <Badge variant="outline" className="text-[10px]">{p.prioridade}</Badge>}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
