@@ -79,7 +79,6 @@ export default function Dashboard() {
 }
 
 function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | null }) {
-  const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const hasData = !!rodagem;
 
   const stats = hasData ? [
