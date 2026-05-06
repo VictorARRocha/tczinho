@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/qa";
 import type { Modulo, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
-import { formatRelative, getHealthStatus } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -80,7 +79,6 @@ export default function Dashboard() {
 }
 
 function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | null }) {
-  const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const hasData = !!rodagem;
 
   const stats = hasData ? [
@@ -103,12 +101,6 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
               {hasData ? formatRelative(rodagem!.data_analise) : "Sem dados"}
             </p>
           </div>
-          {hasData && (
-            <Badge variant="outline" className={`${health.className} gap-1.5 font-medium`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
-              {health.label}
-            </Badge>
-          )}
         </div>
 
         {hasData ? (
