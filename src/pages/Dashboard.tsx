@@ -3,9 +3,8 @@ import { Link } from "react-router-dom";
 import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/qa";
 import type { Modulo, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
-import { formatRelative, getHealthStatus } from "@/lib/format";
+import { formatRelative } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 
