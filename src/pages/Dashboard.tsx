@@ -103,10 +103,12 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
               {hasData ? formatRelative(rodagem!.data_analise) : "Sem dados"}
             </p>
           </div>
-          <Badge variant="outline" className={`${health.className} gap-1.5 font-medium`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
-            {health.label}
-          </Badge>
+          {hasData && (
+            <Badge variant="outline" className={`${health.className} gap-1.5 font-medium`}>
+              <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />
+              {health.label}
+            </Badge>
+          )}
         </div>
 
         {hasData ? (
