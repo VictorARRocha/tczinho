@@ -1,4 +1,4 @@
-import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+import { supabase, STORAGE_BUCKET, STORAGE_BUCKET_FALLBACKS } from "@/lib/supabase";
 import type { Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem } from "@/types/db";
 
 // =====================================================================
