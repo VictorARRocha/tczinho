@@ -19,6 +19,8 @@ import { ChevronLeft, Search, FileText, Image as ImageIcon, FileArchive, Refresh
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
+import { FileComparatorDialog } from "@/components/FileComparator";
+import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
@@ -44,8 +46,10 @@ export default function ModulePage() {
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState("resumo");
+  const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
+  const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
 
   const loadAll = async (runId?: string) => {
     try {
@@ -112,8 +116,8 @@ export default function ModulePage() {
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} passos={passos} performance={performance} onSelect={setSelectedFalha} onOpenPerformance={() => setActiveTab("performance")} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} passos={passos} performance={performance} onSelect={setSelectedFalha} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab falhas={falhas} evidencias={evidencias} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
@@ -121,6 +125,7 @@ export default function ModulePage() {
       )}
 
       <FailureDetailSheet falha={selectedFalha} open={!!selectedFalha} onClose={() => setSelectedFalha(null)} />
+      <FileComparatorDialog open={!!comparePair} pair={comparePair?.pair || null} falha={comparePair?.falha || null} onClose={() => setComparePair(null)} />
     </div>
   );
 }
@@ -217,7 +222,19 @@ function StatCard({ label, value, tone = "" }: { label: string; value: number | 
   );
 }
 
-function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerformance }: { rodagem: Rodagem; falhas: Falha[]; passos: ProximoPasso[]; performance: AtrasoRodagem[]; onSelect: (f: Falha) => void; onOpenPerformance: () => void }) {
+function OccCard({ label, value, tone, onClick }: { label: string; value: number; tone: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="text-left">
+      <Card className="glass-card p-5 hover:border-primary/40 transition-smooth h-full">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className={`text-3xl font-bold font-mono mt-1 ${tone}`}>{value}</div>
+        <div className="text-xs text-primary mt-2 inline-flex items-center gap-1">Abrir <ArrowRight className="h-3 w-3" /></div>
+      </Card>
+    </button>
+  );
+}
+
+function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; passos: ProximoPasso[]; performance: AtrasoRodagem[]; onSelect: (f: Falha) => void; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
   const classData = [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
@@ -260,6 +277,13 @@ function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerfo
     .sort((a, b) => severityRank(b.severidade) - severityRank(a.severidade) || ((a.ordem_prioridade ?? 999) - (b.ordem_prioridade ?? 999)))
     .slice(0, 5);
 
+  const occCounts = useMemo(() => {
+    const evMap = groupEvidsByFailure(evidencias);
+    const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
+    falhas.forEach((f) => { c[classifyOccurrence(f, evMap.get(f.id) || [])]++; });
+    return c;
+  }, [falhas, evidencias]);
+
   const hasDiagText = isMeaningful(rodagem.diagnostico_curto) || isMeaningful(rodagem.diagnostico_detalhado) || isMeaningful(rodagem.conclusao_geral);
   const fallbackDiag = rodagem.total_falhas > 0
     ? "Foram encontradas falhas nesta rodagem. Analise os casos listados abaixo."
@@ -283,6 +307,12 @@ function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerfo
 
       <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
+        <OccCard label="Quebras de teste" value={occCounts.quebra} tone="text-destructive" onClick={() => onOpenFalhas("quebra")} />
+        <OccCard label="Diferenças de arquivos" value={occCounts.diferenca} tone="text-warning" onClick={() => onOpenFalhas("diferenca")} />
+        <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />
       </div>
 
       {performance.length > 0 && (() => {
@@ -409,110 +439,164 @@ function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerfo
     </div>
   );
 }
-function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha) => void }) {
+function FalhasTab({
+  falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
+}: {
+  falhas: Falha[];
+  evidencias: Evidencia[];
+  subTab: "todos" | "quebra" | "diferenca" | "quebra_diferenca";
+  setSubTab: (s: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void;
+  onSelect: (f: Falha) => void;
+  onCompare: (pair: ComparisonPair, falha: Falha) => void;
+}) {
   const [q, setQ] = useState("");
-  const [classif, setClassif] = useState<string>("");
-  const [sev, setSev] = useState<string>("");
-  const [conf, setConf] = useState<string>("");
-  const [hasPrint, setHasPrint] = useState(false);
-  const [hasTxt, setHasTxt] = useState(false);
-  const [hasZip, setHasZip] = useState(false);
+  const [extFilter, setExtFilter] = useState<string>("");
 
-  const filtered = useMemo(() => falhas.filter((f) => {
+  const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
+
+  const enriched = useMemo(() => falhas.map((f) => {
+    const evs = evMap.get(f.id) || [];
+    const tipo = classifyOccurrence(f, evs);
+    const pairs = pairBaseAtual(evs);
+    return { f, evs, tipo, pairs };
+  }), [falhas, evMap]);
+
+  const counts = useMemo(() => {
+    const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
+    enriched.forEach((e) => { c[e.tipo]++; });
+    return { ...c, todos: enriched.length };
+  }, [enriched]);
+
+  const allExts = useMemo(() => {
+    const s = new Set<string>();
+    enriched.forEach((e) => e.pairs.forEach((p) => p.extensao && s.add(p.extensao)));
+    return Array.from(s).sort();
+  }, [enriched]);
+
+  const filtered = useMemo(() => enriched.filter(({ f, tipo, pairs }) => {
+    if (subTab !== "todos" && tipo !== subTab) return false;
     if (q && !JSON.stringify(f).toLowerCase().includes(q.toLowerCase())) return false;
-    if (classif && (f.classificacao || "").toLowerCase() !== classif.toLowerCase()) return false;
-    if (sev && (f.severidade || "").toLowerCase() !== sev.toLowerCase()) return false;
-    if (conf && (f.confianca || "").toLowerCase() !== conf.toLowerCase()) return false;
-    if (hasPrint && !f.arquivo_print) return false;
-    if (hasTxt && !f.arquivo_txt) return false;
-    if (hasZip && !f.arquivo_zip) return false;
+    if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
     return true;
-  }), [falhas, q, classif, sev, conf, hasPrint, hasTxt, hasZip]);
+  }), [enriched, subTab, q, extFilter]);
 
-  const uniq = (key: keyof Falha) => Array.from(new Set(falhas.map((f) => f[key]).filter(Boolean))) as string[];
-  const has = (key: keyof Falha) => falhas.some((f) => isMeaningful(f[key] as any));
-
-  const cols = {
-    prioridade: has("ordem_prioridade"),
-    grupo: has("grupo") || has("subgrupo"),
-    descricao: falhas.some((f) => failureDescription(f)),
-    classificacao: has("classificacao"),
-    severidade: has("severidade"),
-    confianca: has("confianca"),
-    evidencias: has("arquivo_print") || has("arquivo_txt") || has("arquivo_zip"),
-  };
-  const colCount = 1 + Object.values(cols).filter(Boolean).length;
+  const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
+    <button
+      onClick={() => setSubTab(id)}
+      className={`px-3 h-8 rounded-md text-xs font-medium transition-smooth border ${
+        subTab === id ? "bg-primary/15 border-primary/40 text-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label} <span className={`font-mono ml-1 ${tone || ""}`}>({count})</span>
+    </button>
+  );
 
   return (
     <div className="space-y-4">
       <Card className="glass-card p-4 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
+          <SubTabBtn id="diferenca" label="Diferenças" count={counts.diferenca} tone="text-warning" />
+          <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-primary" />
+          <SubTabBtn id="todos" label="Todos" count={counts.todos} />
+        </div>
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar em todas as falhas..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {cols.classificacao && <Select label="Classificação" value={classif} onChange={setClassif} options={uniq("classificacao")} />}
-          {cols.severidade && <Select label="Severidade" value={sev} onChange={setSev} options={uniq("severidade")} />}
-          {cols.confianca && <Select label="Confiança" value={conf} onChange={setConf} options={uniq("confianca")} />}
-          {has("arquivo_print") && <ToggleChip label="Tem print" active={hasPrint} onClick={() => setHasPrint((v) => !v)} />}
-          {has("arquivo_txt") && <ToggleChip label="Tem TXT" active={hasTxt} onClick={() => setHasTxt((v) => !v)} />}
-          {has("arquivo_zip") && <ToggleChip label="Tem ZIP" active={hasZip} onClick={() => setHasZip((v) => !v)} />}
+          <Input placeholder="Buscar por ID, nome ou descrição..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
+          {allExts.length > 0 && (
+            <select value={extFilter} onChange={(e) => setExtFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-2 text-xs">
+              <option value="">Extensão: todas</option>
+              {allExts.map((e) => <option key={e} value={e}>.{e}</option>)}
+            </select>
+          )}
         </div>
       </Card>
 
-      <Card className="glass-card overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              {cols.prioridade && <TableHead className="w-12">#</TableHead>}
-              <TableHead>Caso de teste</TableHead>
-              {cols.grupo && <TableHead>Grupo</TableHead>}
-              {cols.descricao && <TableHead>Descrição</TableHead>}
-              {cols.classificacao && <TableHead>Classificação</TableHead>}
-              {cols.severidade && <TableHead>Severidade</TableHead>}
-              {cols.confianca && <TableHead>Confiança</TableHead>}
-              {cols.evidencias && <TableHead className="text-center">Evidências</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={colCount} className="text-center text-sm text-muted-foreground py-12">Nenhuma falha corresponde aos filtros.</TableCell></TableRow>
-            ) : filtered.map((f) => (
-              <TableRow key={f.id} className="border-border cursor-pointer hover:bg-secondary/40" onClick={() => onSelect(f)}>
-                {cols.prioridade && <TableCell className="font-mono text-xs text-muted-foreground">{f.ordem_prioridade ?? "—"}</TableCell>}
-                <TableCell>
-                  <div className="font-medium text-sm truncate max-w-[240px]">{f.caso_teste_provavel || f.arquivo_zip || "—"}</div>
-                  {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground">{f.id_caso_teste}</div>}
-                </TableCell>
-                {cols.grupo && <TableCell className="text-xs">{f.grupo}{f.subgrupo && <span className="text-muted-foreground"> / {f.subgrupo}</span>}</TableCell>}
-                {cols.descricao && <TableCell className="max-w-[320px]"><div className="line-clamp-2 text-xs text-muted-foreground">{failureDescription(f) || "—"}</div></TableCell>}
-                {cols.classificacao && <TableCell><ClassificationBadge value={f.classificacao} /></TableCell>}
-                {cols.severidade && <TableCell><SeverityBadge value={f.severidade} /></TableCell>}
-                {cols.confianca && <TableCell><ConfidenceBadge value={f.confianca} /></TableCell>}
-                {cols.evidencias && (
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                      {f.arquivo_print && <ImageIcon className="h-3.5 w-3.5 text-primary" />}
-                      {f.arquivo_txt && <FileText className="h-3.5 w-3.5 text-warning" />}
-                      {f.arquivo_zip && <FileArchive className="h-3.5 w-3.5 text-data-mass" />}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      {filtered.length === 0 ? (
+        <Card className="glass-card p-12 text-center text-sm text-muted-foreground">
+          {subTab === "quebra" && "Nenhuma quebra de teste encontrada."}
+          {subTab === "diferenca" && "Nenhuma diferença de arquivo encontrada."}
+          {subTab === "quebra_diferenca" && "Nenhuma ocorrência híbrida encontrada."}
+          {subTab === "todos" && "Nenhuma ocorrência encontrada."}
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(({ f, tipo, pairs }) => (
+            <FalhaRow key={f.id} f={f} tipo={tipo} pairs={pairs} onSelect={onSelect} onCompare={onCompare} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
+  if (tipo === "quebra") return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30">Quebra</Badge>;
+  if (tipo === "diferenca") return <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Diferença</Badge>;
+  return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">Quebra + Diferença</Badge>;
+}
+
+function FalhaRow({
+  f, tipo, pairs, onSelect, onCompare,
+}: {
+  f: Falha; tipo: OccurrenceType; pairs: ComparisonPair[];
+  onSelect: (f: Falha) => void;
+  onCompare: (p: ComparisonPair, f: Falha) => void;
+}) {
+  const desc = failureDescription(f);
+  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Falha";
+  const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
+  const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
-      <option value="">{label}: todos</option>
-      {options.map((o) => <option key={o} value={o}>{o}</option>)}
-    </select>
+    <Card className="glass-card p-4 hover:border-primary/30 transition-smooth">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <TipoBadge tipo={tipo} />
+            {f.id_caso_teste && <span className="font-mono text-[11px] text-muted-foreground">#{f.id_caso_teste}</span>}
+            {f.severidade && <SeverityBadge value={f.severidade} />}
+            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+          </div>
+          <div className="text-sm font-medium truncate">{titulo}</div>
+          {isQuebra && desc && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{desc}</p>}
+          {f.grupo && <div className="text-[11px] text-muted-foreground mt-0.5">{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</div>}
+
+          {isDiff && pairs.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {pairs.map((p) => (
+                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-secondary/40 rounded-md px-2.5 py-1.5">
+                  <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                  <span className="font-mono truncate max-w-[180px]" title={p.base?.nome_arquivo || ""}>
+                    base: {p.base?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
+                  </span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className="font-mono truncate max-w-[180px]" title={p.atual?.nome_arquivo || ""}>
+                    atual: {p.atual?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
+                  </span>
+                  <div className="ml-auto flex gap-1">
+                    {p.base && p.atual ? (
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Comparar</Button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        {p.base ? "Atual ausente" : "Base ausente"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {isDiff && pairs.length === 0 && (
+            <p className="text-[11px] text-muted-foreground italic mt-2">Arquivos de comparação não vinculados.</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {isQuebra && <Button size="sm" variant="outline" onClick={() => onSelect(f)}>Ver erro</Button>}
+          {!isQuebra && <Button size="sm" variant="ghost" onClick={() => onSelect(f)}>Detalhe</Button>}
+        </div>
+      </div>
+    </Card>
   );
 }
 
