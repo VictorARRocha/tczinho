@@ -332,24 +332,38 @@ export async function fetchFailuresByRun(runId: string): Promise<Falha[]> {
 }
 
 export async function fetchEvidenceByRun(runId: string): Promise<Evidencia[]> {
+  // 1) Try direct lookup by rodagem_id (newer schema)
+  const direct = await supabase.from("evidencias").select("*").eq("rodagem_id", runId);
+  if (!direct.error && direct.data && direct.data.length > 0) {
+    return direct.data.map((e: any) => normEvidencia(e, runId));
+  }
+  // 2) Fallback: lookup via failures of the run
   const falhas = await fetchFailuresByRun(runId);
   const ids = falhas.map((f) => f.id);
   if (ids.length === 0) return [];
-  const { data, error } = await supabase.from("evidencias").select("*").in("fk_falha", ids);
-  if (error) {
-    console.error("[fetchEvidenceByRun]", error);
+  let res = await supabase.from("evidencias").select("*").in("falha_id", ids);
+  if (res.error || !res.data || res.data.length === 0) {
+    const fb = await supabase.from("evidencias").select("*").in("fk_falha", ids);
+    if (!fb.error) res = fb as any;
+  }
+  if (res.error) {
+    console.error("[fetchEvidenceByRun]", res.error);
     return [];
   }
-  return (data || []).map((e: any) => normEvidencia(e, runId));
+  return (res.data || []).map((e: any) => normEvidencia(e, runId));
 }
 
 export async function fetchEvidenceByFailure(failureId: string): Promise<Evidencia[]> {
-  const { data, error } = await supabase.from("evidencias").select("*").eq("fk_falha", failureId);
-  if (error) {
-    console.error("[fetchEvidenceByFailure]", error);
+  let res = await supabase.from("evidencias").select("*").eq("falha_id", failureId);
+  if (res.error || !res.data || res.data.length === 0) {
+    const fb = await supabase.from("evidencias").select("*").eq("fk_falha", failureId);
+    if (!fb.error) res = fb as any;
+  }
+  if (res.error) {
+    console.error("[fetchEvidenceByFailure]", res.error);
     return [];
   }
-  return (data || []).map((e: any) => normEvidencia(e));
+  return (res.data || []).map((e: any) => normEvidencia(e));
 }
 
 export async function fetchGroupsByRun(runId: string): Promise<Agrupamento[]> {
