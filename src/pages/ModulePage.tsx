@@ -24,6 +24,17 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+
+async function handleEvidenceDownload(ev: Evidencia) {
+  const direct = ev.public_url || ev.signed_url;
+  if (direct) { window.open(direct, "_blank", "noopener,noreferrer"); return; }
+  const bucket = ev.bucket || STORAGE_BUCKET;
+  if (!ev.storage_path) { toast.error("Sem URL disponível"); return; }
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60);
+  if (error || !data?.signedUrl) { toast.error("Falha ao gerar link"); return; }
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
 
 // Descrição clara do problema da falha — usa o melhor texto disponível
 function failureDescription(f: Falha): string {
@@ -469,35 +480,40 @@ function FalhasTab({
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
-  // Evidências sem falha_id (descobertas no Storage) → sintetizar "falhas virtuais" de Diferença,
-  // uma para cada pasta lógica que contenha um par base/atual.
+  // Pastas `comparacao/` já cobertas por falhas reais (evita duplicar como sintética)
+  const realPairKeys = useMemo(() => {
+    const set = new Set<string>();
+    falhas.forEach((f) => {
+      const evs = evMap.get(f.id) || [];
+      pairBaseAtual(evs).forEach((p) => set.add(p.key));
+    });
+    return set;
+  }, [falhas, evMap]);
+
+  // Sintetiza UMA falha virtual por pasta `comparacao/` órfã (sem falha_id), com par completo.
   const syntheticFalhas = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
     if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
 
-    // Agrupar por "pasta da falha" — pai da pasta `comparacao`, ou diretório imediato
-    const byCase = new Map<string, Evidencia[]>();
+    const byCmpFolder = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
       const path = (e.storage_path || "").replace(/\\/g, "/");
-      let caseFolder = path.split("/").slice(0, -1).join("/") || "_root";
-      // se o arquivo está dentro de `.../falhas/{caso}/comparacao/...` ou `.../{caso}/imagens/...`
-      // o caso é o pai do subdiretório (comparacao|imagens|zip|prints|logs)
-      const m = path.match(/^(.*?)\/(comparacao|imagens|zip|prints|logs|evidencias?)\b/i);
-      if (m) caseFolder = m[1];
-      const arr = byCase.get(caseFolder) || [];
+      const m = path.match(/^(.*\/comparacao)\//i);
+      if (!m) return;
+      const folder = m[1];
+      const arr = byCmpFolder.get(folder) || [];
       arr.push(e);
-      byCase.set(caseFolder, arr);
+      byCmpFolder.set(folder, arr);
     });
 
     const out: { f: Falha; evs: Evidencia[] }[] = [];
-    byCase.forEach((evs, folder) => {
-      const hasComparacao = evs.some((e) => /\/comparacao\//i.test(e.storage_path || "") || e.tipo === "comparacao");
+    byCmpFolder.forEach((evs, cmpFolder) => {
+      if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
       const pairs = pairBaseAtual(evs);
-      const hasPair = pairs.some((p) => p.base && p.atual);
-      // só sintetiza se a pasta indicar comparação (mesmo que ainda não pareada)
-      if (!hasComparacao && !hasPair) return;
-      const caseName = folder.split("/").pop() || folder;
-      const id = `storage:${folder}`;
+      if (!pairs.length) return; // exige par base+atual completo
+      const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
+      const caseName = caseFolder.split("/").pop() || caseFolder;
+      const id = `storage:${caseFolder}`;
       const f = {
         id,
         rodagem_id: evs[0]?.rodagem_id || "",
@@ -505,7 +521,7 @@ function FalhasTab({
         ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
         caso_identificado: false, id_caso_teste: caseName,
         caso_teste_provavel: `Comparação: ${caseName}`,
-        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: folder, confianca_associacao: null,
+        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: caseFolder, confianca_associacao: null,
         erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
         call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
         classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
@@ -516,7 +532,7 @@ function FalhasTab({
       out.push({ f, evs });
     });
     return out;
-  }, [evidencias]);
+  }, [evidencias, realPairKeys]);
 
   const enriched = useMemo(() => {
     const real = falhas.map((f) => {
@@ -639,26 +655,19 @@ function FalhaRow({
               {pairs.map((p) => (
                 <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-secondary/40 rounded-md px-2.5 py-1.5">
                   <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
-                  <span className="font-mono truncate max-w-[180px]" title={p.base?.nome_arquivo || ""}>
-                    base: {p.base?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
-                  </span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="font-mono truncate max-w-[180px]" title={p.atual?.nome_arquivo || ""}>
-                    atual: {p.atual?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
-                  </span>
-                  {p.auto && (
-                    <span className="text-[10px] text-muted-foreground italic" title="Par identificado automaticamente pela ordem dos arquivos">
-                      auto
-                    </span>
-                  )}
-                  <div className="ml-auto flex gap-1">
-                    {p.base && p.atual ? (
-                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground italic">
-                        {p.base ? "Atual ausente" : "Base ausente"}
-                      </span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono truncate" title={p.base!.nome_arquivo || ""}>
+                      <span className="text-muted-foreground">base:</span> {p.base!.nome_arquivo}
+                    </div>
+                    <div className="font-mono truncate" title={p.atual!.nome_arquivo || ""}>
+                      <span className="text-muted-foreground">atual:</span> {p.atual!.nome_arquivo}
+                    </div>
+                    {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar base</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar atual</Button>
+                    <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
                   </div>
                 </div>
               ))}

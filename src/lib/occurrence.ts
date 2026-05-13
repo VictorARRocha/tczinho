@@ -63,71 +63,44 @@ export interface ComparisonPair {
 }
 
 /** Pareia evidências base/atual.
- *  Estratégia:
- *  1) Agrupa arquivos da pasta `comparacao/` por pasta (folder do storage).
- *     - Se houver 2 arquivos sem indicador claro: 1º=base, 2º=atual (auto=true).
- *     - Se houver indicadores (base/atual no nome), respeitar.
- *  2) Para evidências fora da pasta `comparacao` mas com indicadores no nome,
- *     parear pelo nome base normalizado (comportamento legado).
+ *  REGRA: 1 pasta `comparacao/` = 1 par (base + atual). Nada fora disso.
+ *  - Identifica base/atual pelos tokens do nome.
+ *  - Fallback: se só houver 2 arquivos sem nome claro, primeiro=base, segundo=atual (auto=true).
+ *  - Pastas com menos de 2 arquivos são ignoradas.
+ *  - Deduplica por `cmp:{folder}`.
  */
 export function pairBaseAtual(evids: Evidencia[]): ComparisonPair[] {
-  const pairs: ComparisonPair[] = [];
-
-  // 1) Pasta comparacao/ — agrupar por diretório pai
   const inCmp = evids.filter((e) => isInComparacaoFolder(e));
   const byFolder = new Map<string, Evidencia[]>();
   inCmp.forEach((e) => {
-    const folder = (e.storage_path || "").split("/").slice(0, -1).join("/") || (e.id || "_root");
+    const folder = (e.storage_path || "").split("/").slice(0, -1).join("/");
+    if (!folder) return;
     const arr = byFolder.get(folder) || [];
     arr.push(e);
     byFolder.set(folder, arr);
   });
+
+  const pairs = new Map<string, ComparisonPair>();
   byFolder.forEach((arr, folder) => {
-    // ordenar por nome para estabilidade
+    if (arr.length < 2) return;
     arr.sort((a, b) => (a.nome_arquivo || "").localeCompare(b.nome_arquivo || ""));
-    // tentar pelo nome
     const baseNamed = arr.find((e) => classifySide(e) === "base");
-    const atualNamed = arr.find((e) => classifySide(e) === "atual");
-    if (baseNamed || atualNamed) {
-      const ext = ((baseNamed || atualNamed)!.extensao || "").toLowerCase();
-      pairs.push({ key: `cmp:${folder}`, base: baseNamed, atual: atualNamed, extensao: ext });
-      return;
+    const atualNamed = arr.find((e) => classifySide(e) === "atual" && e !== baseNamed);
+    let base: Evidencia | undefined = baseNamed;
+    let atual: Evidencia | undefined = atualNamed;
+    let auto = false;
+    if (!base || !atual) {
+      const remaining = arr.filter((e) => e !== base && e !== atual);
+      if (!base && remaining.length) { base = remaining.shift(); auto = true; }
+      if (!atual && remaining.length) { atual = remaining.shift(); auto = true; }
     }
-    // fallback: 2 arquivos → primeiro=base, segundo=atual
-    if (arr.length >= 2) {
-      const ext = (arr[0].extensao || "").toLowerCase();
-      pairs.push({ key: `cmp:${folder}`, base: arr[0], atual: arr[1], extensao: ext, auto: true });
-      return;
-    }
-    // único arquivo: registrar sem par completo
-    const only = arr[0];
-    const ext = (only.extensao || "").toLowerCase();
-    pairs.push({ key: `cmp:${folder}`, base: only, extensao: ext, auto: true });
+    if (!base || !atual) return; // exige par completo
+    const ext = (base.extensao || atual.extensao || "").toLowerCase();
+    const key = `cmp:${folder}`;
+    if (!pairs.has(key)) pairs.set(key, { key, base, atual, extensao: ext, auto });
   });
 
-  // 2) Legado: arquivos fora da pasta comparacao mas com indicador no nome
-  const outside = evids.filter((e) => !isInComparacaoFolder(e));
-  const map = new Map<string, ComparisonPair>();
-  outside.forEach((e) => {
-    const side = classifySide(e);
-    if (!side) return;
-    const baseName = (e.nome_arquivo || e.storage_path || e.id || "")
-      .toString()
-      .toLowerCase()
-      .replace(/(base|anterior|esperad\w*|referenc\w*|original|previo|antes|antigo|atual|novo|obtid\w*|resultad\w*|gerad\w*|current|depois|new)/gi, "")
-      .replace(/[._\-\s]+/g, "_")
-      .replace(/^_+|_+$/g, "");
-    const ext = (e.extensao || (e.nome_arquivo || "").split(".").pop() || "").toLowerCase();
-    const key = `legacy:${baseName}|${ext}`;
-    const cur = map.get(key) || { key, extensao: ext };
-    if (side === "base") cur.base = e;
-    else cur.atual = e;
-    cur.extensao = ext;
-    map.set(key, cur);
-  });
-  pairs.push(...Array.from(map.values()));
-
-  return pairs;
+  return Array.from(pairs.values());
 }
 
 /** Identifica se uma falha tem quebra técnica (call stack, erro principal etc.). */
