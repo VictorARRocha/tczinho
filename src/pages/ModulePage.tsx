@@ -46,6 +46,7 @@ export default function ModulePage() {
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [activeTab, setActiveTab] = useState("resumo");
+  const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
   const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
