@@ -124,6 +124,7 @@ export default function ModulePage() {
       )}
 
       <FailureDetailSheet falha={selectedFalha} open={!!selectedFalha} onClose={() => setSelectedFalha(null)} />
+      <FileComparatorDialog open={!!comparePair} pair={comparePair?.pair || null} falha={comparePair?.falha || null} onClose={() => setComparePair(null)} />
     </div>
   );
 }
