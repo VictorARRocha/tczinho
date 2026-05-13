@@ -19,6 +19,8 @@ import { ChevronLeft, Search, FileText, Image as ImageIcon, FileArchive, Refresh
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
+import { FileComparatorDialog } from "@/components/FileComparator";
+import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
