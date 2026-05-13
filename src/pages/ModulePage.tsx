@@ -218,7 +218,18 @@ function StatCard({ label, value, tone = "" }: { label: string; value: number | 
     <Card className="glass-card p-4">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold font-mono mt-1 ${tone}`}>{value ?? 0}</div>
-    </Card>
+  );
+}
+
+function OccCard({ label, value, tone, onClick }: { label: string; value: number; tone: string; onClick: () => void }) {
+  return (
+    <button onClick={onClick} className="text-left">
+      <Card className="glass-card p-5 hover:border-primary/40 transition-smooth h-full">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+        <div className={`text-3xl font-bold font-mono mt-1 ${tone}`}>{value}</div>
+        <div className="text-xs text-primary mt-2 inline-flex items-center gap-1">Abrir <ArrowRight className="h-3 w-3" /></div>
+      </Card>
+    </button>
   );
 }
 
