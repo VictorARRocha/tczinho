@@ -457,6 +457,8 @@ export function mergeEvidences(db: Evidencia[], storage: Evidencia[]): Evidencia
   });
   return [...db, ...extras];
 }
+
+export async function fetchGroupsByRun(runId: string): Promise<Agrupamento[]> {
   const { data, error } = await supabase.from("agrupamentos").select("*").eq("fk_rodagem", runId);
   if (error) {
     console.error("[fetchGroupsByRun]", error);
