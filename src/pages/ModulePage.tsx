@@ -633,6 +633,11 @@ function FalhaRow({
                   <span className="font-mono truncate max-w-[180px]" title={p.atual?.nome_arquivo || ""}>
                     atual: {p.atual?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
                   </span>
+                  {p.auto && (
+                    <span className="text-[10px] text-muted-foreground italic" title="Par identificado automaticamente pela ordem dos arquivos">
+                      auto
+                    </span>
+                  )}
                   <div className="ml-auto flex gap-1">
                     {p.base && p.atual ? (
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Comparar</Button>
