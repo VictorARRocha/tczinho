@@ -65,7 +65,7 @@ export default function ModulePage() {
         const [f, e, g, p, perf, links, storageFiles] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
           fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
-          listStorageFilesByRun(r.id, slug),
+          listStorageFilesByRun(r.id, slug, r.pasta_origem),
         ]);
         const merged = mergeEvidences(e, storageFiles);
         setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
