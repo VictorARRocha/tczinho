@@ -439,105 +439,167 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
     </div>
   );
 }
-function FalhasTab({ falhas, onSelect }: { falhas: Falha[]; onSelect: (f: Falha) => void }) {
+function FalhasTab({
+  falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
+}: {
+  falhas: Falha[];
+  evidencias: Evidencia[];
+  subTab: "todos" | "quebra" | "diferenca" | "quebra_diferenca";
+  setSubTab: (s: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void;
+  onSelect: (f: Falha) => void;
+  onCompare: (pair: ComparisonPair, falha: Falha) => void;
+}) {
   const [q, setQ] = useState("");
-  const [classif, setClassif] = useState<string>("");
-  const [sev, setSev] = useState<string>("");
-  const [conf, setConf] = useState<string>("");
-  const [hasPrint, setHasPrint] = useState(false);
-  const [hasTxt, setHasTxt] = useState(false);
-  const [hasZip, setHasZip] = useState(false);
+  const [extFilter, setExtFilter] = useState<string>("");
 
-  const filtered = useMemo(() => falhas.filter((f) => {
+  const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
+
+  const enriched = useMemo(() => falhas.map((f) => {
+    const evs = evMap.get(f.id) || [];
+    const tipo = classifyOccurrence(f, evs);
+    const pairs = pairBaseAtual(evs);
+    return { f, evs, tipo, pairs };
+  }), [falhas, evMap]);
+
+  const counts = useMemo(() => {
+    const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
+    enriched.forEach((e) => { c[e.tipo]++; });
+    return { ...c, todos: enriched.length };
+  }, [enriched]);
+
+  const allExts = useMemo(() => {
+    const s = new Set<string>();
+    enriched.forEach((e) => e.pairs.forEach((p) => p.extensao && s.add(p.extensao)));
+    return Array.from(s).sort();
+  }, [enriched]);
+
+  const filtered = useMemo(() => enriched.filter(({ f, tipo, pairs }) => {
+    if (subTab !== "todos" && tipo !== subTab) return false;
     if (q && !JSON.stringify(f).toLowerCase().includes(q.toLowerCase())) return false;
-    if (classif && (f.classificacao || "").toLowerCase() !== classif.toLowerCase()) return false;
-    if (sev && (f.severidade || "").toLowerCase() !== sev.toLowerCase()) return false;
-    if (conf && (f.confianca || "").toLowerCase() !== conf.toLowerCase()) return false;
-    if (hasPrint && !f.arquivo_print) return false;
-    if (hasTxt && !f.arquivo_txt) return false;
-    if (hasZip && !f.arquivo_zip) return false;
+    if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
     return true;
-  }), [falhas, q, classif, sev, conf, hasPrint, hasTxt, hasZip]);
+  }), [enriched, subTab, q, extFilter]);
 
-  const uniq = (key: keyof Falha) => Array.from(new Set(falhas.map((f) => f[key]).filter(Boolean))) as string[];
-  const has = (key: keyof Falha) => falhas.some((f) => isMeaningful(f[key] as any));
-
-  const cols = {
-    prioridade: has("ordem_prioridade"),
-    grupo: has("grupo") || has("subgrupo"),
-    descricao: falhas.some((f) => failureDescription(f)),
-    classificacao: has("classificacao"),
-    severidade: has("severidade"),
-    confianca: has("confianca"),
-    evidencias: has("arquivo_print") || has("arquivo_txt") || has("arquivo_zip"),
-  };
-  const colCount = 1 + Object.values(cols).filter(Boolean).length;
+  const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
+    <button
+      onClick={() => setSubTab(id)}
+      className={`px-3 h-8 rounded-md text-xs font-medium transition-smooth border ${
+        subTab === id ? "bg-primary/15 border-primary/40 text-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label} <span className={`font-mono ml-1 ${tone || ""}`}>({count})</span>
+    </button>
+  );
 
   return (
     <div className="space-y-4">
       <Card className="glass-card p-4 space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
+          <SubTabBtn id="diferenca" label="Diferenças" count={counts.diferenca} tone="text-warning" />
+          <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-primary" />
+          <SubTabBtn id="todos" label="Todos" count={counts.todos} />
+        </div>
         <div className="flex items-center gap-2">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar em todas as falhas..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {cols.classificacao && <Select label="Classificação" value={classif} onChange={setClassif} options={uniq("classificacao")} />}
-          {cols.severidade && <Select label="Severidade" value={sev} onChange={setSev} options={uniq("severidade")} />}
-          {cols.confianca && <Select label="Confiança" value={conf} onChange={setConf} options={uniq("confianca")} />}
-          {has("arquivo_print") && <ToggleChip label="Tem print" active={hasPrint} onClick={() => setHasPrint((v) => !v)} />}
-          {has("arquivo_txt") && <ToggleChip label="Tem TXT" active={hasTxt} onClick={() => setHasTxt((v) => !v)} />}
-          {has("arquivo_zip") && <ToggleChip label="Tem ZIP" active={hasZip} onClick={() => setHasZip((v) => !v)} />}
+          <Input placeholder="Buscar por ID, nome ou descrição..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
+          {allExts.length > 0 && (
+            <select value={extFilter} onChange={(e) => setExtFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-2 text-xs">
+              <option value="">Extensão: todas</option>
+              {allExts.map((e) => <option key={e} value={e}>.{e}</option>)}
+            </select>
+          )}
         </div>
       </Card>
 
-      <Card className="glass-card overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="border-border hover:bg-transparent">
-              {cols.prioridade && <TableHead className="w-12">#</TableHead>}
-              <TableHead>Caso de teste</TableHead>
-              {cols.grupo && <TableHead>Grupo</TableHead>}
-              {cols.descricao && <TableHead>Descrição</TableHead>}
-              {cols.classificacao && <TableHead>Classificação</TableHead>}
-              {cols.severidade && <TableHead>Severidade</TableHead>}
-              {cols.confianca && <TableHead>Confiança</TableHead>}
-              {cols.evidencias && <TableHead className="text-center">Evidências</TableHead>}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={colCount} className="text-center text-sm text-muted-foreground py-12">Nenhuma falha corresponde aos filtros.</TableCell></TableRow>
-            ) : filtered.map((f) => (
-              <TableRow key={f.id} className="border-border cursor-pointer hover:bg-secondary/40" onClick={() => onSelect(f)}>
-                {cols.prioridade && <TableCell className="font-mono text-xs text-muted-foreground">{f.ordem_prioridade ?? "—"}</TableCell>}
-                <TableCell>
-                  <div className="font-medium text-sm truncate max-w-[240px]">{f.caso_teste_provavel || f.arquivo_zip || "—"}</div>
-                  {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground">{f.id_caso_teste}</div>}
-                </TableCell>
-                {cols.grupo && <TableCell className="text-xs">{f.grupo}{f.subgrupo && <span className="text-muted-foreground"> / {f.subgrupo}</span>}</TableCell>}
-                {cols.descricao && <TableCell className="max-w-[320px]"><div className="line-clamp-2 text-xs text-muted-foreground">{failureDescription(f) || "—"}</div></TableCell>}
-                {cols.classificacao && <TableCell><ClassificationBadge value={f.classificacao} /></TableCell>}
-                {cols.severidade && <TableCell><SeverityBadge value={f.severidade} /></TableCell>}
-                {cols.confianca && <TableCell><ConfidenceBadge value={f.confianca} /></TableCell>}
-                {cols.evidencias && (
-                  <TableCell>
-                    <div className="flex items-center justify-center gap-1.5 text-muted-foreground">
-                      {f.arquivo_print && <ImageIcon className="h-3.5 w-3.5 text-primary" />}
-                      {f.arquivo_txt && <FileText className="h-3.5 w-3.5 text-warning" />}
-                      {f.arquivo_zip && <FileArchive className="h-3.5 w-3.5 text-data-mass" />}
-                    </div>
-                  </TableCell>
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      {filtered.length === 0 ? (
+        <Card className="glass-card p-12 text-center text-sm text-muted-foreground">
+          {subTab === "quebra" && "Nenhuma quebra de teste encontrada."}
+          {subTab === "diferenca" && "Nenhuma diferença de arquivo encontrada."}
+          {subTab === "quebra_diferenca" && "Nenhuma ocorrência híbrida encontrada."}
+          {subTab === "todos" && "Nenhuma ocorrência encontrada."}
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map(({ f, tipo, pairs }) => (
+            <FalhaRow key={f.id} f={f} tipo={tipo} pairs={pairs} onSelect={onSelect} onCompare={onCompare} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function Select({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
+  if (tipo === "quebra") return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30">Quebra</Badge>;
+  if (tipo === "diferenca") return <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Diferença</Badge>;
+  return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">Quebra + Diferença</Badge>;
+}
+
+function FalhaRow({
+  f, tipo, pairs, onSelect, onCompare,
+}: {
+  f: Falha; tipo: OccurrenceType; pairs: ComparisonPair[];
+  onSelect: (f: Falha) => void;
+  onCompare: (p: ComparisonPair, f: Falha) => void;
+}) {
+  const desc = failureDescription(f);
+  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Falha";
+  const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
+  const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+
+  return (
+    <Card className="glass-card p-4 hover:border-primary/30 transition-smooth">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <TipoBadge tipo={tipo} />
+            {f.id_caso_teste && <span className="font-mono text-[11px] text-muted-foreground">#{f.id_caso_teste}</span>}
+            {f.severidade && <SeverityBadge value={f.severidade} />}
+            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+          </div>
+          <div className="text-sm font-medium truncate">{titulo}</div>
+          {isQuebra && desc && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{desc}</p>}
+          {f.grupo && <div className="text-[11px] text-muted-foreground mt-0.5">{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</div>}
+
+          {isDiff && pairs.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {pairs.map((p) => (
+                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-secondary/40 rounded-md px-2.5 py-1.5">
+                  <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                  <span className="font-mono truncate max-w-[180px]" title={p.base?.nome_arquivo || ""}>
+                    base: {p.base?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
+                  </span>
+                  <span className="text-muted-foreground">→</span>
+                  <span className="font-mono truncate max-w-[180px]" title={p.atual?.nome_arquivo || ""}>
+                    atual: {p.atual?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
+                  </span>
+                  <div className="ml-auto flex gap-1">
+                    {p.base && p.atual ? (
+                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Comparar</Button>
+                    ) : (
+                      <span className="text-[11px] text-muted-foreground italic">
+                        {p.base ? "Atual ausente" : "Base ausente"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {isDiff && pairs.length === 0 && (
+            <p className="text-[11px] text-muted-foreground italic mt-2">Arquivos de comparação não vinculados.</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-1.5 shrink-0">
+          {isQuebra && <Button size="sm" variant="outline" onClick={() => onSelect(f)}>Ver erro</Button>}
+          {!isQuebra && <Button size="sm" variant="ghost" onClick={() => onSelect(f)}>Detalhe</Button>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
   return (
     <select value={value} onChange={(e) => onChange(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
       <option value="">{label}: todos</option>
