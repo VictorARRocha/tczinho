@@ -8,4 +8,7 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   realtime: { params: { eventsPerSecond: 5 } },
 });
 
-export const STORAGE_BUCKET = "evidencias_rodagens";
+// Bucket oficial do Storage (com hífen)
+export const STORAGE_BUCKET = "evidencias-rodagens";
+// Buckets alternativos (compatibilidade com nomes antigos)
+export const STORAGE_BUCKET_FALLBACKS = ["evidencias_rodagens", "evidencias"];
