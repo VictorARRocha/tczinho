@@ -141,23 +141,21 @@ function hasTechnicalBreak(f: Falha): boolean {
 }
 
 export function classifyOccurrence(falha: Falha, evids: Evidencia[]): OccurrenceType {
+  const hasComparacaoFolder = evids.some((e) => isInComparacaoFolder(e));
+  const pairs = pairBaseAtual(evids);
+  const hasComparison = hasComparacaoFolder || pairs.some((p) => p.base && p.atual);
+  const hasBreak = hasTechnicalBreak(falha);
+
   const explicit = pickFieldValue(falha, ["tipo_ocorrencia", "tipo_erro", "categoria", "tipo_tecnico", "classificacao"]);
   if (explicit) {
     if (HIBRID_TOKENS.some((t) => explicit.includes(norm(t)))) return "quebra_diferenca";
     if (QUEBRA_TOKENS.some((t) => explicit.includes(norm(t)))) {
-      // ainda assim, se tiver pares base/atual, é híbrido
-      const pairs = pairBaseAtual(evids);
-      const hasPair = pairs.some((p) => p.base && p.atual);
-      return hasPair ? "quebra_diferenca" : "quebra";
+      return hasComparison ? "quebra_diferenca" : "quebra";
     }
     if (DIFF_TOKENS.some((t) => explicit.includes(norm(t)))) {
-      return hasTechnicalBreak(falha) ? "quebra_diferenca" : "diferenca";
+      return hasBreak ? "quebra_diferenca" : "diferenca";
     }
   }
-  // inferência por evidência
-  const pairs = pairBaseAtual(evids);
-  const hasComparison = pairs.some((p) => p.base && p.atual);
-  const hasBreak = hasTechnicalBreak(falha);
   if (hasComparison && hasBreak) return "quebra_diferenca";
   if (hasComparison) return "diferenca";
   return "quebra";
