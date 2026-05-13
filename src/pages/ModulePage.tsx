@@ -461,27 +461,38 @@ function FalhasTab({
   const syntheticFalhas = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
     if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
-    const byFolder = new Map<string, Evidencia[]>();
+
+    // Agrupar por "pasta da falha" — pai da pasta `comparacao`, ou diretório imediato
+    const byCase = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
-      const folder = (e.storage_path || "").split("/").slice(0, -1).join("/") || "_root";
-      const arr = byFolder.get(folder) || [];
+      const path = (e.storage_path || "").replace(/\\/g, "/");
+      let caseFolder = path.split("/").slice(0, -1).join("/") || "_root";
+      // se o arquivo está dentro de `.../falhas/{caso}/comparacao/...` ou `.../{caso}/imagens/...`
+      // o caso é o pai do subdiretório (comparacao|imagens|zip|prints|logs)
+      const m = path.match(/^(.*?)\/(comparacao|imagens|zip|prints|logs|evidencias?)\b/i);
+      if (m) caseFolder = m[1];
+      const arr = byCase.get(caseFolder) || [];
       arr.push(e);
-      byFolder.set(folder, arr);
+      byCase.set(caseFolder, arr);
     });
+
     const out: { f: Falha; evs: Evidencia[] }[] = [];
-    byFolder.forEach((evs, folder) => {
+    byCase.forEach((evs, folder) => {
+      const hasComparacao = evs.some((e) => /\/comparacao\//i.test(e.storage_path || "") || e.tipo === "comparacao");
       const pairs = pairBaseAtual(evs);
-      const real = pairs.filter((p) => p.base && p.atual);
-      if (real.length === 0) return;
+      const hasPair = pairs.some((p) => p.base && p.atual);
+      // só sintetiza se a pasta indicar comparação (mesmo que ainda não pareada)
+      if (!hasComparacao && !hasPair) return;
+      const caseName = folder.split("/").pop() || folder;
       const id = `storage:${folder}`;
       const f = {
         id,
         rodagem_id: evs[0]?.rodagem_id || "",
         modulo_slug: evs[0]?.modulo_slug || "",
         ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
-        caso_identificado: false, id_caso_teste: folder.split("/").pop() || null,
-        caso_teste_provavel: `Comparação: ${folder.split("/").pop() || folder}`,
-        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: null, confianca_associacao: null,
+        caso_identificado: false, id_caso_teste: caseName,
+        caso_teste_provavel: `Comparação: ${caseName}`,
+        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: folder, confianca_associacao: null,
         erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
         call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
         classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
