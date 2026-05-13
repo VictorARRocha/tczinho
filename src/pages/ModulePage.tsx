@@ -456,12 +456,58 @@ function FalhasTab({
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
-  const enriched = useMemo(() => falhas.map((f) => {
-    const evs = evMap.get(f.id) || [];
-    const tipo = classifyOccurrence(f, evs);
-    const pairs = pairBaseAtual(evs);
-    return { f, evs, tipo, pairs };
-  }), [falhas, evMap]);
+  // Evidências sem falha_id (descobertas no Storage) → sintetizar "falhas virtuais" de Diferença,
+  // uma para cada pasta lógica que contenha um par base/atual.
+  const syntheticFalhas = useMemo(() => {
+    const orphan = evidencias.filter((e) => !e.falha_id);
+    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
+    const byFolder = new Map<string, Evidencia[]>();
+    orphan.forEach((e) => {
+      const folder = (e.storage_path || "").split("/").slice(0, -1).join("/") || "_root";
+      const arr = byFolder.get(folder) || [];
+      arr.push(e);
+      byFolder.set(folder, arr);
+    });
+    const out: { f: Falha; evs: Evidencia[] }[] = [];
+    byFolder.forEach((evs, folder) => {
+      const pairs = pairBaseAtual(evs);
+      const real = pairs.filter((p) => p.base && p.atual);
+      if (real.length === 0) return;
+      const id = `storage:${folder}`;
+      const f = {
+        id,
+        rodagem_id: evs[0]?.rodagem_id || "",
+        modulo_slug: evs[0]?.modulo_slug || "",
+        ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
+        caso_identificado: false, id_caso_teste: folder.split("/").pop() || null,
+        caso_teste_provavel: `Comparação: ${folder.split("/").pop() || folder}`,
+        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: null, confianca_associacao: null,
+        erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
+        call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
+        classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
+        cor: null, fato_observado: null, hipotese_principal: null, analise_tecnica: null, analise_funcional: null,
+        impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
+        created_at: "",
+      } as Falha;
+      out.push({ f, evs });
+    });
+    return out;
+  }, [evidencias]);
+
+  const enriched = useMemo(() => {
+    const real = falhas.map((f) => {
+      const evs = evMap.get(f.id) || [];
+      const tipo = classifyOccurrence(f, evs);
+      const pairs = pairBaseAtual(evs);
+      return { f, evs, tipo, pairs };
+    });
+    const synth = syntheticFalhas.map(({ f, evs }) => {
+      const pairs = pairBaseAtual(evs);
+      const tipo = classifyOccurrence(f, evs);
+      return { f, evs, tipo, pairs };
+    });
+    return [...real, ...synth];
+  }, [falhas, evMap, syntheticFalhas]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
