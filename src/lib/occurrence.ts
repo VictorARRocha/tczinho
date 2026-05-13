@@ -21,7 +21,7 @@ function pickFieldValue(f: any, keys: string[]): string {
   return "";
 }
 
-const BASE_RE = /(base|anterior|esperad|referenc|original|previo|antes)/i;
+const BASE_RE = /(base|anterior|esperad|referenc|original|previo|antes|antigo)/i;
 const ATUAL_RE = /(atual|novo|obtid|resultad|gerad|current|depois|new)/i;
 
 export function isImageEvidence(e: Evidencia): boolean {
@@ -39,6 +39,11 @@ export function isComparableFile(e: Evidencia): boolean {
   return false;
 }
 
+export function isInComparacaoFolder(e: Evidencia): boolean {
+  if (e.tipo === "comparacao") return true;
+  return /(^|\/)comparacao\//i.test(e.storage_path || "");
+}
+
 export function classifySide(e: Evidencia): "base" | "atual" | null {
   const tipo = norm(e.tipo);
   if (tipo === "base" || tipo === "arquivo_base") return "base";
@@ -54,29 +59,75 @@ export interface ComparisonPair {
   base?: Evidencia;
   atual?: Evidencia;
   extensao?: string;
+  auto?: boolean; // par identificado automaticamente (sem nome claro)
 }
 
-/** Pareia evidências base/atual de uma mesma falha. */
+/** Pareia evidências base/atual.
+ *  Estratégia:
+ *  1) Agrupa arquivos da pasta `comparacao/` por pasta (folder do storage).
+ *     - Se houver 2 arquivos sem indicador claro: 1º=base, 2º=atual (auto=true).
+ *     - Se houver indicadores (base/atual no nome), respeitar.
+ *  2) Para evidências fora da pasta `comparacao` mas com indicadores no nome,
+ *     parear pelo nome base normalizado (comportamento legado).
+ */
 export function pairBaseAtual(evids: Evidencia[]): ComparisonPair[] {
-  const pairs = new Map<string, ComparisonPair>();
-  evids.forEach((e) => {
+  const pairs: ComparisonPair[] = [];
+
+  // 1) Pasta comparacao/ — agrupar por diretório pai
+  const inCmp = evids.filter((e) => isInComparacaoFolder(e));
+  const byFolder = new Map<string, Evidencia[]>();
+  inCmp.forEach((e) => {
+    const folder = (e.storage_path || "").split("/").slice(0, -1).join("/") || (e.id || "_root");
+    const arr = byFolder.get(folder) || [];
+    arr.push(e);
+    byFolder.set(folder, arr);
+  });
+  byFolder.forEach((arr, folder) => {
+    // ordenar por nome para estabilidade
+    arr.sort((a, b) => (a.nome_arquivo || "").localeCompare(b.nome_arquivo || ""));
+    // tentar pelo nome
+    const baseNamed = arr.find((e) => classifySide(e) === "base");
+    const atualNamed = arr.find((e) => classifySide(e) === "atual");
+    if (baseNamed || atualNamed) {
+      const ext = ((baseNamed || atualNamed)!.extensao || "").toLowerCase();
+      pairs.push({ key: `cmp:${folder}`, base: baseNamed, atual: atualNamed, extensao: ext });
+      return;
+    }
+    // fallback: 2 arquivos → primeiro=base, segundo=atual
+    if (arr.length >= 2) {
+      const ext = (arr[0].extensao || "").toLowerCase();
+      pairs.push({ key: `cmp:${folder}`, base: arr[0], atual: arr[1], extensao: ext, auto: true });
+      return;
+    }
+    // único arquivo: registrar sem par completo
+    const only = arr[0];
+    const ext = (only.extensao || "").toLowerCase();
+    pairs.push({ key: `cmp:${folder}`, base: only, extensao: ext, auto: true });
+  });
+
+  // 2) Legado: arquivos fora da pasta comparacao mas com indicador no nome
+  const outside = evids.filter((e) => !isInComparacaoFolder(e));
+  const map = new Map<string, ComparisonPair>();
+  outside.forEach((e) => {
     const side = classifySide(e);
     if (!side) return;
     const baseName = (e.nome_arquivo || e.storage_path || e.id || "")
       .toString()
       .toLowerCase()
-      .replace(/(base|anterior|esperad\w*|referenc\w*|original|previo|antes|atual|novo|obtid\w*|resultad\w*|gerad\w*|current|depois|new)/gi, "")
+      .replace(/(base|anterior|esperad\w*|referenc\w*|original|previo|antes|antigo|atual|novo|obtid\w*|resultad\w*|gerad\w*|current|depois|new)/gi, "")
       .replace(/[._\-\s]+/g, "_")
       .replace(/^_+|_+$/g, "");
     const ext = (e.extensao || (e.nome_arquivo || "").split(".").pop() || "").toLowerCase();
-    const key = `${baseName}|${ext}`;
-    const cur = pairs.get(key) || { key, extensao: ext };
+    const key = `legacy:${baseName}|${ext}`;
+    const cur = map.get(key) || { key, extensao: ext };
     if (side === "base") cur.base = e;
     else cur.atual = e;
     cur.extensao = ext;
-    pairs.set(key, cur);
+    map.set(key, cur);
   });
-  return Array.from(pairs.values()).filter((p) => p.base || p.atual);
+  pairs.push(...Array.from(map.values()));
+
+  return pairs;
 }
 
 /** Identifica se uma falha tem quebra técnica (call stack, erro principal etc.). */
@@ -90,23 +141,21 @@ function hasTechnicalBreak(f: Falha): boolean {
 }
 
 export function classifyOccurrence(falha: Falha, evids: Evidencia[]): OccurrenceType {
+  const hasComparacaoFolder = evids.some((e) => isInComparacaoFolder(e));
+  const pairs = pairBaseAtual(evids);
+  const hasComparison = hasComparacaoFolder || pairs.some((p) => p.base && p.atual);
+  const hasBreak = hasTechnicalBreak(falha);
+
   const explicit = pickFieldValue(falha, ["tipo_ocorrencia", "tipo_erro", "categoria", "tipo_tecnico", "classificacao"]);
   if (explicit) {
     if (HIBRID_TOKENS.some((t) => explicit.includes(norm(t)))) return "quebra_diferenca";
     if (QUEBRA_TOKENS.some((t) => explicit.includes(norm(t)))) {
-      // ainda assim, se tiver pares base/atual, é híbrido
-      const pairs = pairBaseAtual(evids);
-      const hasPair = pairs.some((p) => p.base && p.atual);
-      return hasPair ? "quebra_diferenca" : "quebra";
+      return hasComparison ? "quebra_diferenca" : "quebra";
     }
     if (DIFF_TOKENS.some((t) => explicit.includes(norm(t)))) {
-      return hasTechnicalBreak(falha) ? "quebra_diferenca" : "diferenca";
+      return hasBreak ? "quebra_diferenca" : "diferenca";
     }
   }
-  // inferência por evidência
-  const pairs = pairBaseAtual(evids);
-  const hasComparison = pairs.some((p) => p.base && p.atual);
-  const hasBreak = hasTechnicalBreak(falha);
   if (hasComparison && hasBreak) return "quebra_diferenca";
   if (hasComparison) return "diferenca";
   return "quebra";

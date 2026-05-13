@@ -1,4 +1,4 @@
-import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+import { supabase, STORAGE_BUCKET, STORAGE_BUCKET_FALLBACKS } from "@/lib/supabase";
 import type { Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem } from "@/types/db";
 
 // =====================================================================
@@ -162,14 +162,17 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
     tipo === "print" ||
     (mime || "").toLowerCase().startsWith("image/") ||
     ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ext || "").toLowerCase());
+  const inComparacaoFolder = typeof path === "string" && /(^|\/)comparacao\//i.test(path);
+  const explicitComparacao = String(rawTipo || "").toLowerCase() === "comparacao";
+  const finalTipo = explicitComparacao || inComparacaoFolder ? "comparacao" : (isImage ? "print" : tipo);
   return {
     id: row?.id_evidencia ?? row?.id,
     falha_id: row?.falha_id ?? row?.fk_falha,
     rodagem_id: row?.rodagem_id ?? rodagem_id,
     modulo_slug: row?.modulo_slug ?? modulo_slug,
-    tipo: isImage ? "print" : tipo,
+    tipo: finalTipo,
     nome_arquivo: nome,
-    bucket: row?.bucket ?? "evidencias_rodagens",
+    bucket: row?.bucket ?? STORAGE_BUCKET,
     storage_path: path,
     public_url: row?.public_url ?? null,
     signed_url: row?.signed_url ?? null,
@@ -367,26 +370,24 @@ export async function fetchEvidenceByFailure(failureId: string): Promise<Evidenc
 }
 
 // =====================================================================
-// STORAGE: lista arquivos do bucket evidencias_rodagens vinculados a uma rodagem
-// e os converte em "evidências sintéticas" (sem falha_id) que o front pode usar
-// para detectar comparações (base/atual) que não estão registradas no banco.
+// STORAGE: lista arquivos do bucket evidencias-rodagens vinculados a uma rodagem
+// Estrutura real esperada:
+//   {moduloSlug}/{rodagemFolder}/falhas/{pastaDaFalha}/{comparacao|imagens|zip|...}/arquivo
+// Se a pasta da falha tiver subpasta `comparacao`, classificamos a ocorrência
+// como Diferença e usamos os arquivos dentro dela como par base/atual.
 // =====================================================================
-async function listAllUnder(prefix: string): Promise<{ path: string; meta: any }[]> {
+async function listAllUnderBucket(bucket: string, prefix: string): Promise<{ path: string; meta: any }[]> {
   const out: { path: string; meta: any }[] = [];
   const stack = [prefix.replace(/\/+$/, "")];
   let safety = 0;
-  while (stack.length && safety++ < 200) {
+  while (stack.length && safety++ < 500) {
     const cur = stack.pop()!;
     const { data, error } = await supabase.storage
-      .from(STORAGE_BUCKET)
+      .from(bucket)
       .list(cur, { limit: 1000, sortBy: { column: "name", order: "asc" } });
-    if (error) {
-      // 404/empty é normal — só logamos em modo dev
-      continue;
-    }
+    if (error) continue;
     for (const item of data || []) {
       const full = cur ? `${cur}/${item.name}` : item.name;
-      // Heurística do supabase-js: pasta tem id null
       if ((item as any).id == null && !item.metadata) stack.push(full);
       else out.push({ path: full, meta: item });
     }
@@ -394,51 +395,74 @@ async function listAllUnder(prefix: string): Promise<{ path: string; meta: any }
   return out;
 }
 
+async function listAllUnder(prefix: string): Promise<{ bucket: string; path: string; meta: any }[]> {
+  const buckets = [STORAGE_BUCKET, ...STORAGE_BUCKET_FALLBACKS];
+  for (const b of buckets) {
+    const r = await listAllUnderBucket(b, prefix);
+    if (r.length > 0) return r.map((x) => ({ bucket: b, ...x }));
+  }
+  return [];
+}
+
+function lastSegment(p?: string | null): string {
+  if (!p) return "";
+  return p.toString().split(/[\\/]/).filter(Boolean).pop() || "";
+}
+
 export async function listStorageFilesByRun(
   runId: string,
   moduloSlug?: string,
+  pastaOrigem?: string | null,
 ): Promise<Evidencia[]> {
-  if (!runId) return [];
+  if (!runId && !pastaOrigem) return [];
+  const runFolder = lastSegment(pastaOrigem) || runId;
+
+  // Ordem de candidatos prioriza estrutura real: {modulo}/{rodagem}/falhas
   const candidates = Array.from(
     new Set(
       [
-        runId,
-        `rodagens/${runId}`,
-        `rodagem/${runId}`,
+        moduloSlug ? `${moduloSlug}/${runFolder}` : "",
         moduloSlug ? `${moduloSlug}/${runId}` : "",
-        moduloSlug ? `${moduloSlug}/rodagens/${runId}` : "",
+        runFolder,
+        runId,
+        `rodagens/${runFolder}`,
+        `rodagens/${runId}`,
       ].filter(Boolean),
     ),
   );
 
-  const seen = new Set<string>();
-  const collected: { path: string; meta: any }[] = [];
+  let collected: { bucket: string; path: string; meta: any }[] = [];
+  let usedRoot = "";
   for (const prefix of candidates) {
     const files = await listAllUnder(prefix);
-    for (const f of files) {
-      if (seen.has(f.path)) continue;
-      seen.add(f.path);
-      collected.push(f);
+    if (files.length > 0) {
+      collected = files;
+      usedRoot = prefix;
+      break;
     }
-    if (collected.length > 0) break; // primeira raiz que tiver dados
   }
+  if (collected.length === 0) return [];
+  console.log(`[storage] ${collected.length} arquivos em ${usedRoot}`);
 
   return collected.map((f) => {
     const name = f.path.split("/").pop() || f.path;
     const ext = (name.split(".").pop() || "").toLowerCase();
     const mime = (f.meta?.metadata?.mimetype as string | undefined) ?? null;
+    const isComparacao = /\/comparacao\//i.test(f.path) || /(^|\/)comparacao\//i.test(f.path);
     return normEvidencia(
       {
-        id_evidencia: `storage:${f.path}`,
+        id_evidencia: `storage:${f.bucket}:${f.path}`,
         falha_id: null,
         rodagem_id: runId,
         nome_arquivo: name,
         storage_path: f.path,
-        bucket: STORAGE_BUCKET,
+        bucket: f.bucket,
         mime_type: mime,
         extensao: ext,
         tamanho_bytes: f.meta?.metadata?.size ?? null,
         created_at: f.meta?.created_at ?? "",
+        // sinaliza explicitamente arquivos vindos da pasta comparacao
+        tipo: isComparacao ? "comparacao" : undefined,
       },
       runId,
       moduloSlug || "",
