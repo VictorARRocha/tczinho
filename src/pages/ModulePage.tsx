@@ -265,6 +265,13 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
     .sort((a, b) => severityRank(b.severidade) - severityRank(a.severidade) || ((a.ordem_prioridade ?? 999) - (b.ordem_prioridade ?? 999)))
     .slice(0, 5);
 
+  const occCounts = useMemo(() => {
+    const evMap = groupEvidsByFailure(evidencias);
+    const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
+    falhas.forEach((f) => { c[classifyOccurrence(f, evMap.get(f.id) || [])]++; });
+    return c;
+  }, [falhas, evidencias]);
+
   const hasDiagText = isMeaningful(rodagem.diagnostico_curto) || isMeaningful(rodagem.diagnostico_detalhado) || isMeaningful(rodagem.conclusao_geral);
   const fallbackDiag = rodagem.total_falhas > 0
     ? "Foram encontradas falhas nesta rodagem. Analise os casos listados abaixo."
