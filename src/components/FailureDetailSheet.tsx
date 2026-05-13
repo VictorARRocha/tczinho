@@ -179,23 +179,64 @@ function CodeBlock({ title, content }: { title: string; content: string }) {
 }
 
 function EvidenceItem({ ev }: { ev: Evidencia }) {
-  const url = ev.public_url || ev.signed_url;
-  if (ev.tipo === "print") {
+  const isImage =
+    ev.tipo === "print" ||
+    (ev.mime_type || "").toLowerCase().startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ev.extensao || "").toLowerCase());
+  const directUrl = ev.public_url || ev.signed_url || null;
+  const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    let cancel = false;
+    if (isImage && !directUrl && ev.storage_path) {
+      const bucket = ev.bucket || STORAGE_BUCKET;
+      supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60).then(({ data, error }) => {
+        if (cancel) return;
+        if (error || !data?.signedUrl) setImgError(true);
+        else setImgUrl(data.signedUrl);
+      });
+    }
+    return () => { cancel = true; };
+  }, [ev.id]);
+
+  const url = imgUrl;
+
+  if (isImage) {
     return (
       <Card className="overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
           <ImageIcon className="h-4 w-4 text-primary" />
-          <span className="text-xs font-medium">{ev.nome_arquivo || "Print"}</span>
-          {url && (
-            <a href={url} target="_blank" rel="noreferrer" className="ml-auto">
-              <Button variant="ghost" size="sm" className="h-7 text-xs"><ExternalLink className="h-3 w-3 mr-1" />Abrir</Button>
-            </a>
+          <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
+          {formatBytes(ev.tamanho_bytes) && (
+            <span className="text-[11px] text-muted-foreground">{formatBytes(ev.tamanho_bytes)}</span>
           )}
+          <div className="ml-auto flex gap-1">
+            {url && (
+              <a href={url} target="_blank" rel="noreferrer">
+                <Button variant="ghost" size="sm" className="h-7 text-xs"><ExternalLink className="h-3 w-3 mr-1" />Abrir</Button>
+              </a>
+            )}
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
+              <Download className="h-3 w-3 mr-1" />Baixar
+            </Button>
+          </div>
         </div>
-        {url ? (
-          <img src={url} alt={ev.imagem_descricao || "evidência"} className="w-full max-h-96 object-contain bg-background" />
+        {url && !imgError ? (
+          <img
+            src={url}
+            alt={ev.imagem_descricao || ev.nome_arquivo || "evidência"}
+            className="w-full max-h-96 object-contain bg-background"
+            onError={() => setImgError(true)}
+          />
         ) : (
-          <div className="p-6 text-center text-xs text-muted-foreground">Storage privado — sem URL pública.</div>
+          <div className="p-6 text-center text-xs text-muted-foreground">
+            {imgError
+              ? "Não foi possível carregar esta evidência."
+              : ev.storage_path
+                ? "Carregando imagem…"
+                : "Arquivo não encontrado no Storage."}
+          </div>
         )}
         {ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
       </Card>
