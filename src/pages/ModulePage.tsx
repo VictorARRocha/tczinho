@@ -222,7 +222,7 @@ function StatCard({ label, value, tone = "" }: { label: string; value: number | 
   );
 }
 
-function ResumoTab({ rodagem, falhas, passos, performance, onSelect, onOpenPerformance }: { rodagem: Rodagem; falhas: Falha[]; passos: ProximoPasso[]; performance: AtrasoRodagem[]; onSelect: (f: Falha) => void; onOpenPerformance: () => void }) {
+function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; passos: ProximoPasso[]; performance: AtrasoRodagem[]; onSelect: (f: Falha) => void; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
   const classData = [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
