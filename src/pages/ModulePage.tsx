@@ -24,6 +24,17 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
+import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+
+async function handleEvidenceDownload(ev: Evidencia) {
+  const direct = ev.public_url || ev.signed_url;
+  if (direct) { window.open(direct, "_blank", "noopener,noreferrer"); return; }
+  const bucket = ev.bucket || STORAGE_BUCKET;
+  if (!ev.storage_path) { toast.error("Sem URL disponível"); return; }
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60);
+  if (error || !data?.signedUrl) { toast.error("Falha ao gerar link"); return; }
+  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+}
 
 // Descrição clara do problema da falha — usa o melhor texto disponível
 function failureDescription(f: Falha): string {
