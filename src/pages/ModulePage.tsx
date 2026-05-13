@@ -297,6 +297,12 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
         {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
       </div>
 
+      <div className="grid gap-3 md:grid-cols-3">
+        <OccCard label="Quebras de teste" value={occCounts.quebra} tone="text-destructive" onClick={() => onOpenFalhas("quebra")} />
+        <OccCard label="Diferenças de arquivos" value={occCounts.diferenca} tone="text-warning" onClick={() => onOpenFalhas("diferenca")} />
+        <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />
+      </div>
+
       {performance.length > 0 && (() => {
         const slow = performance.filter((p) => p.status === "mais_lento");
         const fast = performance.filter((p) => p.status === "mais_rapido");
