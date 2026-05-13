@@ -48,6 +48,7 @@ export default function ModulePage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [loading, setLoading] = useState(true);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
+  const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
 
   const loadAll = async (runId?: string) => {
     try {
