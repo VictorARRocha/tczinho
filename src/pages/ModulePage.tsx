@@ -62,11 +62,13 @@ export default function ModulePage() {
       const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(slug)));
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf, links] = await Promise.all([
+        const [f, e, g, p, perf, links, storageFiles] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
           fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
+          listStorageFilesByRun(r.id, slug),
         ]);
-        setFalhas(f); setEvidencias(e); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
+        const merged = mergeEvidences(e, storageFiles);
+        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
       } else {
         setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
       }
