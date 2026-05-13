@@ -42,15 +42,24 @@ interface Props {
   falha: Falha | null;
   open: boolean;
   onClose: () => void;
+  /** Evidências pré-carregadas (ex.: descobertas no Storage para falhas sintéticas). */
+  evidencias?: Evidencia[];
 }
 
-export function FailureDetailSheet({ falha, open, onClose }: Props) {
+export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp }: Props) {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
+  const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
   useEffect(() => {
     if (!falha) return;
+    if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
+    // Falhas sintéticas (id começa com "storage:") não existem no banco.
+    if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
     fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
-  }, [falha?.id]);
+  }, [falha?.id, evidsProp]);
+
+  const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
+  const realPairs = pairs.filter((p) => p.base && p.atual);
 
   if (!falha) return null;
 
