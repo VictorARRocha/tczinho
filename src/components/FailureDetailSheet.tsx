@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
@@ -6,8 +6,11 @@ import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "./Badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle, GitCompare } from "lucide-react";
 import { toast } from "sonner";
+import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
+import { FileComparatorDialog } from "./FileComparator";
 
 function formatBytes(b?: number | null) {
   if (!b || b <= 0) return null;
