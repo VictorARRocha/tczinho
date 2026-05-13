@@ -8,4 +8,4 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   realtime: { params: { eventsPerSecond: 5 } },
 });
 
-export const STORAGE_BUCKET = "evidencias-rodagens";
+export const STORAGE_BUCKET = "evidencias_rodagens";

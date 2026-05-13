@@ -154,17 +154,22 @@ function inferTipo(t?: string | null, path?: string | null, mime?: string | null
 function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
   const path = row?.storage_path ?? row?.caminho_evidencia ?? null;
   const mime = row?.mime_type ?? null;
-  const tipo = inferTipo(row?.tipo ?? row?.tipo_arquivo, path, mime);
+  const rawTipo = row?.tipo ?? row?.tipo_arquivo;
+  const tipo = inferTipo(rawTipo, path, mime);
   const nome = row?.nome_arquivo ?? (path ? String(path).split("/").pop() || null : null);
   const ext = row?.extensao ?? (nome ? (nome.split(".").pop() || "").toLowerCase() : null);
+  const isImage =
+    tipo === "print" ||
+    (mime || "").toLowerCase().startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ext || "").toLowerCase());
   return {
     id: row?.id_evidencia ?? row?.id,
-    falha_id: row?.fk_falha ?? row?.falha_id,
-    rodagem_id,
-    modulo_slug,
-    tipo,
+    falha_id: row?.falha_id ?? row?.fk_falha,
+    rodagem_id: row?.rodagem_id ?? rodagem_id,
+    modulo_slug: row?.modulo_slug ?? modulo_slug,
+    tipo: isImage ? "print" : tipo,
     nome_arquivo: nome,
-    bucket: row?.bucket ?? "evidencias-rodagens",
+    bucket: row?.bucket ?? "evidencias_rodagens",
     storage_path: path,
     public_url: row?.public_url ?? null,
     signed_url: row?.signed_url ?? null,
@@ -173,7 +178,7 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
     mime_type: mime,
     extensao: ext,
     tamanho_bytes: row?.tamanho_bytes ?? null,
-    print_util: tipo === "print",
+    print_util: isImage,
     imagem_descricao: row?.imagem_descricao ?? row?.correlacao_visual ?? null,
     created_at: row?.created_at ?? "",
   };
@@ -327,24 +332,38 @@ export async function fetchFailuresByRun(runId: string): Promise<Falha[]> {
 }
 
 export async function fetchEvidenceByRun(runId: string): Promise<Evidencia[]> {
+  // 1) Try direct lookup by rodagem_id (newer schema)
+  const direct = await supabase.from("evidencias").select("*").eq("rodagem_id", runId);
+  if (!direct.error && direct.data && direct.data.length > 0) {
+    return direct.data.map((e: any) => normEvidencia(e, runId));
+  }
+  // 2) Fallback: lookup via failures of the run
   const falhas = await fetchFailuresByRun(runId);
   const ids = falhas.map((f) => f.id);
   if (ids.length === 0) return [];
-  const { data, error } = await supabase.from("evidencias").select("*").in("fk_falha", ids);
-  if (error) {
-    console.error("[fetchEvidenceByRun]", error);
+  let res = await supabase.from("evidencias").select("*").in("falha_id", ids);
+  if (res.error || !res.data || res.data.length === 0) {
+    const fb = await supabase.from("evidencias").select("*").in("fk_falha", ids);
+    if (!fb.error) res = fb as any;
+  }
+  if (res.error) {
+    console.error("[fetchEvidenceByRun]", res.error);
     return [];
   }
-  return (data || []).map((e: any) => normEvidencia(e, runId));
+  return (res.data || []).map((e: any) => normEvidencia(e, runId));
 }
 
 export async function fetchEvidenceByFailure(failureId: string): Promise<Evidencia[]> {
-  const { data, error } = await supabase.from("evidencias").select("*").eq("fk_falha", failureId);
-  if (error) {
-    console.error("[fetchEvidenceByFailure]", error);
+  let res = await supabase.from("evidencias").select("*").eq("falha_id", failureId);
+  if (res.error || !res.data || res.data.length === 0) {
+    const fb = await supabase.from("evidencias").select("*").eq("fk_falha", failureId);
+    if (!fb.error) res = fb as any;
+  }
+  if (res.error) {
+    console.error("[fetchEvidenceByFailure]", res.error);
     return [];
   }
-  return (data || []).map((e: any) => normEvidencia(e));
+  return (res.data || []).map((e: any) => normEvidencia(e));
 }
 
 export async function fetchGroupsByRun(runId: string): Promise<Agrupamento[]> {
