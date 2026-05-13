@@ -640,7 +640,7 @@ function FalhaRow({
                   )}
                   <div className="ml-auto flex gap-1">
                     {p.base && p.atual ? (
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Comparar</Button>
+                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
                     ) : (
                       <span className="text-[11px] text-muted-foreground italic">
                         {p.base ? "Atual ausente" : "Base ausente"}
