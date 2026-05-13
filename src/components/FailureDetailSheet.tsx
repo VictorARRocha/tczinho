@@ -138,6 +138,30 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             )}
           </Section>
 
+          {realPairs.length > 0 && (
+            <Section title={`Comparações (${realPairs.length})`}>
+              <div className="space-y-2">
+                {realPairs.map((p) => (
+                  <Card key={p.key} className="p-3 flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                    <div className="flex-1 min-w-0 text-xs">
+                      <div className="font-mono truncate" title={p.base?.nome_arquivo || ""}>
+                        <span className="text-muted-foreground">base:</span> {p.base?.nome_arquivo}
+                      </div>
+                      <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
+                        <span className="text-muted-foreground">atual:</span> {p.atual?.nome_arquivo}
+                      </div>
+                      {p.auto && <div className="text-[10px] text-muted-foreground italic mt-0.5">Par identificado automaticamente</div>}
+                    </div>
+                    <Button size="sm" onClick={() => setComparePair(p)}>
+                      <GitCompare className="h-3.5 w-3.5 mr-1" /> Ver diferenças
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section title={`Evidências (${evidencias.length})`}>
             {evidencias.length === 0 ? (
               <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
@@ -149,6 +173,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           </Section>
         </div>
       </SheetContent>
+      <FileComparatorDialog open={!!comparePair} pair={comparePair} falha={falha} onClose={() => setComparePair(null)} />
     </Sheet>
   );
 }
