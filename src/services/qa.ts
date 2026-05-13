@@ -162,14 +162,17 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
     tipo === "print" ||
     (mime || "").toLowerCase().startsWith("image/") ||
     ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ext || "").toLowerCase());
+  const inComparacaoFolder = typeof path === "string" && /(^|\/)comparacao\//i.test(path);
+  const explicitComparacao = String(rawTipo || "").toLowerCase() === "comparacao";
+  const finalTipo = explicitComparacao || inComparacaoFolder ? "comparacao" : (isImage ? "print" : tipo);
   return {
     id: row?.id_evidencia ?? row?.id,
     falha_id: row?.falha_id ?? row?.fk_falha,
     rodagem_id: row?.rodagem_id ?? rodagem_id,
     modulo_slug: row?.modulo_slug ?? modulo_slug,
-    tipo: isImage ? "print" : tipo,
+    tipo: finalTipo,
     nome_arquivo: nome,
-    bucket: row?.bucket ?? "evidencias_rodagens",
+    bucket: row?.bucket ?? STORAGE_BUCKET,
     storage_path: path,
     public_url: row?.public_url ?? null,
     signed_url: row?.signed_url ?? null,
