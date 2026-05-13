@@ -644,26 +644,19 @@ function FalhaRow({
               {pairs.map((p) => (
                 <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-secondary/40 rounded-md px-2.5 py-1.5">
                   <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
-                  <span className="font-mono truncate max-w-[180px]" title={p.base?.nome_arquivo || ""}>
-                    base: {p.base?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
-                  </span>
-                  <span className="text-muted-foreground">→</span>
-                  <span className="font-mono truncate max-w-[180px]" title={p.atual?.nome_arquivo || ""}>
-                    atual: {p.atual?.nome_arquivo || <em className="text-muted-foreground">não encontrado</em>}
-                  </span>
-                  {p.auto && (
-                    <span className="text-[10px] text-muted-foreground italic" title="Par identificado automaticamente pela ordem dos arquivos">
-                      auto
-                    </span>
-                  )}
-                  <div className="ml-auto flex gap-1">
-                    {p.base && p.atual ? (
-                      <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground italic">
-                        {p.base ? "Atual ausente" : "Base ausente"}
-                      </span>
-                    )}
+                  <div className="flex-1 min-w-0">
+                    <div className="font-mono truncate" title={p.base!.nome_arquivo || ""}>
+                      <span className="text-muted-foreground">base:</span> {p.base!.nome_arquivo}
+                    </div>
+                    <div className="font-mono truncate" title={p.atual!.nome_arquivo || ""}>
+                      <span className="text-muted-foreground">atual:</span> {p.atual!.nome_arquivo}
+                    </div>
+                    {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
+                  </div>
+                  <div className="flex gap-1 flex-wrap">
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar base</Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar atual</Button>
+                    <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
                   </div>
                 </div>
               ))}
