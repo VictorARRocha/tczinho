@@ -218,6 +218,7 @@ function StatCard({ label, value, tone = "" }: { label: string; value: number | 
     <Card className="glass-card p-4">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`text-2xl font-bold font-mono mt-1 ${tone}`}>{value ?? 0}</div>
+    </Card>
   );
 }
 
