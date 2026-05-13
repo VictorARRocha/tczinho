@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Download, ExternalLink, FileText, Image as ImageIcon } from "lucide-rea
 import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import type { Evidencia, Falha } from "@/types/db";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
-import { diffLines } from "@/lib/diff";
+import { diffLines, type DiffLine } from "@/lib/diff";
 import { toast } from "sonner";
 
 async function resolveUrl(ev?: Evidencia): Promise<string | null> {
@@ -25,7 +25,7 @@ async function fetchText(url: string): Promise<string | null> {
     const r = await fetch(url);
     if (!r.ok) return null;
     const buf = await r.arrayBuffer();
-    if (buf.byteLength > 2 * 1024 * 1024) return null; // 2MB cap
+    if (buf.byteLength > 4 * 1024 * 1024) return null; // 4MB cap
     return new TextDecoder("utf-8", { fatal: false }).decode(buf);
   } catch (e) { console.error("[comparator] fetch", e); return null; }
 }
@@ -82,42 +82,83 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     const parse = (s: string) => s.split(/\r?\n/).map((l) => l.split(/[;,\t]/));
     const A = parse(baseText); const B = parse(atualText);
     const len = Math.max(A.length, B.length);
-    const rows = [] as { base: string[]; atual: string[]; changed: boolean[] }[];
+    const rows = [] as { base: string[]; atual: string[]; changed: boolean[]; rowChanged: boolean }[];
     for (let i = 0; i < len; i++) {
       const a = A[i] || []; const b = B[i] || [];
       const cols = Math.max(a.length, b.length);
       const changed = new Array(cols).fill(false);
-      for (let j = 0; j < cols; j++) changed[j] = (a[j] || "") !== (b[j] || "");
-      rows.push({ base: a, atual: b, changed });
+      let rowChanged = false;
+      for (let j = 0; j < cols; j++) {
+        const c = (a[j] || "") !== (b[j] || "");
+        changed[j] = c;
+        if (c) rowChanged = true;
+      }
+      rows.push({ base: a, atual: b, changed, rowChanged });
     }
     return rows;
   }, [isCsv, baseText, atualText]);
+
+  const summary = useMemo(() => {
+    if (diff) {
+      let equal = 0, add = 0, del = 0;
+      diff.forEach((l) => { if (l.op === "equal") equal++; else if (l.op === "add") add++; else del++; });
+      return { kind: "txt" as const, equal, add, del, changed: Math.min(add, del) };
+    }
+    if (csvRows) {
+      const total = csvRows.length;
+      const changed = csvRows.filter((r) => r.rowChanged).length;
+      return { kind: "csv" as const, total, changed };
+    }
+    return null;
+  }, [diff, csvRows]);
 
   if (!pair) return null;
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[95vw] w-[1200px] h-[90vh] flex flex-col p-0">
+      <DialogContent className="max-w-[96vw] w-[1280px] h-[92vh] flex flex-col p-0">
         <DialogHeader className="px-6 py-4 border-b border-border">
           <DialogTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4" /> Comparador de Arquivos
+            <FileText className="h-4 w-4" /> Comparação Base x Atual
             <span className="text-xs text-muted-foreground font-normal">
-              {falha?.id_caso_teste && <>· #{falha.id_caso_teste}</>} · .{ext || "arquivo"}
+              {falha?.id_caso_teste && <>· #{falha.id_caso_teste}</>}
+              {falha?.caso_teste_provavel && <> · {falha.caso_teste_provavel}</>}
+              · .{ext || "arquivo"}
             </span>
           </DialogTitle>
         </DialogHeader>
 
         <div className="px-6 py-3 border-b border-border flex flex-wrap gap-2 items-center text-xs">
-          <Side label="Base" name={pair.base?.nome_arquivo} url={baseUrl} />
+          <Side label="Base / Anterior" name={pair.base?.nome_arquivo} url={baseUrl} />
           <span className="text-muted-foreground">vs</span>
-          <Side label="Atual" name={pair.atual?.nome_arquivo} url={atualUrl} />
+          <Side label="Atual / Novo" name={pair.atual?.nome_arquivo} url={atualUrl} />
         </div>
 
-        <div className="flex-1 overflow-auto">
+        {summary && (
+          <div className="px-6 py-2 border-b border-border flex flex-wrap gap-3 items-center text-[11px]">
+            <span className="uppercase tracking-wider text-muted-foreground">Resumo</span>
+            {summary.kind === "txt" ? (
+              <>
+                <Stat label="Iguais" value={summary.equal} className="text-muted-foreground" />
+                <Stat label="Removidas" value={summary.del} className="text-destructive" />
+                <Stat label="Adicionadas" value={summary.add} className="text-success" />
+                <Stat label="Alteradas" value={summary.changed} className="text-warning" />
+              </>
+            ) : (
+              <>
+                <Stat label="Linhas" value={summary.total} className="text-muted-foreground" />
+                <Stat label="Diferentes" value={summary.changed} className="text-warning" />
+              </>
+            )}
+            {pair.auto && <span className="ml-auto text-[10px] text-muted-foreground italic">Par identificado automaticamente</span>}
+          </div>
+        )}
+
+        <div className="flex-1 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-sm text-muted-foreground">Carregando arquivos…</div>
           ) : isImg ? (
-            <div className="grid grid-cols-2 gap-2 p-4">
+            <div className="grid grid-cols-2 gap-2 p-4 h-full overflow-auto">
               <ImagePane label="Base" url={baseUrl} />
               <ImagePane label="Atual" url={atualUrl} />
             </div>
@@ -140,6 +181,15 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function Stat({ label, value, className }: { label: string; value: number; className?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span className="text-muted-foreground">{label}:</span>
+      <span className={`font-mono font-semibold ${className || ""}`}>{value}</span>
+    </span>
   );
 }
 
@@ -190,11 +240,34 @@ function PdfPane({ label, url }: { label: string; url: string | null }) {
   );
 }
 
-function DiffView({ diff }: { diff: ReturnType<typeof diffLines> }) {
+/** Scroll sincronizado entre dois painéis. */
+function useSyncedScroll() {
+  const leftRef = useRef<HTMLDivElement | null>(null);
+  const rightRef = useRef<HTMLDivElement | null>(null);
+  const lock = useRef(false);
+  useEffect(() => {
+    const l = leftRef.current; const r = rightRef.current;
+    if (!l || !r) return;
+    const sync = (src: HTMLDivElement, dst: HTMLDivElement) => () => {
+      if (lock.current) return;
+      lock.current = true;
+      dst.scrollTop = src.scrollTop;
+      dst.scrollLeft = src.scrollLeft;
+      requestAnimationFrame(() => { lock.current = false; });
+    };
+    const a = sync(l, r); const b = sync(r, l);
+    l.addEventListener("scroll", a); r.addEventListener("scroll", b);
+    return () => { l.removeEventListener("scroll", a); r.removeEventListener("scroll", b); };
+  }, []);
+  return { leftRef, rightRef };
+}
+
+function DiffView({ diff }: { diff: DiffLine[] }) {
+  const { leftRef, rightRef } = useSyncedScroll();
   return (
-    <div className="grid grid-cols-2 font-mono text-xs">
-      <div className="border-r border-border">
-        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground">Base</div>
+    <div className="grid grid-cols-2 font-mono text-xs h-full">
+      <div ref={leftRef} className="border-r border-border overflow-auto h-full">
+        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground z-10">Base / Anterior</div>
         {diff.map((l, i) => (
           <div key={i} className={`flex ${l.op === "del" ? "bg-destructive/15" : ""}`}>
             <span className="w-10 text-right pr-2 text-muted-foreground/60 select-none">{l.baseLine ?? ""}</span>
@@ -202,8 +275,8 @@ function DiffView({ diff }: { diff: ReturnType<typeof diffLines> }) {
           </div>
         ))}
       </div>
-      <div>
-        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground">Atual</div>
+      <div ref={rightRef} className="overflow-auto h-full">
+        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground z-10">Atual / Novo</div>
         {diff.map((l, i) => (
           <div key={i} className={`flex ${l.op === "add" ? "bg-success/15" : ""}`}>
             <span className="w-10 text-right pr-2 text-muted-foreground/60 select-none">{l.atualLine ?? ""}</span>
@@ -215,27 +288,38 @@ function DiffView({ diff }: { diff: ReturnType<typeof diffLines> }) {
   );
 }
 
-function CsvDiffView({ rows }: { rows: { base: string[]; atual: string[]; changed: boolean[] }[] }) {
+function CsvDiffView({ rows }: { rows: { base: string[]; atual: string[]; changed: boolean[]; rowChanged: boolean }[] }) {
+  const { leftRef, rightRef } = useSyncedScroll();
   return (
-    <div className="grid grid-cols-2 text-xs">
-      {(["base", "atual"] as const).map((side) => (
-        <div key={side} className={side === "base" ? "border-r border-border" : ""}>
-          <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground">{side === "base" ? "Base" : "Atual"}</div>
-          <table className="w-full">
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className="border-b border-border/40">
-                  {r[side].map((cell, j) => (
-                    <td key={j} className={`px-2 py-1 align-top ${r.changed[j] ? (side === "base" ? "bg-destructive/15" : "bg-success/15") : ""}`}>
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
+    <div className="grid grid-cols-2 text-xs h-full">
+      <div ref={leftRef} className="border-r border-border overflow-auto h-full">
+        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground z-10">Base / Anterior</div>
+        <table className="w-full">
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className={`border-b border-border/40 ${r.rowChanged ? "bg-warning/5" : ""}`}>
+                {r.base.map((cell, j) => (
+                  <td key={j} className={`px-2 py-1 align-top ${r.changed[j] ? "bg-destructive/15" : ""}`}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div ref={rightRef} className="overflow-auto h-full">
+        <div className="px-3 py-1.5 bg-secondary/40 sticky top-0 text-[10px] uppercase tracking-wider text-muted-foreground z-10">Atual / Novo</div>
+        <table className="w-full">
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={i} className={`border-b border-border/40 ${r.rowChanged ? "bg-warning/5" : ""}`}>
+                {r.atual.map((cell, j) => (
+                  <td key={j} className={`px-2 py-1 align-top ${r.changed[j] ? "bg-success/15" : ""}`}>{cell}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
