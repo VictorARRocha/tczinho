@@ -366,7 +366,97 @@ export async function fetchEvidenceByFailure(failureId: string): Promise<Evidenc
   return (res.data || []).map((e: any) => normEvidencia(e));
 }
 
-export async function fetchGroupsByRun(runId: string): Promise<Agrupamento[]> {
+// =====================================================================
+// STORAGE: lista arquivos do bucket evidencias_rodagens vinculados a uma rodagem
+// e os converte em "evidências sintéticas" (sem falha_id) que o front pode usar
+// para detectar comparações (base/atual) que não estão registradas no banco.
+// =====================================================================
+async function listAllUnder(prefix: string): Promise<{ path: string; meta: any }[]> {
+  const out: { path: string; meta: any }[] = [];
+  const stack = [prefix.replace(/\/+$/, "")];
+  let safety = 0;
+  while (stack.length && safety++ < 200) {
+    const cur = stack.pop()!;
+    const { data, error } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .list(cur, { limit: 1000, sortBy: { column: "name", order: "asc" } });
+    if (error) {
+      // 404/empty é normal — só logamos em modo dev
+      continue;
+    }
+    for (const item of data || []) {
+      const full = cur ? `${cur}/${item.name}` : item.name;
+      // Heurística do supabase-js: pasta tem id null
+      if ((item as any).id == null && !item.metadata) stack.push(full);
+      else out.push({ path: full, meta: item });
+    }
+  }
+  return out;
+}
+
+export async function listStorageFilesByRun(
+  runId: string,
+  moduloSlug?: string,
+): Promise<Evidencia[]> {
+  if (!runId) return [];
+  const candidates = Array.from(
+    new Set(
+      [
+        runId,
+        `rodagens/${runId}`,
+        `rodagem/${runId}`,
+        moduloSlug ? `${moduloSlug}/${runId}` : "",
+        moduloSlug ? `${moduloSlug}/rodagens/${runId}` : "",
+      ].filter(Boolean),
+    ),
+  );
+
+  const seen = new Set<string>();
+  const collected: { path: string; meta: any }[] = [];
+  for (const prefix of candidates) {
+    const files = await listAllUnder(prefix);
+    for (const f of files) {
+      if (seen.has(f.path)) continue;
+      seen.add(f.path);
+      collected.push(f);
+    }
+    if (collected.length > 0) break; // primeira raiz que tiver dados
+  }
+
+  return collected.map((f) => {
+    const name = f.path.split("/").pop() || f.path;
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    const mime = (f.meta?.metadata?.mimetype as string | undefined) ?? null;
+    return normEvidencia(
+      {
+        id_evidencia: `storage:${f.path}`,
+        falha_id: null,
+        rodagem_id: runId,
+        nome_arquivo: name,
+        storage_path: f.path,
+        bucket: STORAGE_BUCKET,
+        mime_type: mime,
+        extensao: ext,
+        tamanho_bytes: f.meta?.metadata?.size ?? null,
+        created_at: f.meta?.created_at ?? "",
+      },
+      runId,
+      moduloSlug || "",
+    );
+  });
+}
+
+/** Mescla evidências do banco com arquivos descobertos no Storage (sem duplicar storage_path). */
+export function mergeEvidences(db: Evidencia[], storage: Evidencia[]): Evidencia[] {
+  const keys = new Set(db.map((e) => (e.storage_path || e.nome_arquivo || e.id || "").toLowerCase()));
+  const extras = storage.filter((e) => {
+    const k = (e.storage_path || e.nome_arquivo || e.id || "").toLowerCase();
+    if (keys.has(k)) return false;
+    keys.add(k);
+    return true;
+  });
+  return [...db, ...extras];
+}
   const { data, error } = await supabase.from("agrupamentos").select("*").eq("fk_rodagem", runId);
   if (error) {
     console.error("[fetchGroupsByRun]", error);
