@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
@@ -6,8 +6,11 @@ import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "./Badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle, GitCompare } from "lucide-react";
 import { toast } from "sonner";
+import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
+import { FileComparatorDialog } from "./FileComparator";
 
 function formatBytes(b?: number | null) {
   if (!b || b <= 0) return null;
@@ -39,15 +42,24 @@ interface Props {
   falha: Falha | null;
   open: boolean;
   onClose: () => void;
+  /** Evidências pré-carregadas (ex.: descobertas no Storage para falhas sintéticas). */
+  evidencias?: Evidencia[];
 }
 
-export function FailureDetailSheet({ falha, open, onClose }: Props) {
+export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp }: Props) {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
+  const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
   useEffect(() => {
     if (!falha) return;
+    if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
+    // Falhas sintéticas (id começa com "storage:") não existem no banco.
+    if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
     fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
-  }, [falha?.id]);
+  }, [falha?.id, evidsProp]);
+
+  const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
+  const realPairs = pairs.filter((p) => p.base && p.atual);
 
   if (!falha) return null;
 
@@ -126,6 +138,30 @@ export function FailureDetailSheet({ falha, open, onClose }: Props) {
             )}
           </Section>
 
+          {realPairs.length > 0 && (
+            <Section title={`Comparações (${realPairs.length})`}>
+              <div className="space-y-2">
+                {realPairs.map((p) => (
+                  <Card key={p.key} className="p-3 flex items-center gap-2 flex-wrap">
+                    <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                    <div className="flex-1 min-w-0 text-xs">
+                      <div className="font-mono truncate" title={p.base?.nome_arquivo || ""}>
+                        <span className="text-muted-foreground">base:</span> {p.base?.nome_arquivo}
+                      </div>
+                      <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
+                        <span className="text-muted-foreground">atual:</span> {p.atual?.nome_arquivo}
+                      </div>
+                      {p.auto && <div className="text-[10px] text-muted-foreground italic mt-0.5">Par identificado automaticamente</div>}
+                    </div>
+                    <Button size="sm" onClick={() => setComparePair(p)}>
+                      <GitCompare className="h-3.5 w-3.5 mr-1" /> Ver diferenças
+                    </Button>
+                  </Card>
+                ))}
+              </div>
+            </Section>
+          )}
+
           <Section title={`Evidências (${evidencias.length})`}>
             {evidencias.length === 0 ? (
               <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
@@ -137,6 +173,7 @@ export function FailureDetailSheet({ falha, open, onClose }: Props) {
           </Section>
         </div>
       </SheetContent>
+      <FileComparatorDialog open={!!comparePair} pair={comparePair} falha={falha} onClose={() => setComparePair(null)} />
     </Sheet>
   );
 }
