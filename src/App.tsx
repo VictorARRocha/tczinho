@@ -23,6 +23,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/modulo/:slug" element={<ModulePage />} />
             <Route path="/importar" element={<ImportPage />} />
+            <Route path="/reexecutar" element={<ReexecutarTestes />} />
+            
             
           </Route>
           <Route path="*" element={<NotFound />} />
