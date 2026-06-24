@@ -287,3 +287,54 @@ begin
   end;
   execute 'alter table public.agrupamentos_falhas replica identity full';
 end $$;
+
+-- ---------------------------------------------------------------------
+-- RERUN REQUESTS (solicitações de reexecução enviadas pela Lovable;
+-- o JenkinsBridge local consome e dispara o Jenkins)
+-- ---------------------------------------------------------------------
+create table if not exists public.rerun_requests (
+  id uuid primary key default gen_random_uuid(),
+  fk_rodagem text,
+  vm_name text not null,
+  versao text not null,
+  casos_teste text not null,
+  paralelo text default '',
+  ct_desmarcar text default '[0.3]',
+  data_hora text,
+  branch text default '',
+  config_json jsonb not null,
+  status text not null default 'solicitado',
+  jenkins_url text,
+  jenkins_queue_url text,
+  jenkins_build_number text,
+  erro text,
+  retorno_jenkins jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_rerun_requests_status on public.rerun_requests(status);
+create index if not exists idx_rerun_requests_created on public.rerun_requests(created_at desc);
+
+grant select, insert, update on public.rerun_requests to anon, authenticated;
+grant all on public.rerun_requests to service_role;
+
+alter table public.rerun_requests enable row level security;
+drop policy if exists "public read rerun_requests" on public.rerun_requests;
+create policy "public read rerun_requests" on public.rerun_requests for select using (true);
+drop policy if exists "public insert rerun_requests" on public.rerun_requests;
+create policy "public insert rerun_requests" on public.rerun_requests for insert with check (true);
+drop policy if exists "public update rerun_requests" on public.rerun_requests;
+create policy "public update rerun_requests" on public.rerun_requests for update using (true) with check (true);
+
+do $$
+begin
+  begin
+    execute 'alter publication supabase_realtime add table public.rerun_requests';
+  exception when duplicate_object then null;
+  end;
+  execute 'alter table public.rerun_requests replica identity full';
+end $$;
+
+-- Coluna vm_name em rodagens (opcional; UI faz fallback extraindo do id_rodagem)
+alter table public.rodagens add column if not exists vm_name text;
