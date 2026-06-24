@@ -622,7 +622,7 @@ export async function fetchModuleDashboardData(slug: string) {
 // Realtime
 // =====================================================================
 export function subscribeToTable(
-  table: "rodagens" | "falhas" | "evidencias" | "agrupamentos" | "proximos_passos" | "modulos",
+  table: "rodagens" | "falhas" | "evidencias" | "agrupamentos" | "proximos_passos" | "modulos" | "rerun_requests",
   cb: (payload: any) => void,
 ) {
   const channel = supabase
@@ -633,3 +633,214 @@ export function subscribeToTable(
     supabase.removeChannel(channel);
   };
 }
+
+// =====================================================================
+// RERUN REQUESTS (solicitações de reexecução)
+// =====================================================================
+export interface RerunRequest {
+  id: string;
+  fk_rodagem: string | null;
+  vm_name: string;
+  versao: string;
+  casos_teste: string;
+  paralelo: string | null;
+  ct_desmarcar: string | null;
+  data_hora: string | null;
+  branch: string | null;
+  config_json: any;
+  status: "solicitado" | "processando" | "enviado_jenkins" | "erro" | string;
+  jenkins_url: string | null;
+  jenkins_queue_url: string | null;
+  jenkins_build_number: string | null;
+  erro: string | null;
+  retorno_jenkins: any;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RodagemListItem {
+  id_rodagem: string;
+  sistema: string | null;
+  versao: string | null;
+  vm_name: string | null;
+  data_inicio: string | null;
+  caminho_logs: string | null;
+  total_falhas: number | null;
+  total_clusters: number | null;
+  created_at: string | null;
+  modulo_slug?: string | null;
+}
+
+/** Extrai VM (ex.: "a07") a partir de id_rodagem ou caminho_logs. */
+export function extractVmName(input?: string | null): string | null {
+  if (!input) return null;
+  // padrões: rod_A07_..., A07_..., .../A07/...
+  const m =
+    input.match(/(?:^|[_\-\/\\])([Aa]\d{2,3})(?:[_\-\/\\]|$)/) ||
+    input.match(/\b([Aa]\d{2,3})\b/);
+  return m ? m[1].toLowerCase() : null;
+}
+
+export async function fetchAllRuns(): Promise<RodagemListItem[]> {
+  const { data, error } = await supabase
+    .from("rodagens")
+    .select("*")
+    .order("data_inicio", { ascending: false, nullsFirst: false })
+    .limit(200);
+  if (error) {
+    console.error("[fetchAllRuns]", error);
+    return [];
+  }
+  // descobre módulo via fk_modulo de falhas → agrupamentos → rodagens
+  const ids = (data || []).map((r: any) => r.id_rodagem);
+  const moduloByRun = new Map<string, string>();
+  if (ids.length > 0) {
+    const { data: ag } = await supabase
+      .from("agrupamentos")
+      .select("id_cluster, fk_rodagem")
+      .in("fk_rodagem", ids);
+    const clusterToRun = new Map<string, string>();
+    (ag || []).forEach((a: any) => clusterToRun.set(a.id_cluster, a.fk_rodagem));
+    const clusterIds = Array.from(clusterToRun.keys());
+    if (clusterIds.length > 0) {
+      const { data: fs } = await supabase
+        .from("falhas")
+        .select("fk_cluster, fk_modulo")
+        .in("fk_cluster", clusterIds);
+      const { data: mods } = await supabase.from("modulos").select("id_modulo, nome");
+      const modById = new Map<string, string>();
+      (mods || []).forEach((m: any) => modById.set(m.id_modulo, slugify(m.nome)));
+      (fs || []).forEach((f: any) => {
+        const run = clusterToRun.get(f.fk_cluster);
+        const slug = modById.get(f.fk_modulo);
+        if (run && slug && !moduloByRun.has(run)) moduloByRun.set(run, slug);
+      });
+    }
+  }
+  return (data || []).map((r: any) => ({
+    id_rodagem: r.id_rodagem,
+    sistema: r.sistema ?? null,
+    versao: r.versao ?? null,
+    vm_name: r.vm_name ?? extractVmName(r.id_rodagem) ?? extractVmName(r.caminho_logs),
+    data_inicio: r.data_inicio ?? null,
+    caminho_logs: r.caminho_logs ?? null,
+    total_falhas: r.total_falhas ?? 0,
+    total_clusters: r.total_clusters ?? 0,
+    created_at: r.created_at ?? null,
+    modulo_slug: moduloByRun.get(r.id_rodagem) ?? null,
+  }));
+}
+
+export interface CasoReexecutavel {
+  id_falha: string;
+  id_caso_teste: string | null;
+  nome_mds: string | null;
+  grupo: string | null;
+  arquivo_origem: string | null;
+  cluster_id: string;
+  cluster_status: string | null;
+  cluster_titulo: string | null;
+  cluster_assinatura: string | null;
+  tipo_ocorrencia: "quebra" | "diferenca" | "quebra_diferenca" | "outro";
+}
+
+function classifyClusterStatus(status?: string | null): CasoReexecutavel["tipo_ocorrencia"] {
+  const s = (status || "").toLowerCase();
+  if (!s) return "outro";
+  const hasQuebra = /quebra/.test(s);
+  const hasDiff = /diferen[çc]a|compara/.test(s);
+  if (hasQuebra && hasDiff) return "quebra_diferenca";
+  if (hasDiff) return "diferenca";
+  if (hasQuebra) return "quebra";
+  return "outro";
+}
+
+export async function fetchCasosReexecutaveis(runId: string): Promise<CasoReexecutavel[]> {
+  const { data: ag } = await supabase
+    .from("agrupamentos")
+    .select("id_cluster, status, titulo_causa, assinatura_tecnica")
+    .eq("fk_rodagem", runId);
+  const clusters = ag || [];
+  if (clusters.length === 0) return [];
+  const clusterIds = clusters.map((c: any) => c.id_cluster);
+  const { data: fs } = await supabase
+    .from("falhas")
+    .select("id_falha, id_caso_teste, nome_mds, grupo, arquivo_origem, fk_cluster")
+    .in("fk_cluster", clusterIds);
+  const byCluster = new Map<string, any>();
+  clusters.forEach((c: any) => byCluster.set(c.id_cluster, c));
+  return (fs || []).map((f: any) => {
+    const c = byCluster.get(f.fk_cluster) || {};
+    return {
+      id_falha: f.id_falha,
+      id_caso_teste: f.id_caso_teste ?? null,
+      nome_mds: f.nome_mds ?? null,
+      grupo: f.grupo ?? null,
+      arquivo_origem: f.arquivo_origem ?? null,
+      cluster_id: f.fk_cluster,
+      cluster_status: c.status ?? null,
+      cluster_titulo: c.titulo_causa ?? null,
+      cluster_assinatura: c.assinatura_tecnica ?? null,
+      tipo_ocorrencia: classifyClusterStatus(c.status),
+    } as CasoReexecutavel;
+  });
+}
+
+export async function fetchRerunRequests(limit = 50): Promise<RerunRequest[]> {
+  const { data, error } = await supabase
+    .from("rerun_requests")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("[fetchRerunRequests]", error);
+    return [];
+  }
+  return (data || []) as RerunRequest[];
+}
+
+export async function createRerunRequest(payload: {
+  fk_rodagem: string;
+  vm_name: string;
+  versao: string;
+  casos_teste: string;
+  paralelo?: string;
+  ct_desmarcar?: string;
+  data_hora?: string;
+  branch?: string;
+}): Promise<RerunRequest> {
+  const paralelo = payload.paralelo ?? "";
+  const ct_desmarcar = payload.ct_desmarcar ?? "[0.3]";
+  const branch = payload.branch ?? "";
+  const data_hora = payload.data_hora ?? formatNowBr();
+  const config_json = {
+    vm_name: payload.vm_name,
+    versao: payload.versao,
+    casos_teste: payload.casos_teste,
+    paralelo,
+    ct_desmarcar,
+    data_hora,
+    branch,
+  };
+  const row = {
+    fk_rodagem: payload.fk_rodagem,
+    vm_name: payload.vm_name,
+    versao: payload.versao,
+    casos_teste: payload.casos_teste,
+    paralelo,
+    ct_desmarcar,
+    data_hora,
+    branch,
+    config_json,
+    status: "solicitado",
+  };
+  const { data, error } = await supabase.from("rerun_requests").insert(row).select("*").single();
+  if (error) throw error;
+  return data as RerunRequest;
+}
+
+export function formatNowBr(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+

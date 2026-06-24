@@ -7,6 +7,7 @@ import { AppLayout } from "@/components/AppLayout";
 import Index from "./pages/Index";
 import ModulePage from "./pages/ModulePage";
 import ImportPage from "./pages/ImportPage";
+import ReexecutarTestes from "./pages/ReexecutarTestes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -22,6 +23,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/modulo/:slug" element={<ModulePage />} />
             <Route path="/importar" element={<ImportPage />} />
+            <Route path="/reexecutar" element={<ReexecutarTestes />} />
+            
             
           </Route>
           <Route path="*" element={<NotFound />} />

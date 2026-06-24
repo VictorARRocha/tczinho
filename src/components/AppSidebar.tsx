@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Activity, LayoutDashboard, FileSearch, History, Sparkles } from "lucide-react";
+import { Activity, LayoutDashboard, FileSearch, History, Sparkles, PlayCircle } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -60,6 +60,14 @@ export function AppSidebar() {
                   <NavLink to="/importar">
                     <FileSearch />
                     <span>Importar JSON</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.startsWith("/reexecutar")}>
+                  <NavLink to="/reexecutar">
+                    <PlayCircle />
+                    <span>Reexecutar Testes</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
