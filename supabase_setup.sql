@@ -338,3 +338,15 @@ end $$;
 
 -- Coluna vm_name em rodagens (opcional; UI faz fallback extraindo do id_rodagem)
 alter table public.rodagens add column if not exists vm_name text;
+
+-- ---------------------------------------------------------------------
+-- Jenkins UI: classificação de solicitações (rodagem_completa | reexecucao)
+-- ---------------------------------------------------------------------
+alter table public.rerun_requests add column if not exists tipo_solicitacao text;
+alter table public.rerun_requests add column if not exists modo_configuracao text;
+alter table public.rerun_requests add column if not exists modulo_nome text;
+alter table public.rerun_requests add column if not exists modulo_codigo text;
+alter table public.rerun_requests add column if not exists solicitado_por text;
+
+-- fk_rodagem precisa permitir NULL (rodagem completa nova não tem rodagem origem)
+alter table public.rerun_requests alter column fk_rodagem drop not null;
