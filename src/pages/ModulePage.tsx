@@ -995,17 +995,18 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [caseFilter, setCaseFilter] = useState<string>("");
+  const debouncedQ = useDebounce(q, 250);
 
   const filtered = useMemo(() => {
     let out = [...data];
     if (statusFilter) out = out.filter((d) => d.status === statusFilter);
     if (caseFilter) out = out.filter((d) => d.codigo_teste === caseFilter);
-    if (q) {
-      const k = q.toLowerCase();
+    if (debouncedQ) {
+      const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
     }
     return out.sort((a, b) => Math.abs(b.delay_segundos) - Math.abs(a.delay_segundos));
-  }, [data, q, statusFilter, caseFilter]);
+  }, [data, debouncedQ, statusFilter, caseFilter]);
 
   if (data.length === 0) {
     return (
