@@ -622,11 +622,25 @@ function FalhasTab({
           {subTab === "todos" && "Nenhuma ocorrência encontrada."}
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filtered.map(({ f, tipo, pairs }) => (
-            <FalhaRow key={f.id} f={f} tipo={tipo} pairs={pairs} onSelect={onSelect} onCompare={onCompare} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2">
+            {pageItems.map(({ f, tipo, pairs }) => (
+              <FalhaRow key={f.id} f={f} tipo={tipo} pairs={pairs} onSelect={onSelect} onCompare={onCompare} />
+            ))}
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <div className="text-xs text-muted-foreground">
+                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
+                <span className="text-xs font-mono text-muted-foreground">{currentPage} / {totalPages}</span>
+                <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Próxima</Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
