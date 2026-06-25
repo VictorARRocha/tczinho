@@ -271,9 +271,6 @@ export default function JenkinsRodagemCompleta() {
                 <Input value={cCasos} onChange={(e) => setCCasos(e.target.value)} placeholder="[2]   ou   [9.1.4.1.3], [9.1.4.1.4]" />
               </Field>
 
-              <Field label="paralelo">
-                <Input value={cParalelo} onChange={(e) => setCParalelo(e.target.value)} placeholder="(vazio)" />
-              </Field>
 
               <Field label="ct_desmarcar" hint="Casos que devem ser desmarcados antes da execução. Padrão: [0.3].">
                 <Input value={cCtDesmarcar} onChange={(e) => setCCtDesmarcar(e.target.value)} />
