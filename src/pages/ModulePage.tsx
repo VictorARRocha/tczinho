@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+import { useDebounce } from "@/hooks/useDebounce";
 
 async function handleEvidenceDownload(ev: Evidencia) {
   const direct = ev.public_url || ev.signed_url;
