@@ -131,7 +131,7 @@ export default function JenkinsRodagemCompleta() {
         vm_name: cVm,
         versao: cVersao.trim(),
         casos_teste: cCasos.trim(),
-        paralelo: cParalelo,
+        paralelo: "",
         ct_desmarcar: cCtDesmarcar.trim(),
         data_hora: cDataHora.trim(),
         branch: cBranch,
