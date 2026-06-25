@@ -70,20 +70,19 @@ export default function JenkinsRodagemCompleta() {
   const [cVm, setCVm] = useState("a07");
   const [cVersao, setCVersao] = useState("");
   const [cCasos, setCCasos] = useState("");
-  const [cParalelo, setCParalelo] = useState("");
   const [cCtDesmarcar, setCCtDesmarcar] = useState("[0.3]");
-  const [cDataHora, setCDataHora] = useState("");
+  const [cDataHora, setCDataHora] = useState(() => formatNowMinusOneMinuteBr());
   const [cBranch, setCBranch] = useState("");
 
   const cConfig = useMemo(() => ({
     vm_name: cVm,
     versao: cVersao,
     casos_teste: cCasos,
-    paralelo: cParalelo,
+    paralelo: "",
     ct_desmarcar: cCtDesmarcar,
     data_hora: cDataHora,
     branch: cBranch,
-  }), [cVm, cVersao, cCasos, cParalelo, cCtDesmarcar, cDataHora, cBranch]);
+  }), [cVm, cVersao, cCasos, cCtDesmarcar, cDataHora, cBranch]);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -132,7 +131,7 @@ export default function JenkinsRodagemCompleta() {
         vm_name: cVm,
         versao: cVersao.trim(),
         casos_teste: cCasos.trim(),
-        paralelo: cParalelo,
+        paralelo: "",
         ct_desmarcar: cCtDesmarcar.trim(),
         data_hora: cDataHora.trim(),
         branch: cBranch,
@@ -272,9 +271,6 @@ export default function JenkinsRodagemCompleta() {
                 <Input value={cCasos} onChange={(e) => setCCasos(e.target.value)} placeholder="[2]   ou   [9.1.4.1.3], [9.1.4.1.4]" />
               </Field>
 
-              <Field label="paralelo">
-                <Input value={cParalelo} onChange={(e) => setCParalelo(e.target.value)} placeholder="(vazio)" />
-              </Field>
 
               <Field label="ct_desmarcar" hint="Casos que devem ser desmarcados antes da execução. Padrão: [0.3].">
                 <Input value={cCtDesmarcar} onChange={(e) => setCCtDesmarcar(e.target.value)} />
