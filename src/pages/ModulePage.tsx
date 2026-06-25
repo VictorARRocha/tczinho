@@ -478,6 +478,9 @@ function FalhasTab({
 }) {
   const [q, setQ] = useState("");
   const [extFilter, setExtFilter] = useState<string>("");
+  const debouncedQ = useDebounce(q, 250);
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 25;
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
