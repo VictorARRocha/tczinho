@@ -656,6 +656,11 @@ export interface RerunRequest {
   retorno_jenkins: any;
   created_at: string;
   updated_at: string;
+  tipo_solicitacao?: string | null;
+  modo_configuracao?: string | null;
+  modulo_nome?: string | null;
+  modulo_codigo?: string | null;
+  solicitado_por?: string | null;
 }
 
 export interface RodagemListItem {
