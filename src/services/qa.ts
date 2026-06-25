@@ -791,17 +791,26 @@ export async function fetchCasosReexecutaveis(runId: string): Promise<CasoReexec
   });
 }
 
+// Colunas usadas pela UI do histórico — evita trazer payloads grandes
+const RERUN_LIST_COLUMNS = [
+  "id", "fk_rodagem", "vm_name", "versao", "casos_teste", "paralelo",
+  "ct_desmarcar", "data_hora", "branch", "config_json", "status",
+  "jenkins_url", "jenkins_queue_url", "jenkins_build_number", "erro",
+  "retorno_jenkins", "created_at", "updated_at",
+  "tipo_solicitacao", "modo_configuracao", "modulo_nome", "modulo_codigo", "solicitado_por",
+].join(", ");
+
 export async function fetchRerunRequests(limit = 50): Promise<RerunRequest[]> {
   const { data, error } = await supabase
     .from("rerun_requests")
-    .select("*")
+    .select(RERUN_LIST_COLUMNS)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) {
     console.error("[fetchRerunRequests]", error);
     return [];
   }
-  return (data || []) as RerunRequest[];
+  return (data || []) as unknown as RerunRequest[];
 }
 
 export async function createRerunRequest(payload: {
