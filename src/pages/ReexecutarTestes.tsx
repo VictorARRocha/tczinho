@@ -175,6 +175,8 @@ export default function ReexecutarTestes() {
         versao,
         casos_teste: casosTesteString,
         data_hora: configJsonPreview.data_hora,
+        tipo_solicitacao: "reexecucao",
+        modo_configuracao: "casos_quebrados",
       });
       toast.success("Solicitação enviada", {
         description: "O JenkinsBridge local irá disparar o Jenkins.",

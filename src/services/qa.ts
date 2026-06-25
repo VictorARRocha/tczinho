@@ -656,6 +656,11 @@ export interface RerunRequest {
   retorno_jenkins: any;
   created_at: string;
   updated_at: string;
+  tipo_solicitacao?: string | null;
+  modo_configuracao?: string | null;
+  modulo_nome?: string | null;
+  modulo_codigo?: string | null;
+  solicitado_por?: string | null;
 }
 
 export interface RodagemListItem {
@@ -800,7 +805,7 @@ export async function fetchRerunRequests(limit = 50): Promise<RerunRequest[]> {
 }
 
 export async function createRerunRequest(payload: {
-  fk_rodagem: string;
+  fk_rodagem?: string | null;
   vm_name: string;
   versao: string;
   casos_teste: string;
@@ -808,6 +813,11 @@ export async function createRerunRequest(payload: {
   ct_desmarcar?: string;
   data_hora?: string;
   branch?: string;
+  tipo_solicitacao?: "rodagem_completa" | "reexecucao" | string;
+  modo_configuracao?: "simplificada" | "configurada" | "casos_quebrados" | string;
+  modulo_nome?: string | null;
+  modulo_codigo?: string | null;
+  solicitado_por?: string | null;
 }): Promise<RerunRequest> {
   const paralelo = payload.paralelo ?? "";
   const ct_desmarcar = payload.ct_desmarcar ?? "[0.3]";
@@ -822,8 +832,8 @@ export async function createRerunRequest(payload: {
     data_hora,
     branch,
   };
-  const row = {
-    fk_rodagem: payload.fk_rodagem,
+  const row: Record<string, any> = {
+    fk_rodagem: payload.fk_rodagem ?? null,
     vm_name: payload.vm_name,
     versao: payload.versao,
     casos_teste: payload.casos_teste,
@@ -834,6 +844,12 @@ export async function createRerunRequest(payload: {
     config_json,
     status: "solicitado",
   };
+  if (payload.tipo_solicitacao) row.tipo_solicitacao = payload.tipo_solicitacao;
+  if (payload.modo_configuracao) row.modo_configuracao = payload.modo_configuracao;
+  if (payload.modulo_nome !== undefined) row.modulo_nome = payload.modulo_nome;
+  if (payload.modulo_codigo !== undefined) row.modulo_codigo = payload.modulo_codigo;
+  if (payload.solicitado_por !== undefined) row.solicitado_por = payload.solicitado_por;
+
   const { data, error } = await supabase.from("rerun_requests").insert(row).select("*").single();
   if (error) throw error;
   return data as RerunRequest;
@@ -842,5 +858,11 @@ export async function createRerunRequest(payload: {
 export function formatNowBr(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/** Data/hora "agora" para o Jenkins: now - 1 minuto, formato dd/MM/yyyy HH:mm:ss */
+export function formatNowMinusOneMinuteBr(): string {
+  const d = new Date(Date.now() - 60_000);
+  return formatNowBr(d);
 }
 

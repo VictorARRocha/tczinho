@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Activity, LayoutDashboard, FileSearch, History, Sparkles, PlayCircle } from "lucide-react";
+import { Activity, LayoutDashboard, FileSearch, History, Sparkles, PlayCircle, Server, RefreshCcw } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -64,13 +64,33 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname.startsWith("/reexecutar")}>
-                  <NavLink to="/reexecutar">
-                    <PlayCircle />
-                    <span>Reexecutar Testes</span>
+                <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
+                  <NavLink to="/jenkins">
+                    <Server />
+                    <span>Jenkins</span>
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
+              {pathname.startsWith("/jenkins") && !collapsed && (
+                <>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
+                      <NavLink to="/jenkins/rodagem-completa">
+                        <PlayCircle />
+                        <span>Rodagem completa</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
+                      <NavLink to="/jenkins/reexecutar">
+                        <RefreshCcw />
+                        <span>Reexecutar rodagens</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                </>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
