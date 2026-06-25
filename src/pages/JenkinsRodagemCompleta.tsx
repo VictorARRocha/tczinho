@@ -70,9 +70,8 @@ export default function JenkinsRodagemCompleta() {
   const [cVm, setCVm] = useState("a07");
   const [cVersao, setCVersao] = useState("");
   const [cCasos, setCCasos] = useState("");
-  const [cParalelo, setCParalelo] = useState("");
   const [cCtDesmarcar, setCCtDesmarcar] = useState("[0.3]");
-  const [cDataHora, setCDataHora] = useState("");
+  const [cDataHora, setCDataHora] = useState(() => formatNowMinusOneMinuteBr());
   const [cBranch, setCBranch] = useState("");
 
   const cConfig = useMemo(() => ({
