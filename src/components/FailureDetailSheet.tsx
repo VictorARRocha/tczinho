@@ -257,7 +257,7 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
 
   if (isImage) {
     return (
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" ref={containerRef as any}>
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
           <ImageIcon className="h-4 w-4 text-primary" />
           <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
@@ -279,6 +279,8 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
           <img
             src={url}
             alt={ev.imagem_descricao || ev.nome_arquivo || "evidência"}
+            loading="lazy"
+            decoding="async"
             className="w-full max-h-96 object-contain bg-background"
             onError={() => setImgError(true)}
           />
@@ -286,9 +288,11 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
           <div className="p-6 text-center text-xs text-muted-foreground">
             {imgError
               ? "Não foi possível carregar esta evidência."
-              : ev.storage_path
-                ? "Carregando imagem…"
-                : "Arquivo não encontrado no Storage."}
+              : !visible && ev.storage_path
+                ? "Imagem será carregada quando visível…"
+                : ev.storage_path
+                  ? "Carregando imagem…"
+                  : "Arquivo não encontrado no Storage."}
           </div>
         )}
         {ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
