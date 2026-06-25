@@ -223,10 +223,26 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
   const directUrl = ev.public_url || ev.signed_url || null;
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Observa entrada na viewport para só então gerar a signed URL
+  useEffect(() => {
+    if (!isImage || directUrl || !containerRef.current || visible) return;
+    const el = containerRef.current;
+    if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) { setVisible(true); io.disconnect(); }
+      });
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isImage, directUrl, visible]);
 
   useEffect(() => {
     let cancel = false;
-    if (isImage && !directUrl && ev.storage_path) {
+    if (isImage && !directUrl && visible && ev.storage_path) {
       const bucket = ev.bucket || STORAGE_BUCKET;
       supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60).then(({ data, error }) => {
         if (cancel) return;
@@ -235,7 +251,7 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
       });
     }
     return () => { cancel = true; };
-  }, [ev.id]);
+  }, [ev.id, visible]);
 
   const url = imgUrl;
 
