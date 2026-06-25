@@ -567,10 +567,20 @@ function FalhasTab({
 
   const filtered = useMemo(() => enriched.filter(({ f, tipo, pairs }) => {
     if (subTab !== "todos" && tipo !== subTab) return false;
-    if (q && !JSON.stringify(f).toLowerCase().includes(q.toLowerCase())) return false;
+    if (debouncedQ && !JSON.stringify(f).toLowerCase().includes(debouncedQ.toLowerCase())) return false;
     if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
     return true;
-  }), [enriched, subTab, q, extFilter]);
+  }), [enriched, subTab, debouncedQ, extFilter]);
+
+  // Reset paginação quando filtros mudam
+  useEffect(() => { setPage(1); }, [subTab, debouncedQ, extFilter, enriched.length]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageItems = useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage],
+  );
 
   const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
     <button
