@@ -350,3 +350,17 @@ alter table public.rerun_requests add column if not exists solicitado_por text;
 
 -- fk_rodagem precisa permitir NULL (rodagem completa nova não tem rodagem origem)
 alter table public.rerun_requests alter column fk_rodagem drop not null;
+
+-- ---------------------------------------------------------------------
+-- Índices de performance (idempotentes, não removem nada existente)
+-- ---------------------------------------------------------------------
+create index if not exists idx_rodagens_created_at on public.rodagens (created_at desc);
+create index if not exists idx_rodagens_data_inicio on public.rodagens (data_inicio desc);
+create index if not exists idx_agrupamentos_fk_rodagem on public.agrupamentos (fk_rodagem);
+create index if not exists idx_falhas_fk_cluster on public.falhas (fk_cluster);
+create index if not exists idx_falhas_fk_modulo on public.falhas (fk_modulo);
+create index if not exists idx_evidencias_fk_falha on public.evidencias (fk_falha);
+create index if not exists idx_proximos_passos_fk_cluster on public.proximos_passos (fk_cluster);
+create index if not exists idx_rerun_requests_created_at on public.rerun_requests (created_at desc);
+create index if not exists idx_rerun_requests_status on public.rerun_requests (status);
+create index if not exists idx_atrasos_rodagem_fk_rodagem on public.atrasos_rodagem (fk_rodagem);
