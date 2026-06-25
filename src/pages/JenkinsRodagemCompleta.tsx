@@ -78,11 +78,11 @@ export default function JenkinsRodagemCompleta() {
     vm_name: cVm,
     versao: cVersao,
     casos_teste: cCasos,
-    paralelo: cParalelo,
+    paralelo: "",
     ct_desmarcar: cCtDesmarcar,
     data_hora: cDataHora,
     branch: cBranch,
-  }), [cVm, cVersao, cCasos, cParalelo, cCtDesmarcar, cDataHora, cBranch]);
+  }), [cVm, cVersao, cCasos, cCtDesmarcar, cDataHora, cBranch]);
 
   const [submitting, setSubmitting] = useState(false);
 
