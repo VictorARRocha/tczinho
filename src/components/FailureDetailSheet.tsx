@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
@@ -223,10 +223,26 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
   const directUrl = ev.public_url || ev.signed_url || null;
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  // Observa entrada na viewport para só então gerar a signed URL
+  useEffect(() => {
+    if (!isImage || directUrl || !containerRef.current || visible) return;
+    const el = containerRef.current;
+    if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) { setVisible(true); io.disconnect(); }
+      });
+    }, { rootMargin: "200px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [isImage, directUrl, visible]);
 
   useEffect(() => {
     let cancel = false;
-    if (isImage && !directUrl && ev.storage_path) {
+    if (isImage && !directUrl && visible && ev.storage_path) {
       const bucket = ev.bucket || STORAGE_BUCKET;
       supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60).then(({ data, error }) => {
         if (cancel) return;
@@ -235,13 +251,13 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
       });
     }
     return () => { cancel = true; };
-  }, [ev.id]);
+  }, [ev.id, visible]);
 
   const url = imgUrl;
 
   if (isImage) {
     return (
-      <Card className="overflow-hidden">
+      <Card className="overflow-hidden" ref={containerRef as any}>
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
           <ImageIcon className="h-4 w-4 text-primary" />
           <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
@@ -263,6 +279,8 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
           <img
             src={url}
             alt={ev.imagem_descricao || ev.nome_arquivo || "evidência"}
+            loading="lazy"
+            decoding="async"
             className="w-full max-h-96 object-contain bg-background"
             onError={() => setImgError(true)}
           />
@@ -270,9 +288,11 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
           <div className="p-6 text-center text-xs text-muted-foreground">
             {imgError
               ? "Não foi possível carregar esta evidência."
-              : ev.storage_path
-                ? "Carregando imagem…"
-                : "Arquivo não encontrado no Storage."}
+              : !visible && ev.storage_path
+                ? "Imagem será carregada quando visível…"
+                : ev.storage_path
+                  ? "Carregando imagem…"
+                  : "Arquivo não encontrado no Storage."}
           </div>
         )}
         {ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
