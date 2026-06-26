@@ -53,7 +53,16 @@ interface Props {
   falha?: Falha | null;
 }
 
-const TEXT_EXTS = new Set(["txt", "log", "json", "xml"]);
+const TEXT_EXTS = new Set(["txt", "log", "json", "xml", "md", "yaml", "yml", "ini", "conf", "html", "htm", "css", "js", "ts", "tsx", "jsx", "sql"]);
+
+function extOf(ev?: Evidencia, fallback?: string): string {
+  if (!ev) return (fallback || "").toLowerCase();
+  if (ev.extensao) return ev.extensao.toLowerCase();
+  const name = ev.nome_arquivo || (ev.storage_path || "").split("/").pop() || "";
+  const dot = name.lastIndexOf(".");
+  if (dot >= 0) return name.slice(dot + 1).toLowerCase();
+  return (fallback || "").toLowerCase();
+}
 
 export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
@@ -64,6 +73,16 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [tooLarge, setTooLarge] = useState(false);
   const [binary, setBinary] = useState(false);
+  const [baseError, setBaseError] = useState<string | null>(null);
+  const [atualError, setAtualError] = useState<string | null>(null);
+
+  // Extensão efetiva (prioriza pair.extensao, depois deriva do nome dos arquivos)
+  const ext = (pair?.extensao || extOf(pair?.base) || extOf(pair?.atual) || "").toLowerCase();
+  const isImg = pair && (pair.base ? isImageEvidence(pair.base) : pair.atual ? isImageEvidence(pair.atual) : false);
+  const isPdf = ext === "pdf";
+  const isCsv = ext === "csv";
+  // Texto: extensão conhecida OU (sem extensão e não é imagem/pdf/csv)
+  const isText = TEXT_EXTS.has(ext) || (!ext && !isImg && !isPdf && !isCsv);
 
   useEffect(() => {
     if (!open || !pair) return;
@@ -71,13 +90,19 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     setLoading(true);
     setLoadingStage("Carregando arquivos de comparação...");
     setBaseText(null); setAtualText(null); setTooLarge(false); setBinary(false);
+    setBaseError(null); setAtualError(null);
     (async () => {
       const [bu, au] = await Promise.all([resolveUrl(pair.base), resolveUrl(pair.atual)]);
       if (cancel) return;
       setBaseUrl(bu); setAtualUrl(au);
-      const ext = (pair.extensao || "").toLowerCase();
-      const isText = TEXT_EXTS.has(ext) || (!ext && true); // tenta como texto se sem ext
-      if (isText) {
+      console.log("[comparator]", {
+        baseName: pair.base?.nome_arquivo,
+        atualName: pair.atual?.nome_arquivo,
+        ext,
+        isText, isImg, isPdf, isCsv,
+        baseHasUrl: !!bu, atualHasUrl: !!au,
+      });
+      if (isText || isCsv) {
         setLoadingStage("Preparando diferenças...");
         const [b, a] = await Promise.all([
           bu ? fetchText(bu) : Promise.resolve({ text: null, tooLarge: false }),
@@ -85,25 +110,22 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         ]);
         if (cancel) return;
         if (b.tooLarge || a.tooLarge) setTooLarge(true);
-        if ((bu && b.text === null && !b.tooLarge) || (au && a.text === null && !a.tooLarge)) {
-          setBinary(true);
-        }
+        if (pair.base && !bu) setBaseError("URL do arquivo Baseline indisponível.");
+        else if (pair.base && b.text === null && !b.tooLarge) setBaseError("Não foi possível carregar o arquivo Baseline.");
+        if (pair.atual && !au) setAtualError("URL do arquivo Checked indisponível.");
+        else if (pair.atual && a.text === null && !a.tooLarge) setAtualError("Não foi possível carregar o arquivo Checked.");
+        console.log("[comparator] loaded", { baseLen: b.text?.length ?? null, atualLen: a.text?.length ?? null });
         setBaseText(b.text); setAtualText(a.text);
       }
       setLoading(false);
     })();
     return () => { cancel = true; };
-  }, [open, pair]);
-
-  const ext = (pair?.extensao || "").toLowerCase();
-  const isImg = pair && (pair.base ? isImageEvidence(pair.base) : pair.atual ? isImageEvidence(pair.atual) : false);
-  const isText = TEXT_EXTS.has(ext) || (!ext && !isImg && ext !== "pdf" && ext !== "csv");
-  const isCsv = ext === "csv";
-  const isPdf = ext === "pdf";
+  }, [open, pair, ext, isText, isCsv, isImg, isPdf]);
 
   const diff = useMemo(() => {
-    if (!isText || baseText == null || atualText == null) return null;
-    return diffLines(baseText, atualText);
+    if (!isText) return null;
+    if (baseText == null && atualText == null) return null;
+    return diffLines(baseText ?? "", atualText ?? "");
   }, [isText, baseText, atualText]);
 
   // Calcula blocos contíguos de diferenças (para navegação)
@@ -250,8 +272,26 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             <div className="p-12 text-center text-sm text-muted-foreground">
               Arquivo grande demais para preview. Use os botões para abrir ou baixar.
             </div>
-          ) : isText && diff ? (
-            <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+          ) : isText ? (
+            (baseError || atualError) && baseText == null && atualText == null ? (
+              <div className="p-12 text-center text-sm text-destructive space-y-1">
+                {baseError && <div>{baseError}</div>}
+                {atualError && <div>{atualError}</div>}
+              </div>
+            ) : diff ? (
+              <div className="h-full flex flex-col">
+                {(baseError || atualError) && (
+                  <div className="px-4 py-2 text-xs text-destructive border-b border-border bg-destructive/5">
+                    {baseError} {atualError}
+                  </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                  <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center text-sm text-muted-foreground">Preparando comparação...</div>
+            )
           ) : isCsv && csvRows ? (
             <CsvDiffView rows={csvRows} diffRows={csvDiffRows} currentBlock={currentBlock} />
           ) : (!pair.base || !pair.atual) ? (
@@ -260,7 +300,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             </div>
           ) : (
             <div className="p-12 text-center text-sm text-muted-foreground">
-              Preview indisponível para este tipo de arquivo. Use os botões para abrir ou baixar.
+              Preview indisponível para este tipo de arquivo (.{ext || "?"}). Use os botões para abrir ou baixar.
             </div>
           )}
         </div>
