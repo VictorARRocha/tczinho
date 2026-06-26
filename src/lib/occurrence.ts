@@ -21,8 +21,24 @@ function pickFieldValue(f: any, keys: string[]): string {
   return "";
 }
 
-const BASE_RE = /(base|anterior|esperad|referenc|original|previo|antes|antigo)/i;
-const ATUAL_RE = /(atual|novo|obtid|resultad|gerad|current|depois|new)/i;
+// Tokens de baseline/checked usados pelo Agent TC (sufixos no nome do arquivo).
+const BASE_TOKENS = ["antigo", "base", "padrao", "padrão", "esperado", "esperada", "referencia", "referência", "original", "previo", "prévio", "anterior", "antes"];
+const ATUAL_TOKENS = ["atual", "atualizado", "atualizada", "gerado", "gerada", "novo", "nova", "obtido", "obtida", "resultado", "current", "depois", "new"];
+
+const BASE_RE = new RegExp(`(${BASE_TOKENS.join("|")})`, "i");
+const ATUAL_RE = new RegExp(`(${ATUAL_TOKENS.join("|")})`, "i");
+
+const SUFFIX_RE = new RegExp(`[_\\-\\. ]+(${[...BASE_TOKENS, ...ATUAL_TOKENS].join("|")})(?=\\.[^.]+$|$)`, "i");
+
+/** Remove sufixo _Antigo/_Atual/_Base/_Gerado/... do nome do arquivo para obter o "nome lógico". */
+function logicalNameOf(ev: Evidencia): string {
+  const raw = (ev.nome_arquivo || (ev.storage_path || "").split("/").pop() || "").trim();
+  if (!raw) return "";
+  const dot = raw.lastIndexOf(".");
+  const stem = dot > 0 ? raw.slice(0, dot) : raw;
+  const stripped = stem.replace(SUFFIX_RE, "");
+  return norm(stripped);
+}
 
 export function isImageEvidence(e: Evidencia): boolean {
   if (e.tipo === "print") return true;
@@ -46,11 +62,24 @@ export function isInComparacaoFolder(e: Evidencia): boolean {
 
 export function classifySide(e: Evidencia): "base" | "atual" | null {
   const tipo = norm(e.tipo);
-  if (tipo === "base" || tipo === "arquivo_base") return "base";
-  if (tipo === "atual" || tipo === "arquivo_atual") return "atual";
-  const name = `${e.nome_arquivo || ""} ${e.storage_path || ""}`;
-  if (BASE_RE.test(name)) return "base";
-  if (ATUAL_RE.test(name)) return "atual";
+  if (["base", "arquivo_base", "comparacao_base", "comparacaobase", "baseline"].includes(tipo)) return "base";
+  if (["atual", "arquivo_atual", "comparacao_atual", "comparacaoatual", "checked", "gerado"].includes(tipo)) return "atual";
+  const path = norm(e.storage_path);
+  if (/\/comparacao\/base\//.test(path)) return "base";
+  if (/\/comparacao\/atual\//.test(path)) return "atual";
+  const name = norm(`${e.nome_arquivo || ""} ${e.storage_path || ""}`);
+  // checa primeiro ATUAL para evitar conflito quando ambos os tokens aparecem no path
+  if (ATUAL_RE.test(name) && !BASE_RE.test((e.nome_arquivo || "").toString())) {
+    // se o nome do arquivo só tem "atual"
+    return "atual";
+  }
+  if (BASE_RE.test(name) && !ATUAL_RE.test((e.nome_arquivo || "").toString())) {
+    return "base";
+  }
+  // Quando ambos podem aparecer (ex.: path tem "atual" e nome tem "antigo"), prioriza o nome do arquivo
+  const fname = norm(e.nome_arquivo);
+  if (ATUAL_RE.test(fname)) return "atual";
+  if (BASE_RE.test(fname)) return "base";
   return null;
 }
 
@@ -62,14 +91,42 @@ export interface ComparisonPair {
   auto?: boolean; // par identificado automaticamente (sem nome claro)
 }
 
-/** Pareia evidências base/atual.
- *  REGRA: 1 pasta `comparacao/` = 1 par (base + atual). Nada fora disso.
- *  - Identifica base/atual pelos tokens do nome.
- *  - Fallback: se só houver 2 arquivos sem nome claro, primeiro=base, segundo=atual (auto=true).
- *  - Pastas com menos de 2 arquivos são ignoradas.
- *  - Deduplica por `cmp:{folder}`.
+/** Pareia evidências baseline (antigo/base/esperado/padrão) com checked (atual/gerado/novo).
+ *
+ *  Regras:
+ *  - Pareia pelo "nome lógico" (nome do arquivo sem o sufixo _Antigo/_Atual/_Base/_Gerado/...).
+ *    Ex.: `RelatorioComparativoVerbas_Antigo.txt` + `RelatorioComparativoVerbas_Atual.txt`.
+ *  - Funciona com ou sem pasta `comparacao/`.
+ *  - Compatível com `tipo = comparacao_base/comparacao_atual` ou `tipo = base/atual`.
+ *  - Fallback: pasta `comparacao/` com exatamente 2 arquivos sem sufixo claro → par automático.
+ *  - Exige par completo (base + atual) para devolver.
  */
 export function pairBaseAtual(evids: Evidencia[]): ComparisonPair[] {
+  const pairs = new Map<string, ComparisonPair>();
+
+  // 1) Pareamento por nome lógico (qualquer lugar). Agrupa por logicalName + extensão.
+  const byLogical = new Map<string, Evidencia[]>();
+  evids.forEach((e) => {
+    const side = classifySide(e);
+    if (!side) return;
+    const logical = logicalNameOf(e);
+    if (!logical) return;
+    const ext = (e.extensao || (e.nome_arquivo || "").split(".").pop() || "").toLowerCase();
+    const key = `${logical}|${ext}`;
+    const arr = byLogical.get(key) || [];
+    arr.push(e);
+    byLogical.set(key, arr);
+  });
+  byLogical.forEach((arr, key) => {
+    const base = arr.find((e) => classifySide(e) === "base");
+    const atual = arr.find((e) => classifySide(e) === "atual" && e !== base);
+    if (!base || !atual) return;
+    const ext = (base.extensao || atual.extensao || key.split("|")[1] || "").toLowerCase();
+    const pkey = `name:${key}`;
+    if (!pairs.has(pkey)) pairs.set(pkey, { key: pkey, base, atual, extensao: ext });
+  });
+
+  // 2) Fallback compatibilidade: pasta `comparacao/` com 2 arquivos quaisquer.
   const inCmp = evids.filter((e) => isInComparacaoFolder(e));
   const byFolder = new Map<string, Evidencia[]>();
   inCmp.forEach((e) => {
@@ -79,10 +136,13 @@ export function pairBaseAtual(evids: Evidencia[]): ComparisonPair[] {
     arr.push(e);
     byFolder.set(folder, arr);
   });
-
-  const pairs = new Map<string, ComparisonPair>();
   byFolder.forEach((arr, folder) => {
     if (arr.length < 2) return;
+    // Se algum desse folder já foi pareado pela regra 1, pula.
+    const alreadyPaired = arr.some((e) =>
+      Array.from(pairs.values()).some((p) => p.base?.id === e.id || p.atual?.id === e.id),
+    );
+    if (alreadyPaired) return;
     arr.sort((a, b) => (a.nome_arquivo || "").localeCompare(b.nome_arquivo || ""));
     const baseNamed = arr.find((e) => classifySide(e) === "base");
     const atualNamed = arr.find((e) => classifySide(e) === "atual" && e !== baseNamed);
@@ -94,7 +154,7 @@ export function pairBaseAtual(evids: Evidencia[]): ComparisonPair[] {
       if (!base && remaining.length) { base = remaining.shift(); auto = true; }
       if (!atual && remaining.length) { atual = remaining.shift(); auto = true; }
     }
-    if (!base || !atual) return; // exige par completo
+    if (!base || !atual) return;
     const ext = (base.extensao || atual.extensao || "").toLowerCase();
     const key = `cmp:${folder}`;
     if (!pairs.has(key)) pairs.set(key, { key, base, atual, extensao: ext, auto });
