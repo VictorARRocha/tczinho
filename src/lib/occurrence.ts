@@ -34,7 +34,7 @@ export function isImageEvidence(e: Evidencia): boolean {
 
 export function isComparableFile(e: Evidencia): boolean {
   const ext = (e.extensao || "").toLowerCase();
-  if (["txt", "csv", "pdf", "log"].includes(ext)) return true;
+  if (["txt", "csv", "pdf", "log", "json", "xml"].includes(ext)) return true;
   if (isImageEvidence(e)) return true;
   return false;
 }
