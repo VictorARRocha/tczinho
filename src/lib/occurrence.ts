@@ -62,11 +62,24 @@ export function isInComparacaoFolder(e: Evidencia): boolean {
 
 export function classifySide(e: Evidencia): "base" | "atual" | null {
   const tipo = norm(e.tipo);
-  if (tipo === "base" || tipo === "arquivo_base") return "base";
-  if (tipo === "atual" || tipo === "arquivo_atual") return "atual";
-  const name = `${e.nome_arquivo || ""} ${e.storage_path || ""}`;
-  if (BASE_RE.test(name)) return "base";
-  if (ATUAL_RE.test(name)) return "atual";
+  if (["base", "arquivo_base", "comparacao_base", "comparacaobase", "baseline"].includes(tipo)) return "base";
+  if (["atual", "arquivo_atual", "comparacao_atual", "comparacaoatual", "checked", "gerado"].includes(tipo)) return "atual";
+  const path = norm(e.storage_path);
+  if (/\/comparacao\/base\//.test(path)) return "base";
+  if (/\/comparacao\/atual\//.test(path)) return "atual";
+  const name = norm(`${e.nome_arquivo || ""} ${e.storage_path || ""}`);
+  // checa primeiro ATUAL para evitar conflito quando ambos os tokens aparecem no path
+  if (ATUAL_RE.test(name) && !BASE_RE.test((e.nome_arquivo || "").toString())) {
+    // se o nome do arquivo só tem "atual"
+    return "atual";
+  }
+  if (BASE_RE.test(name) && !ATUAL_RE.test((e.nome_arquivo || "").toString())) {
+    return "base";
+  }
+  // Quando ambos podem aparecer (ex.: path tem "atual" e nome tem "antigo"), prioriza o nome do arquivo
+  const fname = norm(e.nome_arquivo);
+  if (ATUAL_RE.test(fname)) return "atual";
+  if (BASE_RE.test(fname)) return "base";
   return null;
 }
 
