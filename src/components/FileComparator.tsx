@@ -271,8 +271,26 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             <div className="p-12 text-center text-sm text-muted-foreground">
               Arquivo grande demais para preview. Use os botões para abrir ou baixar.
             </div>
-          ) : isText && diff ? (
-            <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+          ) : isText ? (
+            (baseError || atualError) && baseText == null && atualText == null ? (
+              <div className="p-12 text-center text-sm text-destructive space-y-1">
+                {baseError && <div>{baseError}</div>}
+                {atualError && <div>{atualError}</div>}
+              </div>
+            ) : diff ? (
+              <div className="h-full flex flex-col">
+                {(baseError || atualError) && (
+                  <div className="px-4 py-2 text-xs text-destructive border-b border-border bg-destructive/5">
+                    {baseError} {atualError}
+                  </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                  <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+                </div>
+              </div>
+            ) : (
+              <div className="p-12 text-center text-sm text-muted-foreground">Preparando comparação...</div>
+            )
           ) : isCsv && csvRows ? (
             <CsvDiffView rows={csvRows} diffRows={csvDiffRows} currentBlock={currentBlock} />
           ) : (!pair.base || !pair.atual) ? (
@@ -281,7 +299,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             </div>
           ) : (
             <div className="p-12 text-center text-sm text-muted-foreground">
-              Preview indisponível para este tipo de arquivo. Use os botões para abrir ou baixar.
+              Preview indisponível para este tipo de arquivo (.{ext || "?"}). Use os botões para abrir ou baixar.
             </div>
           )}
         </div>
