@@ -21,8 +21,24 @@ function pickFieldValue(f: any, keys: string[]): string {
   return "";
 }
 
-const BASE_RE = /(base|anterior|esperad|referenc|original|previo|antes|antigo)/i;
-const ATUAL_RE = /(atual|novo|obtid|resultad|gerad|current|depois|new)/i;
+// Tokens de baseline/checked usados pelo Agent TC (sufixos no nome do arquivo).
+const BASE_TOKENS = ["antigo", "base", "padrao", "padrão", "esperado", "esperada", "referencia", "referência", "original", "previo", "prévio", "anterior", "antes"];
+const ATUAL_TOKENS = ["atual", "atualizado", "atualizada", "gerado", "gerada", "novo", "nova", "obtido", "obtida", "resultado", "current", "depois", "new"];
+
+const BASE_RE = new RegExp(`(${BASE_TOKENS.join("|")})`, "i");
+const ATUAL_RE = new RegExp(`(${ATUAL_TOKENS.join("|")})`, "i");
+
+const SUFFIX_RE = new RegExp(`[_\\-\\. ]+(${[...BASE_TOKENS, ...ATUAL_TOKENS].join("|")})(?=\\.[^.]+$|$)`, "i");
+
+/** Remove sufixo _Antigo/_Atual/_Base/_Gerado/... do nome do arquivo para obter o "nome lógico". */
+function logicalNameOf(ev: Evidencia): string {
+  const raw = (ev.nome_arquivo || (ev.storage_path || "").split("/").pop() || "").trim();
+  if (!raw) return "";
+  const dot = raw.lastIndexOf(".");
+  const stem = dot > 0 ? raw.slice(0, dot) : raw;
+  const stripped = stem.replace(SUFFIX_RE, "");
+  return norm(stripped);
+}
 
 export function isImageEvidence(e: Evidencia): boolean {
   if (e.tipo === "print") return true;
