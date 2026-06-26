@@ -123,8 +123,9 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   }, [open, pair, ext, isText, isCsv, isImg, isPdf]);
 
   const diff = useMemo(() => {
-    if (!isText || baseText == null || atualText == null) return null;
-    return diffLines(baseText, atualText);
+    if (!isText) return null;
+    if (baseText == null && atualText == null) return null;
+    return diffLines(baseText ?? "", atualText ?? "");
   }, [isText, baseText, atualText]);
 
   // Calcula blocos contíguos de diferenças (para navegação)
