@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DiffEditor } from "@monaco-editor/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  ArrowDown,
-  ArrowUp,
   Copy,
   Download,
   ExternalLink,
