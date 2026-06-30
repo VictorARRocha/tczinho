@@ -280,6 +280,15 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
   );
 }
 
+function FragmentRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="min-w-0 break-words">{value}</div>
+    </>
+  );
+}
+
 function DetailDialog({ request, onClose }: { request: RerunRequest | null; onClose: () => void }) {
   const r = request;
   return (
