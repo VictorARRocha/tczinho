@@ -406,20 +406,25 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                     modified={atualText ?? ""}
                     language={monacoLanguageFromExt(ext)}
                     theme="vs-dark"
+                    onMount={handleDiffEditorMount}
                     options={{
                       readOnly: true,
                       renderSideBySide: true,
+                      ignoreTrimWhitespace: false,
                       automaticLayout: true,
-                      minimap: { enabled: false },
+                      minimap: { enabled: true },
                       scrollBeyondLastLine: false,
                       wordWrap: "off",
                       renderWhitespace: "boundary",
                       fontSize: 12,
                       originalEditable: false,
+                      glyphMargin: true,
+                      lineNumbers: "on",
                     }}
                     loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando Monaco Diff...</div>}
                   />
                 </div>
+
               </div>
             ) : (
               <div className="p-12 text-center text-sm text-muted-foreground">Carregando arquivos de comparação...</div>
