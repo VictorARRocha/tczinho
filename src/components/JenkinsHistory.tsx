@@ -323,11 +323,8 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
           return (
             <div className="space-y-3">
               <div className="grid grid-cols-[160px_1fr] gap-x-3 gap-y-2 text-sm">
-                {rows.map(([k, v]) => (
-                  <>
-                    <div key={`${k}-k`} className="text-xs uppercase tracking-wider text-muted-foreground">{k}</div>
-                    <div key={`${k}-v`} className="min-w-0 break-words">{v}</div>
-                  </>
+                {rows.map(([k, v], i) => (
+                  <FragmentRow key={i} label={k as string} value={v} />
                 ))}
               </div>
               <div>
