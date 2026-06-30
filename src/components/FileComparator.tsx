@@ -213,20 +213,16 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
         {/* Barra de ações estilo TC/Tortoise */}
         <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-2 bg-muted/30">
-          <Button size="sm" variant="outline" className="h-8" onClick={goPrev} disabled={!hasDiffs}>
-            <ArrowUp className="h-3.5 w-3.5 mr-1" /> Diferença anterior
-          </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={goNext} disabled={!hasDiffs}>
-            <ArrowDown className="h-3.5 w-3.5 mr-1" /> Próxima diferença
-          </Button>
           <span className="text-xs font-mono px-2 py-1 rounded bg-background border border-border">
             {loading
               ? "..."
               : !isText && !isCsv
                 ? "—"
-                : hasDiffs
-                  ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
-                  : "Arquivos iguais"}
+                : isText
+                  ? "Monaco Diff"
+                  : hasDiffs
+                    ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
+                    : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
           <Button size="sm" variant="ghost" className="h-8" onClick={copyNames}>
