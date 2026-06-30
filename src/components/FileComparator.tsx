@@ -63,6 +63,21 @@ function extOf(ev?: Evidencia, fallback?: string): string {
   return (fallback || "").toLowerCase();
 }
 
+function monacoLanguageFromExt(ext: string): string {
+  switch ((ext || "").toLowerCase()) {
+    case "json": return "json";
+    case "xml": case "html": case "htm": return "xml";
+    case "md": return "markdown";
+    case "js": case "jsx": return "javascript";
+    case "ts": case "tsx": return "typescript";
+    case "css": return "css";
+    case "sql": return "sql";
+    case "yaml": case "yml": return "yaml";
+    case "ini": case "conf": return "ini";
+    default: return "plaintext";
+  }
+}
+
 export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [atualUrl, setAtualUrl] = useState<string | null>(null);
