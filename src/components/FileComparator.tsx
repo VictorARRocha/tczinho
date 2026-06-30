@@ -273,7 +273,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                 {baseError && <div>{baseError}</div>}
                 {atualError && <div>{atualError}</div>}
               </div>
-            ) : diff ? (
+            ) : (baseText != null || atualText != null) ? (
               <div className="h-full flex flex-col">
                 {(baseError || atualError) && (
                   <div className="px-4 py-2 text-xs text-destructive border-b border-border bg-destructive/5">
@@ -281,11 +281,30 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                   </div>
                 )}
                 <div className="flex-1 overflow-hidden">
-                  <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+                  <DiffEditor
+                    height="100%"
+                    width="100%"
+                    original={baseText ?? ""}
+                    modified={atualText ?? ""}
+                    language={monacoLanguageFromExt(ext)}
+                    theme="vs-dark"
+                    options={{
+                      readOnly: true,
+                      renderSideBySide: true,
+                      automaticLayout: true,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      wordWrap: "off",
+                      renderWhitespace: "boundary",
+                      fontSize: 12,
+                      originalEditable: false,
+                    }}
+                    loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando Monaco Diff...</div>}
+                  />
                 </div>
               </div>
             ) : (
-              <div className="p-12 text-center text-sm text-muted-foreground">Preparando comparação...</div>
+              <div className="p-12 text-center text-sm text-muted-foreground">Carregando arquivos de comparação...</div>
             )
           ) : isCsv && csvRows ? (
             <CsvDiffView rows={csvRows} diffRows={csvDiffRows} currentBlock={currentBlock} />
