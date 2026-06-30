@@ -812,6 +812,10 @@ const RERUN_LIST_COLUMNS = [
   "jenkins_url", "jenkins_queue_url", "jenkins_build_number", "erro",
   "retorno_jenkins", "created_at", "updated_at",
   "tipo_solicitacao", "modo_configuracao", "modulo_nome", "modulo_codigo", "solicitado_por",
+  "execution_status", "execution_result", "progress_percent",
+  "build_number", "build_url", "queue_id", "queue_url",
+  "started_at", "finished_at", "duration_ms", "estimated_duration_ms",
+  "last_checked_at", "monitor_error",
 ].join(", ");
 
 export async function fetchRerunRequests(limit = 50): Promise<RerunRequest[]> {
