@@ -1,10 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { DiffEditor } from "@monaco-editor/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
-  ArrowDown,
-  ArrowUp,
   Copy,
   Download,
   ExternalLink,
@@ -62,6 +61,21 @@ function extOf(ev?: Evidencia, fallback?: string): string {
   const dot = name.lastIndexOf(".");
   if (dot >= 0) return name.slice(dot + 1).toLowerCase();
   return (fallback || "").toLowerCase();
+}
+
+function monacoLanguageFromExt(ext: string): string {
+  switch ((ext || "").toLowerCase()) {
+    case "json": return "json";
+    case "xml": case "html": case "htm": return "xml";
+    case "md": return "markdown";
+    case "js": case "jsx": return "javascript";
+    case "ts": case "tsx": return "typescript";
+    case "css": return "css";
+    case "sql": return "sql";
+    case "yaml": case "yml": return "yaml";
+    case "ini": case "conf": return "ini";
+    default: return "plaintext";
+  }
 }
 
 export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
@@ -214,20 +228,16 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
         {/* Barra de ações estilo TC/Tortoise */}
         <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-2 bg-muted/30">
-          <Button size="sm" variant="outline" className="h-8" onClick={goPrev} disabled={!hasDiffs}>
-            <ArrowUp className="h-3.5 w-3.5 mr-1" /> Diferença anterior
-          </Button>
-          <Button size="sm" variant="outline" className="h-8" onClick={goNext} disabled={!hasDiffs}>
-            <ArrowDown className="h-3.5 w-3.5 mr-1" /> Próxima diferença
-          </Button>
           <span className="text-xs font-mono px-2 py-1 rounded bg-background border border-border">
             {loading
               ? "..."
               : !isText && !isCsv
                 ? "—"
-                : hasDiffs
-                  ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
-                  : "Arquivos iguais"}
+                : isText
+                  ? "Monaco Diff"
+                  : hasDiffs
+                    ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
+                    : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
           <Button size="sm" variant="ghost" className="h-8" onClick={copyNames}>
@@ -278,7 +288,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                 {baseError && <div>{baseError}</div>}
                 {atualError && <div>{atualError}</div>}
               </div>
-            ) : diff ? (
+            ) : (baseText != null || atualText != null) ? (
               <div className="h-full flex flex-col">
                 {(baseError || atualError) && (
                   <div className="px-4 py-2 text-xs text-destructive border-b border-border bg-destructive/5">
@@ -286,11 +296,30 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                   </div>
                 )}
                 <div className="flex-1 overflow-hidden">
-                  <DiffView diff={diff} blocks={diffBlocks} currentBlock={currentBlock} />
+                  <DiffEditor
+                    height="100%"
+                    width="100%"
+                    original={baseText ?? ""}
+                    modified={atualText ?? ""}
+                    language={monacoLanguageFromExt(ext)}
+                    theme="vs-dark"
+                    options={{
+                      readOnly: true,
+                      renderSideBySide: true,
+                      automaticLayout: true,
+                      minimap: { enabled: false },
+                      scrollBeyondLastLine: false,
+                      wordWrap: "off",
+                      renderWhitespace: "boundary",
+                      fontSize: 12,
+                      originalEditable: false,
+                    }}
+                    loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando Monaco Diff...</div>}
+                  />
                 </div>
               </div>
             ) : (
-              <div className="p-12 text-center text-sm text-muted-foreground">Preparando comparação...</div>
+              <div className="p-12 text-center text-sm text-muted-foreground">Carregando arquivos de comparação...</div>
             )
           ) : isCsv && csvRows ? (
             <CsvDiffView rows={csvRows} diffRows={csvDiffRows} currentBlock={currentBlock} />
