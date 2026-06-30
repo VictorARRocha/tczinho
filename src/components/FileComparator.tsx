@@ -212,8 +212,64 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     return csvRows.map((r, i) => (r.rowChanged ? i : -1)).filter((i) => i >= 0);
   }, [csvRows]);
 
-  const totalDiffs = isCsv ? csvDiffRows.length : diffBlocks.length;
+  // --- Monaco Diff: navegação real entre line changes -------------------------
+  const diffEditorRef = useRef<any>(null);
+  const [monacoChanges, setMonacoChanges] = useState<any[] | null>(null); // null = calculando
+  const [monacoIndex, setMonacoIndex] = useState(0);
+
+  const handleDiffEditorMount = useCallback((editor: any) => {
+    diffEditorRef.current = editor;
+    const update = () => {
+      try {
+        const changes = editor.getLineChanges?.() || [];
+        setMonacoChanges(changes);
+        setMonacoIndex(changes.length > 0 ? 0 : -1);
+        console.log("[comparator] monaco diff", { totalDiffs: changes.length });
+      } catch (e) {
+        console.error("[comparator] getLineChanges", e);
+        setMonacoChanges([]);
+      }
+    };
+    // Primeiro cálculo pode levar alguns ms após o mount
+    setTimeout(update, 300);
+    editor.onDidUpdateDiff?.(update);
+  }, []);
+
+  // Resetar estado do Monaco a cada novo par
+  useEffect(() => {
+    setMonacoChanges(null);
+    setMonacoIndex(0);
+    diffEditorRef.current = null;
+  }, [pair, baseText, atualText]);
+
+  const gotoMonacoDiff = useCallback((index: number) => {
+    const editor = diffEditorRef.current;
+    if (!editor || !monacoChanges || monacoChanges.length === 0) return;
+    const n = monacoChanges.length;
+    const safe = ((index % n) + n) % n;
+    const d = monacoChanges[safe];
+    setMonacoIndex(safe);
+    const modifiedLine = d.modifiedStartLineNumber || d.modifiedEndLineNumber || 1;
+    const originalLine = d.originalStartLineNumber || d.originalEndLineNumber || 1;
+    try {
+      const mod = editor.getModifiedEditor?.();
+      const orig = editor.getOriginalEditor?.();
+      mod?.revealLineInCenter(modifiedLine);
+      orig?.revealLineInCenter(originalLine);
+      mod?.setPosition({ lineNumber: Math.max(1, modifiedLine), column: 1 });
+      orig?.setPosition({ lineNumber: Math.max(1, originalLine), column: 1 });
+    } catch (e) {
+      console.error("[comparator] gotoMonacoDiff", e);
+    }
+  }, [monacoChanges]);
+
+  // Totais e label do contador (Monaco para texto, CSV para .csv)
+  const totalDiffs = isText
+    ? (monacoChanges?.length ?? 0)
+    : isCsv ? csvDiffRows.length : 0;
   const hasDiffs = totalDiffs > 0;
+  const isCalculating = isText && monacoChanges === null && (baseText != null || atualText != null);
+  const currentIndex = isText ? monacoIndex : currentBlock;
 
   if (!pair) return null;
 
@@ -227,12 +283,15 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
   const goPrev = () => {
     if (!hasDiffs) return;
-    setCurrentBlock((c) => (c - 1 + totalDiffs) % totalDiffs);
+    if (isText) gotoMonacoDiff(monacoIndex - 1);
+    else setCurrentBlock((c) => (c - 1 + totalDiffs) % totalDiffs);
   };
   const goNext = () => {
     if (!hasDiffs) return;
-    setCurrentBlock((c) => (c + 1) % totalDiffs);
+    if (isText) gotoMonacoDiff(monacoIndex + 1);
+    else setCurrentBlock((c) => (c + 1) % totalDiffs);
   };
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
