@@ -310,15 +310,35 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
         {/* Barra de ações estilo TC/Tortoise */}
         <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-2 bg-muted/30">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={goPrev}
+            disabled={loading || isCalculating || !hasDiffs}
+            title="Diferença anterior (Shift+F7)"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={goNext}
+            disabled={loading || isCalculating || !hasDiffs}
+            title="Próxima diferença (F7)"
+          >
+            Próxima <ChevronRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
           <span className="text-xs font-mono px-2 py-1 rounded bg-background border border-border">
             {loading
-              ? "..."
+              ? "Carregando..."
               : !isText && !isCsv
                 ? "—"
-                : isText
-                  ? "Monaco Diff"
+                : isCalculating
+                  ? "Calculando diferenças..."
                   : hasDiffs
-                    ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
+                    ? `Diferença ${Math.max(0, currentIndex) + 1} de ${totalDiffs}`
                     : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
@@ -336,6 +356,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             </a>
           )}
         </div>
+
 
         {/* Cabeçalho dos painéis */}
         <div className="grid grid-cols-2 border-b border-border bg-background">
