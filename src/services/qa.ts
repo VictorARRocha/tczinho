@@ -661,6 +661,20 @@ export interface RerunRequest {
   modulo_nome?: string | null;
   modulo_codigo?: string | null;
   solicitado_por?: string | null;
+  // Monitoramento (JenkinsBridge)
+  execution_status?: string | null;
+  execution_result?: string | null;
+  progress_percent?: number | null;
+  build_number?: string | number | null;
+  build_url?: string | null;
+  queue_id?: string | number | null;
+  queue_url?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  duration_ms?: number | null;
+  estimated_duration_ms?: number | null;
+  last_checked_at?: string | null;
+  monitor_error?: string | null;
 }
 
 export interface RodagemListItem {
