@@ -55,12 +55,15 @@ interface Props {
 const TEXT_EXTS = new Set(["txt", "log", "json", "xml", "md", "yaml", "yml", "ini", "conf", "html", "htm", "css", "js", "ts", "tsx", "jsx", "sql"]);
 
 function extOf(ev?: Evidencia, fallback?: string): string {
-  if (!ev) return (fallback || "").toLowerCase();
-  if (ev.extensao) return ev.extensao.toLowerCase();
-  const name = ev.nome_arquivo || (ev.storage_path || "").split("/").pop() || "";
-  const dot = name.lastIndexOf(".");
-  if (dot >= 0) return name.slice(dot + 1).toLowerCase();
-  return (fallback || "").toLowerCase();
+  const raw = (() => {
+    if (!ev) return fallback || "";
+    if (ev.extensao) return ev.extensao;
+    const name = ev.nome_arquivo || (ev.storage_path || "").split("/").pop() || "";
+    const dot = name.lastIndexOf(".");
+    if (dot >= 0) return name.slice(dot + 1);
+    return fallback || "";
+  })();
+  return raw.toLowerCase().replace(/^\.+/, "");
 }
 
 function monacoLanguageFromExt(ext: string): string {
