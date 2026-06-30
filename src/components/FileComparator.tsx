@@ -94,7 +94,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [atualError, setAtualError] = useState<string | null>(null);
 
   // Extensão efetiva (prioriza pair.extensao, depois deriva do nome dos arquivos)
-  const ext = (pair?.extensao || extOf(pair?.base) || extOf(pair?.atual) || "").toLowerCase();
+  const ext = (pair?.extensao || extOf(pair?.base) || extOf(pair?.atual) || "").toLowerCase().replace(/^\.+/, "");
   const isImg = pair && (pair.base ? isImageEvidence(pair.base) : pair.atual ? isImageEvidence(pair.atual) : false);
   const isPdf = ext === "pdf";
   const isCsv = ext === "csv";
