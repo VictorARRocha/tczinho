@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
@@ -27,18 +29,36 @@ async function resolveUrl(ev?: Evidencia): Promise<string | null> {
   return data?.signedUrl || null;
 }
 
+function countReplacementChars(text: string): number {
+  return (text.match(/\uFFFD/g) || []).length;
+}
+
+/** Tenta UTF-8, windows-1252 e iso-8859-1; escolhe o que tem menos caracteres �. */
+function decodeArrayBufferSmart(buffer: ArrayBuffer): string {
+  const encodings = ["utf-8", "windows-1252", "iso-8859-1"];
+  const candidates: { enc: string; text: string; bad: number }[] = [];
+  for (const enc of encodings) {
+    try {
+      const text = new TextDecoder(enc, { fatal: false }).decode(buffer);
+      candidates.push({ enc, text, bad: countReplacementChars(text) });
+    } catch { /* encoding não suportado pelo navegador */ }
+  }
+  if (candidates.length === 0) return "";
+  candidates.sort((a, b) => a.bad - b.bad);
+  return candidates[0].text;
+}
+
 async function fetchText(url: string): Promise<{ text: string | null; tooLarge: boolean }> {
   try {
     const r = await fetch(url);
     if (!r.ok) return { text: null, tooLarge: false };
     const buf = await r.arrayBuffer();
     if (buf.byteLength > 8 * 1024 * 1024) return { text: null, tooLarge: true }; // 8MB cap
-    // Detecta binário simples (NUL byte nos primeiros 4KB)
     const sniff = new Uint8Array(buf.slice(0, Math.min(4096, buf.byteLength)));
     let nulls = 0;
     for (let i = 0; i < sniff.length; i++) if (sniff[i] === 0) nulls++;
     if (nulls > 4) return { text: null, tooLarge: false };
-    return { text: new TextDecoder("utf-8", { fatal: false }).decode(buf), tooLarge: false };
+    return { text: decodeArrayBufferSmart(buf), tooLarge: false };
   } catch (e) {
     console.error("[comparator] fetch", e);
     return { text: null, tooLarge: false };
