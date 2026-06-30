@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
@@ -60,52 +60,120 @@ export default function ModulePage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
   const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
 
-  const loadAll = async (runId?: string) => {
+  // Controle de race condition: cada loadAll incrementa o id; respostas atrasadas são ignoradas
+  const requestRef = useRef(0);
+  const currentSlugRef = useRef(slug);
+
+  const moduleName = modulo?.nome || slug;
+
+  const loadAll = async (runId?: string, targetSlug: string = slug) => {
+    const reqId = ++requestRef.current;
+    setLoading(true);
+    setLoadError(null);
     try {
-      setLoading(true);
       const mods = await fetchModules();
-      const m = mods.find((x) => x.slug === slug) || null;
+      if (reqId !== requestRef.current) return;
+      const m = mods.find((x) => x.slug === targetSlug) || null;
       setModulo(m);
-      const runs = await fetchRunsByModule(slug);
+      const runs = await fetchRunsByModule(targetSlug);
+      if (reqId !== requestRef.current) return;
       setHistorico(runs);
-      const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(slug)));
+      const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(targetSlug)));
+      if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
         const [f, e, g, p, perf, links, storageFiles] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
           fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
-          listStorageFilesByRun(r.id, slug, r.pasta_origem),
+          listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
         ]);
+        if (reqId !== requestRef.current) return;
         const merged = mergeEvidences(e, storageFiles);
         setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
       } else {
         setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
       }
     } catch (e: any) {
+      if (reqId !== requestRef.current) return;
+      setLoadError(e?.message || "Erro ao carregar módulo");
       toast.error("Erro ao carregar módulo", { description: e?.message });
     } finally {
-      setLoading(false);
+      if (reqId === requestRef.current) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadAll();
+    // Trocou de módulo → invalida tudo IMEDIATAMENTE para evitar mostrar dados antigos
+    currentSlugRef.current = slug;
+    requestRef.current++; // cancela respostas em voo do módulo anterior
+    setModulo(null);
+    setRodagem(null);
+    setHistorico([]);
+    setFalhas([]);
+    setEvidencias([]);
+    setGrupos([]);
+    setPassos([]);
+    setPerformance([]);
+    setGroupLinks({});
+    setSelectedFalha(null);
+    setComparePair(null);
+    setActiveTab("resumo");
+    setLoading(true);
+    setLoadError(null);
+
+    loadAll(undefined, slug);
     const offs = [
-      subscribeToTable("rodagens", (p) => { if (p.new?.modulo_slug === slug) { toast.success("Nova rodagem recebida"); loadAll(); } }),
-      subscribeToTable("falhas", () => loadAll(rodagem?.id)),
-      subscribeToTable("evidencias", () => loadAll(rodagem?.id)),
-      subscribeToTable("proximos_passos", () => loadAll(rodagem?.id)),
+      subscribeToTable("rodagens", (p) => {
+        if (p.new?.modulo_slug === currentSlugRef.current) {
+          toast.success("Nova rodagem recebida");
+          loadAll(undefined, currentSlugRef.current);
+        }
+      }),
     ];
     return () => offs.forEach((o) => o());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
-  if (loading && !rodagem) {
-    return <div className="p-8 space-y-4"><Skeleton className="h-32 rounded-2xl" /><Skeleton className="h-96 rounded-2xl" /></div>;
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
+            <RefreshCw className="relative h-4 w-4 animate-spin text-primary" />
+          </div>
+          <span className="text-sm text-muted-foreground">Carregando módulo {moduleName}...</span>
+        </div>
+        <Skeleton className="h-32 rounded-2xl" />
+        <div className="grid gap-4 md:grid-cols-3">
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
+          <Skeleton className="h-24 rounded-2xl" />
+        </div>
+        <Skeleton className="h-10 w-72 rounded-lg" />
+        <Skeleton className="h-96 rounded-2xl" />
+      </div>
+    );
   }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
+        <Card className="glass-card p-12 text-center">
+          <h3 className="text-lg font-semibold">Não foi possível carregar os dados deste módulo</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
+          <Button className="mt-4" onClick={() => loadAll(undefined, slug)}>
+            <RefreshCw className="h-4 w-4 mr-2" /> Tentar novamente
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
 
   return (
     <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
