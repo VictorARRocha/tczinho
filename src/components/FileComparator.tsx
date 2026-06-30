@@ -1,9 +1,11 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
+  ChevronLeft,
+  ChevronRight,
   Copy,
   Download,
   ExternalLink,
@@ -27,18 +29,36 @@ async function resolveUrl(ev?: Evidencia): Promise<string | null> {
   return data?.signedUrl || null;
 }
 
+function countReplacementChars(text: string): number {
+  return (text.match(/\uFFFD/g) || []).length;
+}
+
+/** Tenta UTF-8, windows-1252 e iso-8859-1; escolhe o que tem menos caracteres �. */
+function decodeArrayBufferSmart(buffer: ArrayBuffer): string {
+  const encodings = ["utf-8", "windows-1252", "iso-8859-1"];
+  const candidates: { enc: string; text: string; bad: number }[] = [];
+  for (const enc of encodings) {
+    try {
+      const text = new TextDecoder(enc, { fatal: false }).decode(buffer);
+      candidates.push({ enc, text, bad: countReplacementChars(text) });
+    } catch { /* encoding não suportado pelo navegador */ }
+  }
+  if (candidates.length === 0) return "";
+  candidates.sort((a, b) => a.bad - b.bad);
+  return candidates[0].text;
+}
+
 async function fetchText(url: string): Promise<{ text: string | null; tooLarge: boolean }> {
   try {
     const r = await fetch(url);
     if (!r.ok) return { text: null, tooLarge: false };
     const buf = await r.arrayBuffer();
     if (buf.byteLength > 8 * 1024 * 1024) return { text: null, tooLarge: true }; // 8MB cap
-    // Detecta binário simples (NUL byte nos primeiros 4KB)
     const sniff = new Uint8Array(buf.slice(0, Math.min(4096, buf.byteLength)));
     let nulls = 0;
     for (let i = 0; i < sniff.length; i++) if (sniff[i] === 0) nulls++;
     if (nulls > 4) return { text: null, tooLarge: false };
-    return { text: new TextDecoder("utf-8", { fatal: false }).decode(buf), tooLarge: false };
+    return { text: decodeArrayBufferSmart(buf), tooLarge: false };
   } catch (e) {
     console.error("[comparator] fetch", e);
     return { text: null, tooLarge: false };
@@ -192,8 +212,64 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     return csvRows.map((r, i) => (r.rowChanged ? i : -1)).filter((i) => i >= 0);
   }, [csvRows]);
 
-  const totalDiffs = isCsv ? csvDiffRows.length : diffBlocks.length;
+  // --- Monaco Diff: navegação real entre line changes -------------------------
+  const diffEditorRef = useRef<any>(null);
+  const [monacoChanges, setMonacoChanges] = useState<any[] | null>(null); // null = calculando
+  const [monacoIndex, setMonacoIndex] = useState(0);
+
+  const handleDiffEditorMount = useCallback((editor: any) => {
+    diffEditorRef.current = editor;
+    const update = () => {
+      try {
+        const changes = editor.getLineChanges?.() || [];
+        setMonacoChanges(changes);
+        setMonacoIndex(changes.length > 0 ? 0 : -1);
+        console.log("[comparator] monaco diff", { totalDiffs: changes.length });
+      } catch (e) {
+        console.error("[comparator] getLineChanges", e);
+        setMonacoChanges([]);
+      }
+    };
+    // Primeiro cálculo pode levar alguns ms após o mount
+    setTimeout(update, 300);
+    editor.onDidUpdateDiff?.(update);
+  }, []);
+
+  // Resetar estado do Monaco a cada novo par
+  useEffect(() => {
+    setMonacoChanges(null);
+    setMonacoIndex(0);
+    diffEditorRef.current = null;
+  }, [pair, baseText, atualText]);
+
+  const gotoMonacoDiff = useCallback((index: number) => {
+    const editor = diffEditorRef.current;
+    if (!editor || !monacoChanges || monacoChanges.length === 0) return;
+    const n = monacoChanges.length;
+    const safe = ((index % n) + n) % n;
+    const d = monacoChanges[safe];
+    setMonacoIndex(safe);
+    const modifiedLine = d.modifiedStartLineNumber || d.modifiedEndLineNumber || 1;
+    const originalLine = d.originalStartLineNumber || d.originalEndLineNumber || 1;
+    try {
+      const mod = editor.getModifiedEditor?.();
+      const orig = editor.getOriginalEditor?.();
+      mod?.revealLineInCenter(modifiedLine);
+      orig?.revealLineInCenter(originalLine);
+      mod?.setPosition({ lineNumber: Math.max(1, modifiedLine), column: 1 });
+      orig?.setPosition({ lineNumber: Math.max(1, originalLine), column: 1 });
+    } catch (e) {
+      console.error("[comparator] gotoMonacoDiff", e);
+    }
+  }, [monacoChanges]);
+
+  // Totais e label do contador (Monaco para texto, CSV para .csv)
+  const totalDiffs = isText
+    ? (monacoChanges?.length ?? 0)
+    : isCsv ? csvDiffRows.length : 0;
   const hasDiffs = totalDiffs > 0;
+  const isCalculating = isText && monacoChanges === null && (baseText != null || atualText != null);
+  const currentIndex = isText ? monacoIndex : currentBlock;
 
   if (!pair) return null;
 
@@ -207,12 +283,15 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
   const goPrev = () => {
     if (!hasDiffs) return;
-    setCurrentBlock((c) => (c - 1 + totalDiffs) % totalDiffs);
+    if (isText) gotoMonacoDiff(monacoIndex - 1);
+    else setCurrentBlock((c) => (c - 1 + totalDiffs) % totalDiffs);
   };
   const goNext = () => {
     if (!hasDiffs) return;
-    setCurrentBlock((c) => (c + 1) % totalDiffs);
+    if (isText) gotoMonacoDiff(monacoIndex + 1);
+    else setCurrentBlock((c) => (c + 1) % totalDiffs);
   };
+
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -231,15 +310,35 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
         {/* Barra de ações estilo TC/Tortoise */}
         <div className="px-4 py-2 border-b border-border flex flex-wrap items-center gap-2 bg-muted/30">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={goPrev}
+            disabled={loading || isCalculating || !hasDiffs}
+            title="Diferença anterior (Shift+F7)"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1" /> Anterior
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            onClick={goNext}
+            disabled={loading || isCalculating || !hasDiffs}
+            title="Próxima diferença (F7)"
+          >
+            Próxima <ChevronRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
           <span className="text-xs font-mono px-2 py-1 rounded bg-background border border-border">
             {loading
-              ? "..."
+              ? "Carregando..."
               : !isText && !isCsv
                 ? "—"
-                : isText
-                  ? "Monaco Diff"
+                : isCalculating
+                  ? "Calculando diferenças..."
                   : hasDiffs
-                    ? `Diferença ${currentBlock + 1} de ${totalDiffs}`
+                    ? `Diferença ${Math.max(0, currentIndex) + 1} de ${totalDiffs}`
                     : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
@@ -257,6 +356,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             </a>
           )}
         </div>
+
 
         {/* Cabeçalho dos painéis */}
         <div className="grid grid-cols-2 border-b border-border bg-background">
@@ -306,20 +406,25 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                     modified={atualText ?? ""}
                     language={monacoLanguageFromExt(ext)}
                     theme="vs-dark"
+                    onMount={handleDiffEditorMount}
                     options={{
                       readOnly: true,
                       renderSideBySide: true,
+                      ignoreTrimWhitespace: false,
                       automaticLayout: true,
-                      minimap: { enabled: false },
+                      minimap: { enabled: true },
                       scrollBeyondLastLine: false,
                       wordWrap: "off",
                       renderWhitespace: "boundary",
                       fontSize: 12,
                       originalEditable: false,
+                      glyphMargin: true,
+                      lineNumbers: "on",
                     }}
                     loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando Monaco Diff...</div>}
                   />
                 </div>
+
               </div>
             ) : (
               <div className="p-12 text-center text-sm text-muted-foreground">Carregando arquivos de comparação...</div>
