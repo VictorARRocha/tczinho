@@ -89,16 +89,17 @@ export default function ModulePage() {
       if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf, links, storageFiles] = await Promise.all([
+        const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
           fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
           listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
+          fetchTestcaseHierarchy(targetSlug),
         ]);
         if (reqId !== requestRef.current) return;
         const merged = mergeEvidences(e, storageFiles);
-        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
+        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
+        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({}); setHierarchy([]);
       }
     } catch (e: any) {
       if (reqId !== requestRef.current) return;
@@ -122,6 +123,7 @@ export default function ModulePage() {
     setPassos([]);
     setPerformance([]);
     setGroupLinks({});
+    setHierarchy([]);
     setSelectedFalha(null);
     setComparePair(null);
     setActiveTab("resumo");
@@ -202,7 +204,7 @@ export default function ModulePage() {
           </TabsList>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab modulo={modulo} slug={slug} rodagem={rodagem} falhas={falhas} evidencias={evidencias} grupos={grupos} performance={performance} historico={historico} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} onOpenHistorico={() => setActiveTab("historico")} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
