@@ -831,6 +831,32 @@ export async function fetchRerunRequests(limit = 50): Promise<RerunRequest[]> {
   return (data || []) as unknown as RerunRequest[];
 }
 
+/** Busca as rodagens do Jenkins do módulo atual (matching por código/slug ou nome). */
+export async function fetchRerunRequestsByModule(
+  slug: string,
+  moduleName?: string | null,
+  limit = 20,
+): Promise<RerunRequest[]> {
+  const filters: string[] = [];
+  if (slug) {
+    filters.push(`modulo_codigo.ilike.${slug}`);
+    filters.push(`modulo_nome.ilike.${slug}`);
+  }
+  if (moduleName) filters.push(`modulo_nome.ilike.${moduleName}`);
+  if (filters.length === 0) return [];
+  const { data, error } = await supabase
+    .from("rerun_requests")
+    .select(RERUN_LIST_COLUMNS)
+    .or(filters.join(","))
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) {
+    console.error("[fetchRerunRequestsByModule]", error);
+    return [];
+  }
+  return (data || []) as unknown as RerunRequest[];
+}
+
 export async function createRerunRequest(payload: {
   fk_rodagem?: string | null;
   vm_name: string;
