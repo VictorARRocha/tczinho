@@ -330,7 +330,7 @@ function OccCard({ label, value, tone, onClick }: { label: string; value: number
   );
 }
 
-function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; passos: ProximoPasso[]; performance: AtrasoRodagem[]; onSelect: (f: Falha) => void; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
+function ResumoTab({ modulo, slug, rodagem, falhas, evidencias, grupos, performance, historico, onOpenPerformance, onOpenFalhas, onOpenHistorico }: { modulo: Modulo | null; slug: string; rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; grupos: Agrupamento[]; performance: AtrasoRodagem[]; historico: Rodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void; onOpenHistorico: () => void }) {
   const classData = [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
@@ -344,12 +344,6 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
     { name: "Média", value: rodagem.total_media, color: "hsl(var(--warning))" },
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
   ].filter((d) => d.value > 0);
-
-  const grupoData = useMemo(() => {
-    const m = new Map<string, number>();
-    falhas.forEach((f) => { if (f.grupo) m.set(f.grupo, (m.get(f.grupo) || 0) + 1); });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [falhas]);
 
   const rotinaData = useMemo(() => {
     const m = new Map<string, number>();
@@ -369,10 +363,6 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
     { label: "Sev. Baixa", value: rodagem.total_baixa, tone: "text-success" },
   ].filter((c) => c.force || c.value > 0);
 
-  const principais = [...falhas]
-    .sort((a, b) => severityRank(b.severidade) - severityRank(a.severidade) || ((a.ordem_prioridade ?? 999) - (b.ordem_prioridade ?? 999)))
-    .slice(0, 5);
-
   const occCounts = useMemo(() => {
     const evMap = groupEvidsByFailure(evidencias);
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
@@ -381,9 +371,35 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
   }, [falhas, evidencias]);
 
   const hasDiagText = isMeaningful(rodagem.diagnostico_curto) || isMeaningful(rodagem.diagnostico_detalhado) || isMeaningful(rodagem.conclusao_geral);
-  const fallbackDiag = rodagem.total_falhas > 0
-    ? "Foram encontradas falhas nesta rodagem. Analise os casos listados abaixo."
-    : "Nenhuma falha encontrada nesta rodagem.";
+
+  // ============ Jenkins / rerun_requests do módulo atual ============
+  const [reruns, setReruns] = useState<RerunRequest[]>([]);
+  const [rerunsLoading, setRerunsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancel = false;
+    setRerunsLoading(true);
+    fetchRerunRequestsByModule(slug, modulo?.nome, 20).then((rows) => {
+      if (cancel) return;
+      setReruns(rows);
+      setRerunsLoading(false);
+    });
+    const off = subscribeToTable("rerun_requests", () => {
+      fetchRerunRequestsByModule(slug, modulo?.nome, 20).then((rows) => { if (!cancel) setReruns(rows); });
+    });
+    return () => { cancel = true; off(); };
+  }, [slug, modulo?.nome]);
+
+  const lastRun = reruns[0] || null;
+  const recentRuns = reruns.slice(0, 5);
+  const todayCount = useMemo(() => {
+    const t = new Date(); t.setHours(0, 0, 0, 0);
+    return reruns.filter((r) => new Date(r.created_at) >= t).length;
+  }, [reruns]);
+  const lastRerunOfType = useMemo(
+    () => reruns.find((r) => r.tipo_solicitacao === "reexecucao") || null,
+    [reruns],
+  );
 
   return (
     <div className="space-y-6">
@@ -410,6 +426,23 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
         <OccCard label="Diferenças de arquivos" value={occCounts.diferenca} tone="text-warning" onClick={() => onOpenFalhas("diferenca")} />
         <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />
       </div>
+
+      {/* ===== Status da última rodagem ===== */}
+      <LastRunCard run={lastRun} loading={rerunsLoading} moduleName={modulo?.nome || slug} />
+
+      {/* ===== Últimas rodagens ===== */}
+      <RecentRunsCard runs={recentRuns} loading={rerunsLoading} onOpenHistorico={onOpenHistorico} />
+
+      {/* ===== Resumo operacional ===== */}
+      <OperationalSummary
+        rerunsToday={todayCount}
+        lastRun={lastRun}
+        lastRerun={lastRerunOfType}
+        falhas={rodagem.total_falhas}
+        diferencas={occCounts.diferenca + occCounts.quebra_diferenca}
+        agrupamentos={grupos.length}
+        rodagensModulo={historico.length}
+      />
 
       {performance.length > 0 && (() => {
         const slow = performance.filter((p) => p.status === "mais_lento");
@@ -488,53 +521,227 @@ function ResumoTab({ rodagem, falhas, evidencias, passos, performance, onSelect,
           </ResponsiveContainer>
         </Card>
       )}
+    </div>
+  );
+}
 
-      <Card className="glass-card p-6">
-        <h3 className="text-sm font-semibold mb-4">Principais falhas</h3>
-        {principais.length === 0 ? <Empty text="Sem falhas registradas." /> : (
-          <div className="space-y-2">
-            {principais.map((f) => {
-              const desc = failureDescription(f);
-              const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Falha";
-              return (
-                <button key={f.id} onClick={() => onSelect(f)} className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth text-left">
-                  {f.ordem_prioridade != null && <span className="font-mono text-xs text-muted-foreground w-6">#{f.ordem_prioridade}</span>}
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">{titulo}</div>
-                    {desc && desc !== titulo && (
-                      <div className="text-xs text-muted-foreground truncate">{desc}</div>
-                    )}
-                    {f.id_caso_teste && <div className="font-mono text-[10px] text-muted-foreground/80">{f.id_caso_teste}</div>}
-                  </div>
-                  {f.severidade && <SeverityBadge value={f.severidade} />}
-                  {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+// ============ Blocos operacionais (Jenkins / rerun_requests) ============
 
-      {passos.length > 0 && (
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-semibold mb-4 flex items-center gap-2"><Lightbulb className="h-4 w-4 text-warning" /> Ações sugeridas</h3>
-          <div className="space-y-2">
-            {passos.slice(0, 6).map((p) => (
-              <div key={p.id} className="flex items-start gap-3 p-3 rounded-lg bg-secondary/40">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm">{p.descricao}</div>
-                  {p.relacionado_a && <div className="text-[11px] text-muted-foreground mt-0.5">{p.relacionado_a}</div>}
-                </div>
-                {p.prioridade && <Badge variant="outline" className="text-[10px]">{p.prioridade}</Badge>}
-              </div>
-            ))}
-          </div>
-        </Card>
+const RUN_STATUS_META: Record<string, { label: string; badge: string; bar: string; animated?: boolean }> = {
+  solicitado:         { label: "Solicitado",       badge: "bg-muted text-muted-foreground border-border",              bar: "bg-muted-foreground/40" },
+  processando:        { label: "Processando",      badge: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",    bar: "bg-yellow-500", animated: true },
+  enviado_jenkins:    { label: "Enviado",          badge: "bg-blue-500/15 text-blue-400 border-blue-500/30",          bar: "bg-blue-500" },
+  na_fila:            { label: "Na fila",          badge: "bg-sky-500/15 text-sky-400 border-sky-500/30",             bar: "bg-sky-400" },
+  rodando:            { label: "Rodando",          badge: "bg-purple-500/15 text-purple-400 border-purple-500/30",    bar: "bg-purple-500", animated: true },
+  finalizado_sucesso: { label: "Finalizado",       badge: "bg-green-500/15 text-green-500 border-green-500/30",       bar: "bg-green-500" },
+  finalizado_falha:   { label: "Falhou",           badge: "bg-red-500/15 text-red-500 border-red-500/30",             bar: "bg-red-500" },
+  cancelado:          { label: "Cancelado",        badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",    bar: "bg-orange-500" },
+  erro_envio:         { label: "Erro no envio",    badge: "bg-red-500/15 text-red-500 border-red-500/30",             bar: "bg-red-500" },
+  erro_monitoramento: { label: "Erro monitor",     badge: "bg-red-500/15 text-red-500 border-red-500/30",             bar: "bg-red-500" },
+  erro:               { label: "Erro",             badge: "bg-red-500/15 text-red-500 border-red-500/30",             bar: "bg-red-500" },
+};
+const ACTIVE_RUN_STATUS = new Set(["solicitado", "processando", "enviado_jenkins", "na_fila", "rodando"]);
+const TIPO_LABEL_RUN: Record<string, string> = { rodagem_completa: "Rodagem completa", reexecucao: "Reexecução" };
+
+function runStatusKey(r: RerunRequest): string {
+  return (r.execution_status || r.status || "solicitado").toString().toLowerCase().trim();
+}
+function runProgress(r: RerunRequest): { value: number; indeterminate: boolean } {
+  const k = runStatusKey(r);
+  const raw = r.progress_percent;
+  const has = raw !== null && raw !== undefined && !Number.isNaN(Number(raw));
+  const v = has ? Math.max(0, Math.min(100, Number(raw))) : NaN;
+  switch (k) {
+    case "solicitado": return { value: 0, indeterminate: false };
+    case "processando": return { value: has ? v : 1, indeterminate: !has };
+    case "enviado_jenkins": return { value: has ? v : 5, indeterminate: false };
+    case "na_fila": return { value: has ? v : 10, indeterminate: false };
+    case "rodando": return { value: has ? v : 50, indeterminate: !has };
+    default: return { value: has ? v : 100, indeterminate: false };
+  }
+}
+function runOrigin(r: RerunRequest): "Jenkins" | "Manual" {
+  return r.build_url || r.jenkins_url || r.jenkins_build_number || r.build_number ? "Jenkins" : "Manual";
+}
+function formatMs(ms?: number | null): string {
+  if (!ms || ms < 0) return "—";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60); const rs = s % 60;
+  if (m < 60) return rs ? `${m}min ${rs}s` : `${m}min`;
+  const h = Math.floor(m / 60); const rm = m % 60;
+  return rm ? `${h}h ${rm}min` : `${h}h`;
+}
+function computedDuration(r: RerunRequest): number | null {
+  if (r.duration_ms != null) return r.duration_ms;
+  if (r.started_at && r.finished_at) return new Date(r.finished_at).getTime() - new Date(r.started_at).getTime();
+  return null;
+}
+
+function ProgressBarInline({ value, color, indeterminate }: { value: number; color: string; indeterminate?: boolean }) {
+  return (
+    <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary/60">
+      {indeterminate ? (
+        <div className={`absolute inset-y-0 w-1/3 ${color} animate-[progress-indeterminate_1.4s_ease-in-out_infinite]`} />
+      ) : (
+        <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${value}%` }} />
       )}
     </div>
   );
 }
+
+function LastRunCard({ run, loading, moduleName }: { run: RerunRequest | null; loading: boolean; moduleName: string }) {
+  return (
+    <Card className="glass-card p-6">
+      <style>{`@keyframes progress-indeterminate { 0% { transform: translateX(-100%);} 100% { transform: translateX(400%);} }`}</style>
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+        <h3 className="text-sm font-semibold">Status da última rodagem</h3>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Módulo {moduleName}</span>
+      </div>
+      {loading ? (
+        <div className="space-y-3">
+          <Skeleton className="h-6 w-64" />
+          <Skeleton className="h-2 w-full" />
+          <Skeleton className="h-24 w-full" />
+        </div>
+      ) : !run ? (
+        <div className="text-sm text-muted-foreground py-6 text-center">Nenhuma rodagem recente encontrada para este módulo.</div>
+      ) : (() => {
+        const key = runStatusKey(run);
+        const meta = RUN_STATUS_META[key] || { label: key, badge: "", bar: "bg-muted-foreground/40" };
+        const prog = runProgress(run);
+        const dur = computedDuration(run);
+        const rows: [string, React.ReactNode][] = [
+          ["Tipo", TIPO_LABEL_RUN[run.tipo_solicitacao || ""] || run.tipo_solicitacao || "—"],
+          ["Origem", runOrigin(run)],
+          ["VM", run.vm_name || "—"],
+          ["Versão", run.versao || "—"],
+          ["Casos", <span className="font-mono text-xs break-all">{run.casos_teste || "—"}</span>],
+          ["Agendado", run.data_hora || "—"],
+          ["Início", run.started_at ? new Date(run.started_at).toLocaleString("pt-BR") : "—"],
+          ["Fim", run.finished_at ? new Date(run.finished_at).toLocaleString("pt-BR") : "—"],
+          ["Duração", formatMs(dur)],
+        ];
+        return (
+          <div className="space-y-4">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+              <span className="text-xs text-muted-foreground">Solicitada em {new Date(run.created_at).toLocaleString("pt-BR")}</span>
+            </div>
+            <div>
+              <ProgressBarInline value={prog.value} color={meta.bar} indeterminate={prog.indeterminate} />
+              <div className="text-[11px] text-muted-foreground mt-1">
+                {prog.indeterminate ? "Em andamento…" : `${Math.round(prog.value)}%`}
+              </div>
+            </div>
+            <div className="grid gap-x-4 gap-y-2 grid-cols-[110px_1fr] md:grid-cols-[110px_1fr_110px_1fr] text-sm">
+              {rows.map(([k, v], i) => (
+                <>
+                  <div key={`k-${i}`} className="text-[10px] uppercase tracking-wider text-muted-foreground self-center">{k}</div>
+                  <div key={`v-${i}`} className="min-w-0 break-words">{v}</div>
+                </>
+              ))}
+            </div>
+            {run.build_url && (
+              <div>
+                <a href={run.build_url} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline inline-flex items-center gap-1">
+                  Abrir build no Jenkins <ArrowRight className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+    </Card>
+  );
+}
+
+function RecentRunsCard({ runs, loading, onOpenHistorico }: { runs: RerunRequest[]; loading: boolean; onOpenHistorico: () => void }) {
+  return (
+    <Card className="glass-card p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold">Últimas rodagens</h3>
+        <Button variant="ghost" size="sm" onClick={onOpenHistorico}>
+          Ver histórico <ArrowRight className="h-3.5 w-3.5 ml-1" />
+        </Button>
+      </div>
+      {loading ? (
+        <div className="space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      ) : runs.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-6 text-center">Sem rodagens registradas para este módulo.</div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Data/hora</TableHead>
+                <TableHead>Tipo</TableHead>
+                <TableHead>Origem</TableHead>
+                <TableHead>VM</TableHead>
+                <TableHead>Versão</TableHead>
+                <TableHead>Casos</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Duração</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {runs.map((r) => {
+                const key = runStatusKey(r);
+                const meta = RUN_STATUS_META[key] || { label: key, badge: "" };
+                const dur = computedDuration(r);
+                return (
+                  <TableRow key={r.id} className="cursor-pointer" onClick={onOpenHistorico}>
+                    <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
+                    <TableCell className="text-xs">{TIPO_LABEL_RUN[r.tipo_solicitacao || ""] || r.tipo_solicitacao || "—"}</TableCell>
+                    <TableCell className="text-xs">{runOrigin(r)}</TableCell>
+                    <TableCell className="text-xs font-mono">{r.vm_name || "—"}</TableCell>
+                    <TableCell className="text-xs">{r.versao || "—"}</TableCell>
+                    <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste || "—"}</TableCell>
+                    <TableCell><Badge variant="outline" className={meta.badge}>{meta.label}</Badge></TableCell>
+                    <TableCell className="text-xs font-mono">{formatMs(dur)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function OperationalSummary({ rerunsToday, lastRun, lastRerun, falhas, diferencas, agrupamentos, rodagensModulo }: {
+  rerunsToday: number; lastRun: RerunRequest | null; lastRerun: RerunRequest | null;
+  falhas: number; diferencas: number; agrupamentos: number; rodagensModulo: number;
+}) {
+  const items: { label: string; value: string; tone?: string }[] = [
+    { label: "Rodagens hoje", value: String(rerunsToday) },
+    { label: "Última rodagem", value: lastRun ? new Date(lastRun.created_at).toLocaleString("pt-BR") : "—" },
+    { label: "Última reexecução", value: lastRerun ? new Date(lastRerun.created_at).toLocaleString("pt-BR") : "—" },
+    { label: "Rodagens do módulo", value: String(rodagensModulo) },
+    { label: "Falhas", value: String(falhas), tone: falhas > 0 ? "text-destructive" : "" },
+    { label: "Diferenças de arquivos", value: String(diferencas), tone: diferencas > 0 ? "text-warning" : "" },
+    { label: "Agrupamentos", value: String(agrupamentos) },
+  ];
+  return (
+    <Card className="glass-card p-6">
+      <h3 className="text-sm font-semibold mb-4">Resumo operacional</h3>
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
+        {items.map((i) => (
+          <div key={i.label} className="rounded-lg bg-secondary/40 border border-border/60 p-3">
+            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{i.label}</div>
+            <div className={`mt-1 text-sm font-semibold font-mono truncate ${i.tone || ""}`} title={i.value}>{i.value}</div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 function FalhasTab({
   falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
 }: {
