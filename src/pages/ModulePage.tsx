@@ -764,7 +764,11 @@ function extractCaseIdParts(raw: string | null | undefined): string[] | null {
   return m[0].split(".");
 }
 
-function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
+function buildFailuresTree(
+  items: EnrichedItem[],
+  moduloNome: string,
+  hierMap: Map<string, TestcaseHierarchyNode>,
+) {
   const root: TreeNode = { id: "", segment: "", label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
   const orphans: EnrichedItem[] = [];
 
@@ -785,8 +789,11 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
   }
 
   const finalize = (node: TreeNode, depth: number) => {
-    // label
-    if (node.items.length) {
+    // Prioridade de nomes: hierarquia real (testcase_hierarchy) > metadados da falha > fallback
+    const hier = hierMap.get(node.id);
+    if (hier?.node_name && hier.node_name.trim()) {
+      node.label = hier.node_name.trim();
+    } else if (node.items.length) {
       const it = node.items[0];
       node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || `Grupo ${node.id}`).toString();
     } else if (depth === 1) {
@@ -808,6 +815,21 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
   };
   root.children.forEach((c) => finalize(c, 1));
   return { root, orphans };
+}
+
+// Constrói caminho completo "[1] Folha > [1.3] Tabelas > [1.3.7] ..." de um node_id
+function buildFullPathLabel(nodeId: string, hierMap: Map<string, TestcaseHierarchyNode>, moduloNome: string): string {
+  const direct = hierMap.get(nodeId);
+  if (direct?.full_path_label && direct.full_path_label.trim()) return direct.full_path_label.trim();
+  const parts = nodeId.split(".");
+  const segs: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const id = parts.slice(0, i + 1).join(".");
+    const h = hierMap.get(id);
+    const name = h?.node_name?.trim() || (i === 0 && moduloNome ? moduloNome : `Grupo ${id}`);
+    segs.push(`[${id}] ${name}`);
+  }
+  return segs.join(" > ");
 }
 
 function collectAllNodeIds(node: TreeNode, acc: string[] = []): string[] {
