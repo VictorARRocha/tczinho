@@ -770,7 +770,7 @@ function buildFailuresTree(
   moduloNome: string,
   hierMap: Map<string, TestcaseHierarchyNode>,
 ) {
-  const root: TreeNode = { id: "", segment: "", label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+  const root: TreeNode = { id: "", segment: "", label: "", fullPath: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
   const orphans: EnrichedItem[] = [];
 
   for (const it of items) {
@@ -781,7 +781,7 @@ function buildFailuresTree(
       const id = parts.slice(0, i + 1).join(".");
       let child = cur.children.get(id);
       if (!child) {
-        child = { id, segment: parts[i], label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+        child = { id, segment: parts[i], label: "", fullPath: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
         cur.children.set(id, child);
       }
       cur = child;
@@ -802,6 +802,7 @@ function buildFailuresTree(
     } else {
       node.label = `Grupo ${node.id}`;
     }
+    node.fullPath = buildFullPathLabel(node.id, hierMap, moduloNome);
     node.children.forEach((c) => {
       finalize(c, depth + 1);
       node.counts.quebra += c.counts.quebra;
