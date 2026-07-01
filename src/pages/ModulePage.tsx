@@ -1099,6 +1099,7 @@ function TreeNodeView({
         className="group flex items-center gap-2 py-1.5 pr-2 rounded-md hover:bg-secondary/40 cursor-pointer border-l border-transparent hover:border-primary/30"
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
+        title={node.fullPath || node.label}
       >
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
@@ -1111,6 +1112,11 @@ function TreeNodeView({
           <CountsPills counts={node.counts} />
         </div>
       </div>
+      {open && node.items.length > 0 && node.fullPath && (
+        <div className="text-[10px] text-muted-foreground/70 font-mono truncate" style={{ paddingLeft: indent + 44 }} title={node.fullPath}>
+          {node.fullPath}
+        </div>
+      )}
       {open && (
         <div>
           {node.items.map((it) => (
