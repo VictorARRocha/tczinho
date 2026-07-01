@@ -1020,6 +1020,11 @@ function FalhasTab({
 
   return (
     <div className="space-y-4">
+      {hierarchy.length === 0 && enriched.length > 0 && (
+        <div className="text-[11px] text-muted-foreground/80 italic px-1">
+          Hierarquia do TestComplete ainda não carregada. Exibindo árvore simplificada por ID.
+        </div>
+      )}
       <Card className="glass-card p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
