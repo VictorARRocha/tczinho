@@ -752,6 +752,7 @@ type TreeNode = {
   id: string;            // caminho completo: "1.3.7"
   segment: string;       // último segmento: "7"
   label: string;
+  fullPath: string;      // "[1] Folha > [1.3] Tabelas > [1.3.7] ..."
   children: Map<string, TreeNode>;
   items: EnrichedItem[]; // falhas cujo ID == node.id
   counts: { quebra: number; diferenca: number; quebra_diferenca: number; total: number };
