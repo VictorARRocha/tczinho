@@ -742,9 +742,99 @@ function OperationalSummary({ rerunsToday, lastRun, lastRerun, falhas, diferenca
   );
 }
 
+type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
+
+type TreeNode = {
+  id: string;            // caminho completo: "1.3.7"
+  segment: string;       // último segmento: "7"
+  label: string;
+  children: Map<string, TreeNode>;
+  items: EnrichedItem[]; // falhas cujo ID == node.id
+  counts: { quebra: number; diferenca: number; quebra_diferenca: number; total: number };
+};
+
+function extractCaseIdParts(raw: string | null | undefined): string[] | null {
+  if (!raw) return null;
+  const m = String(raw).match(/\d+(?:\.\d+)*/);
+  if (!m) return null;
+  return m[0].split(".");
+}
+
+function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
+  const root: TreeNode = { id: "", segment: "", label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+  const orphans: EnrichedItem[] = [];
+
+  for (const it of items) {
+    const parts = extractCaseIdParts(it.f.id_caso_teste);
+    if (!parts || parts.length === 0) { orphans.push(it); continue; }
+    let cur = root;
+    for (let i = 0; i < parts.length; i++) {
+      const id = parts.slice(0, i + 1).join(".");
+      let child = cur.children.get(id);
+      if (!child) {
+        child = { id, segment: parts[i], label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+        cur.children.set(id, child);
+      }
+      cur = child;
+    }
+    cur.items.push(it);
+  }
+
+  const finalize = (node: TreeNode, depth: number) => {
+    // label
+    if (node.items.length) {
+      const it = node.items[0];
+      node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || `Grupo ${node.id}`).toString();
+    } else if (depth === 1) {
+      node.label = moduloNome ? moduloNome : `Grupo ${node.id}`;
+    } else {
+      node.label = `Grupo ${node.id}`;
+    }
+    node.children.forEach((c) => {
+      finalize(c, depth + 1);
+      node.counts.quebra += c.counts.quebra;
+      node.counts.diferenca += c.counts.diferenca;
+      node.counts.quebra_diferenca += c.counts.quebra_diferenca;
+      node.counts.total += c.counts.total;
+    });
+    for (const it of node.items) {
+      node.counts[it.tipo] = (node.counts[it.tipo] || 0) + 1;
+      node.counts.total++;
+    }
+  };
+  root.children.forEach((c) => finalize(c, 1));
+  return { root, orphans };
+}
+
+function collectAllNodeIds(node: TreeNode, acc: string[] = []): string[] {
+  node.children.forEach((c) => { acc.push(c.id); collectAllNodeIds(c, acc); });
+  return acc;
+}
+
+function itemMatches(it: EnrichedItem, q: string): boolean {
+  if (!q) return true;
+  const needle = q.toLowerCase();
+  const parts = [
+    it.f.id_caso_teste, it.f.caso_teste_provavel, it.f.descricao_caso, it.f.erro_titulo,
+    it.f.erro_principal, it.f.mensagem_principal, it.f.grupo, it.f.subgrupo, it.f.rotina_funcional,
+  ];
+  for (const p of parts) if (p && String(p).toLowerCase().includes(needle)) return true;
+  for (const e of it.evs) {
+    if ((e.nome_arquivo || "").toLowerCase().includes(needle)) return true;
+    if ((e.extensao || "").toLowerCase().includes(needle)) return true;
+    if ((e.storage_path || "").toLowerCase().includes(needle)) return true;
+  }
+  for (const p of it.pairs) {
+    if ((p.base?.nome_arquivo || "").toLowerCase().includes(needle)) return true;
+    if ((p.atual?.nome_arquivo || "").toLowerCase().includes(needle)) return true;
+  }
+  return false;
+}
+
 function FalhasTab({
-  falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
+  moduloNome, falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
 }: {
+  moduloNome: string;
   falhas: Falha[];
   evidencias: Evidencia[];
   subTab: "todos" | "quebra" | "diferenca" | "quebra_diferenca";
@@ -755,12 +845,9 @@ function FalhasTab({
   const [q, setQ] = useState("");
   const [extFilter, setExtFilter] = useState<string>("");
   const debouncedQ = useDebounce(q, 250);
-  const [page, setPage] = useState(1);
-  const PAGE_SIZE = 25;
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
-  // Pastas `comparacao/` já cobertas por falhas reais (evita duplicar como sintética)
   const realPairKeys = useMemo(() => {
     const set = new Set<string>();
     falhas.forEach((f) => {
@@ -770,11 +857,9 @@ function FalhasTab({
     return set;
   }, [falhas, evMap]);
 
-  // Sintetiza UMA falha virtual por pasta `comparacao/` órfã (sem falha_id), com par completo.
   const syntheticFalhas = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
     if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
-
     const byCmpFolder = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
       const path = (e.storage_path || "").replace(/\\/g, "/");
@@ -785,19 +870,16 @@ function FalhasTab({
       arr.push(e);
       byCmpFolder.set(folder, arr);
     });
-
     const out: { f: Falha; evs: Evidencia[] }[] = [];
     byCmpFolder.forEach((evs, cmpFolder) => {
       if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
       const pairs = pairBaseAtual(evs);
-      if (!pairs.length) return; // exige par base+atual completo
+      if (!pairs.length) return;
       const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
       const caseName = caseFolder.split("/").pop() || caseFolder;
       const id = `storage:${caseFolder}`;
       const f = {
-        id,
-        rodagem_id: evs[0]?.rodagem_id || "",
-        modulo_slug: evs[0]?.modulo_slug || "",
+        id, rodagem_id: evs[0]?.rodagem_id || "", modulo_slug: evs[0]?.modulo_slug || "",
         ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
         caso_identificado: false, id_caso_teste: caseName,
         caso_teste_provavel: `Comparação: ${caseName}`,
@@ -814,18 +896,14 @@ function FalhasTab({
     return out;
   }, [evidencias, realPairKeys]);
 
-  const enriched = useMemo(() => {
+  const enriched: EnrichedItem[] = useMemo(() => {
     const real = falhas.map((f) => {
       const evs = evMap.get(f.id) || [];
       const tipo = classifyOccurrence(f, evs);
       const pairs = pairBaseAtual(evs);
       return { f, evs, tipo, pairs };
     });
-    const synth = syntheticFalhas.map(({ f, evs }) => {
-      const pairs = pairBaseAtual(evs);
-      const tipo = classifyOccurrence(f, evs);
-      return { f, evs, tipo, pairs };
-    });
+    const synth = syntheticFalhas.map(({ f, evs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs: pairBaseAtual(evs) }));
     return [...real, ...synth];
   }, [falhas, evMap, syntheticFalhas]);
 
@@ -841,22 +919,28 @@ function FalhasTab({
     return Array.from(s).sort();
   }, [enriched]);
 
-  const filtered = useMemo(() => enriched.filter(({ f, tipo, pairs }) => {
+  const filtered = useMemo(() => enriched.filter(({ tipo, pairs }, i) => {
+    const it = enriched[i];
     if (subTab !== "todos" && tipo !== subTab) return false;
-    if (debouncedQ && !JSON.stringify(f).toLowerCase().includes(debouncedQ.toLowerCase())) return false;
     if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
+    if (debouncedQ && !itemMatches(it, debouncedQ)) return false;
     return true;
   }), [enriched, subTab, debouncedQ, extFilter]);
 
-  // Reset paginação quando filtros mudam
-  useEffect(() => { setPage(1); }, [subTab, debouncedQ, extFilter, enriched.length]);
+  const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome), [filtered, moduloNome]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const pageItems = useMemo(
-    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
-    [filtered, currentPage],
-  );
+  const allIds = useMemo(() => collectAllNodeIds(root), [root]);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  // expande tudo por padrão sempre que o conjunto de nós mudar
+  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds.join("|")]);
+
+  const toggle = (id: string) => setExpanded((prev) => {
+    const n = new Set(prev);
+    if (n.has(id)) n.delete(id); else n.add(id);
+    return n;
+  });
+  const expandAll = () => setExpanded(new Set(allIds));
+  const collapseAll = () => setExpanded(new Set());
 
   const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
     <button
@@ -869,6 +953,9 @@ function FalhasTab({
     </button>
   );
 
+  const rootChildren = Array.from(root.children.values()).sort((a, b) => Number(a.segment) - Number(b.segment));
+  const isEmpty = filtered.length === 0;
+
   return (
     <div className="space-y-4">
       <Card className="glass-card p-4 space-y-3">
@@ -878,45 +965,39 @@ function FalhasTab({
           <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-primary" />
           <SubTabBtn id="todos" label="Todos" count={counts.todos} />
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por ID, nome ou descrição..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
+          <Input placeholder="Buscar por ID, nome, descrição, arquivo ou extensão..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background flex-1 min-w-[220px]" />
           {allExts.length > 0 && (
             <select value={extFilter} onChange={(e) => setExtFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-2 text-xs">
               <option value="">Extensão: todas</option>
               {allExts.map((e) => <option key={e} value={e}>.{e}</option>)}
             </select>
           )}
+          <div className="ml-auto flex gap-1">
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={collapseAll}>Recolher tudo</Button>
+          </div>
         </div>
       </Card>
 
-      {filtered.length === 0 ? (
+      {isEmpty ? (
         <Card className="glass-card p-12 text-center text-sm text-muted-foreground">
-          {subTab === "quebra" && "Nenhuma quebra de teste encontrada."}
-          {subTab === "diferenca" && "Nenhuma diferença de arquivo encontrada."}
-          {subTab === "quebra_diferenca" && "Nenhuma ocorrência híbrida encontrada."}
-          {subTab === "todos" && "Nenhuma ocorrência encontrada."}
+          {debouncedQ || extFilter || subTab !== "todos"
+            ? "Nenhum item encontrado para os filtros aplicados."
+            : "Nenhuma falha encontrada neste módulo."}
         </Card>
       ) : (
-        <>
-          <div className="space-y-2">
-            {pageItems.map(({ f, tipo, pairs }) => (
-              <FalhaRow key={f.id} f={f} tipo={tipo} pairs={pairs} onSelect={onSelect} onCompare={onCompare} />
+        <Card className="glass-card p-2 md:p-3">
+          <div className="space-y-0.5">
+            {rootChildren.map((c) => (
+              <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
             ))}
+            {orphans.length > 0 && (
+              <OrphanGroup items={orphans} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
+            )}
           </div>
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <div className="text-xs text-muted-foreground">
-                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filtered.length)} de {filtered.length}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-                <span className="text-xs font-mono text-muted-foreground">{currentPage} / {totalPages}</span>
-                <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Próxima</Button>
-              </div>
-            </div>
-          )}
-        </>
+        </Card>
       )}
     </div>
   );
@@ -928,65 +1009,163 @@ function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
   return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">Quebra + Diferença</Badge>;
 }
 
-function FalhaRow({
-  f, tipo, pairs, onSelect, onCompare,
+function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
+  return (
+    <div className="flex gap-1 flex-wrap">
+      {counts.quebra > 0 && <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] px-1.5 py-0">{counts.quebra} quebra</Badge>}
+      {counts.diferenca > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{counts.diferenca} dif.</Badge>}
+      {counts.quebra_diferenca > 0 && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] px-1.5 py-0">{counts.quebra_diferenca} misto</Badge>}
+    </div>
+  );
+}
+
+function TreeNodeView({
+  node, depth, expanded, onToggle, onSelect, onCompare,
 }: {
-  f: Falha; tipo: OccurrenceType; pairs: ComparisonPair[];
+  node: TreeNode; depth: number; expanded: Set<string>;
+  onToggle: (id: string) => void;
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
-  const desc = failureDescription(f);
-  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Falha";
-  const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
-  const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+  const hasChildren = node.children.size > 0;
+  const open = expanded.has(node.id);
+  const indent = depth * 18;
 
   return (
-    <Card className="glass-card p-4 hover:border-primary/30 transition-smooth">
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <TipoBadge tipo={tipo} />
-            {f.id_caso_teste && <span className="font-mono text-[11px] text-muted-foreground">#{f.id_caso_teste}</span>}
-            {f.severidade && <SeverityBadge value={f.severidade} />}
-            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-          </div>
-          <div className="text-sm font-medium truncate">{titulo}</div>
-          {isQuebra && desc && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{desc}</p>}
-          {f.grupo && <div className="text-[11px] text-muted-foreground mt-0.5">{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</div>}
-
-          {isDiff && pairs.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              {pairs.map((p) => (
-                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-secondary/40 rounded-md px-2.5 py-1.5">
-                  <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-mono truncate" title={p.base!.nome_arquivo || ""}>
-                      <span className="text-muted-foreground">base:</span> {p.base!.nome_arquivo}
-                    </div>
-                    <div className="font-mono truncate" title={p.atual!.nome_arquivo || ""}>
-                      <span className="text-muted-foreground">atual:</span> {p.atual!.nome_arquivo}
-                    </div>
-                    {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
-                  </div>
-                  <div className="flex gap-1 flex-wrap">
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar base</Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar atual</Button>
-                    <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-          {isDiff && pairs.length === 0 && (
-            <p className="text-[11px] text-muted-foreground italic mt-2">Arquivos de comparação não vinculados.</p>
-          )}
-        </div>
-        <div className="flex flex-col gap-1.5 shrink-0">
-          {isQuebra && <Button size="sm" variant="outline" onClick={() => onSelect(f)}>Ver erro</Button>}
-          {!isQuebra && <Button size="sm" variant="ghost" onClick={() => onSelect(f)}>Detalhe</Button>}
+    <div>
+      <div
+        className="group flex items-center gap-2 py-1.5 pr-2 rounded-md hover:bg-secondary/40 cursor-pointer border-l border-transparent hover:border-primary/30"
+        style={{ paddingLeft: indent + 8 }}
+        onClick={() => hasChildren && onToggle(node.id)}
+      >
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
+          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
+        </span>
+        <span className="font-mono text-sm font-bold text-primary bg-primary/10 border border-primary/30 rounded px-2 py-0.5 shrink-0">
+          [{node.id}]
+        </span>
+        <span className="text-sm text-foreground/90 truncate" title={node.label}>{node.label}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <CountsPills counts={node.counts} />
         </div>
       </div>
-    </Card>
+      {open && (
+        <div>
+          {node.items.map((it) => (
+            <LeafItemCard key={it.f.id} item={it} depth={depth + 1} onSelect={onSelect} onCompare={onCompare} />
+          ))}
+          {Array.from(node.children.values())
+            .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment))
+            .map((c) => (
+              <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onCompare={onCompare} />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LeafItemCard({
+  item, depth, onSelect, onCompare,
+}: {
+  item: EnrichedItem; depth: number;
+  onSelect: (f: Falha) => void;
+  onCompare: (p: ComparisonPair, f: Falha) => void;
+}) {
+  const { f, tipo, pairs } = item;
+  const desc = failureDescription(f);
+  const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
+  const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
+  const script = f.rotina_funcional || f.componente || f.formulario_ou_tela;
+  const indent = depth * 18 + 20;
+
+  return (
+    <div
+      className="ml-1 my-1 border-l-2 border-primary/40 bg-secondary/20 rounded-r-md"
+      style={{ marginLeft: indent }}
+    >
+      <div className="p-3 space-y-2">
+        <div className="flex items-start gap-2 flex-wrap">
+          <TipoBadge tipo={tipo} />
+          {f.severidade && <SeverityBadge value={f.severidade} />}
+          {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+          <span className="text-xs text-muted-foreground truncate" title={titulo}>{titulo}</span>
+        </div>
+        {script && <div className="text-[11px] text-muted-foreground"><span className="opacity-70">Script:</span> <span className="font-mono">{script}</span></div>}
+        {isQuebra && desc && <p className="text-xs text-muted-foreground line-clamp-2">{desc}</p>}
+
+        {isDiff && pairs.length > 0 && (
+          <div className="space-y-1.5">
+            {pairs.map((p) => (
+              <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
+                <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                <div className="flex-1 min-w-0">
+                  <div className="font-mono truncate" title={p.base!.nome_arquivo || ""}>
+                    <span className="text-muted-foreground">base:</span> {p.base!.nome_arquivo}
+                  </div>
+                  <div className="font-mono truncate" title={p.atual!.nome_arquivo || ""}>
+                    <span className="text-muted-foreground">atual:</span> {p.atual!.nome_arquivo}
+                  </div>
+                  {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar base</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar atual</Button>
+                  <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {isDiff && pairs.length === 0 && (
+          <p className="text-[11px] text-muted-foreground italic">Arquivos de comparação não vinculados.</p>
+        )}
+
+        <div className="flex gap-1.5">
+          {isQuebra && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSelect(f)}>Ver erro</Button>}
+          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onSelect(f)}>Detalhe</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OrphanGroup({
+  items, expanded, onToggle, onSelect, onCompare,
+}: {
+  items: EnrichedItem[]; expanded: Set<string>;
+  onToggle: (id: string) => void;
+  onSelect: (f: Falha) => void;
+  onCompare: (p: ComparisonPair, f: Falha) => void;
+}) {
+  const id = "__orphan__";
+  const open = expanded.has(id) || !expanded.size;
+  const counts = items.reduce(
+    (acc, it) => { acc[it.tipo]++; acc.total++; return acc; },
+    { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } as TreeNode["counts"],
+  );
+  return (
+    <div>
+      <div
+        className="group flex items-center gap-2 py-1.5 pr-2 pl-2 rounded-md hover:bg-secondary/40 cursor-pointer"
+        onClick={() => onToggle(id)}
+      >
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </span>
+        <span className="font-mono text-sm font-bold text-muted-foreground bg-muted/40 border border-border rounded px-2 py-0.5 shrink-0">[sem ID]</span>
+        <span className="text-sm text-muted-foreground truncate">Sem identificação numérica</span>
+        <div className="ml-auto"><CountsPills counts={counts} /></div>
+      </div>
+      {open && (
+        <div>
+          {items.map((it) => (
+            <LeafItemCard key={it.f.id} item={it} depth={1} onSelect={onSelect} onCompare={onCompare} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
