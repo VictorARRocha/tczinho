@@ -225,6 +225,60 @@ function normPasso(row: any, rodagem_id = "", modulo_slug = ""): ProximoPasso {
 }
 
 // =====================================================================
+// TESTCASE HIERARCHY (fonte real de nomes de grupos/casos vinda do .mds)
+// =====================================================================
+export interface TestcaseHierarchyNode {
+  node_id: string;
+  parent_node_id: string | null;
+  node_name: string;
+  node_type: string | null;
+  full_path_ids: string | null;
+  full_path_names: string | null;
+  full_path_label: string | null;
+  script_name: string | null;
+  procedure_name: string | null;
+  modulo_codigo: string | null;
+  modulo_nome: string | null;
+  sistema: string | null;
+}
+
+const MODULE_CODE_MAP: Record<string, string[]> = {
+  folha: ["1"],
+  fiscal: ["2"],
+  contabil: ["3", "4", "7"],
+  financeiro: ["5"],
+  geral: ["6"],
+  gestao: ["9"],
+};
+
+export async function fetchTestcaseHierarchy(slug: string): Promise<TestcaseHierarchyNode[]> {
+  const codes = MODULE_CODE_MAP[slug] || [];
+  let query = supabase
+    .from("testcase_hierarchy")
+    .select("node_id,parent_node_id,node_name,node_type,full_path_ids,full_path_names,full_path_label,script_name,procedure_name,modulo_codigo,modulo_nome,sistema");
+
+  if (codes.length) {
+    const parts: string[] = [];
+    for (const c of codes) {
+      parts.push(`modulo_codigo.eq.${c}`);
+      parts.push(`node_id.eq.${c}`);
+      parts.push(`node_id.like.${c}.*`);
+    }
+    query = query.or(parts.join(","));
+  }
+
+  const { data, error } = await query.limit(5000);
+  if (error) {
+    // Tabela pode ainda não existir — degrada silenciosamente
+    if (!/does not exist|schema cache|PGRST205/i.test(error.message || "")) {
+      console.warn("[fetchTestcaseHierarchy]", error);
+    }
+    return [];
+  }
+  return (data || []) as TestcaseHierarchyNode[];
+}
+
+// =====================================================================
 // MÓDULOS
 // =====================================================================
 export async function fetchModules(): Promise<Modulo[]> {

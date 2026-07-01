@@ -5,7 +5,8 @@ import {
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
   fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules, listStorageFilesByRun, mergeEvidences,
-  fetchRerunRequestsByModule, type RerunRequest,
+  fetchRerunRequestsByModule, fetchTestcaseHierarchy,
+  type RerunRequest, type TestcaseHierarchyNode,
 } from "@/services/qa";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -58,6 +59,7 @@ export default function ModulePage() {
   const [passos, setPassos] = useState<ProximoPasso[]>([]);
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
+  const [hierarchy, setHierarchy] = useState<TestcaseHierarchyNode[]>([]);
   const [activeTab, setActiveTab] = useState("resumo");
   const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
@@ -87,16 +89,17 @@ export default function ModulePage() {
       if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf, links, storageFiles] = await Promise.all([
+        const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
           fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
           fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
           listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
+          fetchTestcaseHierarchy(targetSlug),
         ]);
         if (reqId !== requestRef.current) return;
         const merged = mergeEvidences(e, storageFiles);
-        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links);
+        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({});
+        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({}); setHierarchy([]);
       }
     } catch (e: any) {
       if (reqId !== requestRef.current) return;
@@ -120,6 +123,7 @@ export default function ModulePage() {
     setPassos([]);
     setPerformance([]);
     setGroupLinks({});
+    setHierarchy([]);
     setSelectedFalha(null);
     setComparePair(null);
     setActiveTab("resumo");
@@ -200,7 +204,7 @@ export default function ModulePage() {
           </TabsList>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab modulo={modulo} slug={slug} rodagem={rodagem} falhas={falhas} evidencias={evidencias} grupos={grupos} performance={performance} historico={historico} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} onOpenHistorico={() => setActiveTab("historico")} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
@@ -748,6 +752,7 @@ type TreeNode = {
   id: string;            // caminho completo: "1.3.7"
   segment: string;       // último segmento: "7"
   label: string;
+  fullPath: string;      // "[1] Folha > [1.3] Tabelas > [1.3.7] ..."
   children: Map<string, TreeNode>;
   items: EnrichedItem[]; // falhas cujo ID == node.id
   counts: { quebra: number; diferenca: number; quebra_diferenca: number; total: number };
@@ -760,8 +765,12 @@ function extractCaseIdParts(raw: string | null | undefined): string[] | null {
   return m[0].split(".");
 }
 
-function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
-  const root: TreeNode = { id: "", segment: "", label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+function buildFailuresTree(
+  items: EnrichedItem[],
+  moduloNome: string,
+  hierMap: Map<string, TestcaseHierarchyNode>,
+) {
+  const root: TreeNode = { id: "", segment: "", label: "", fullPath: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
   const orphans: EnrichedItem[] = [];
 
   for (const it of items) {
@@ -772,7 +781,7 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
       const id = parts.slice(0, i + 1).join(".");
       let child = cur.children.get(id);
       if (!child) {
-        child = { id, segment: parts[i], label: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
+        child = { id, segment: parts[i], label: "", fullPath: "", children: new Map(), items: [], counts: { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } };
         cur.children.set(id, child);
       }
       cur = child;
@@ -781,8 +790,11 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
   }
 
   const finalize = (node: TreeNode, depth: number) => {
-    // label
-    if (node.items.length) {
+    // Prioridade de nomes: hierarquia real (testcase_hierarchy) > metadados da falha > fallback
+    const hier = hierMap.get(node.id);
+    if (hier?.node_name && hier.node_name.trim()) {
+      node.label = hier.node_name.trim();
+    } else if (node.items.length) {
       const it = node.items[0];
       node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || `Grupo ${node.id}`).toString();
     } else if (depth === 1) {
@@ -790,6 +802,7 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
     } else {
       node.label = `Grupo ${node.id}`;
     }
+    node.fullPath = buildFullPathLabel(node.id, hierMap, moduloNome);
     node.children.forEach((c) => {
       finalize(c, depth + 1);
       node.counts.quebra += c.counts.quebra;
@@ -804,6 +817,21 @@ function buildFailuresTree(items: EnrichedItem[], moduloNome: string) {
   };
   root.children.forEach((c) => finalize(c, 1));
   return { root, orphans };
+}
+
+// Constrói caminho completo "[1] Folha > [1.3] Tabelas > [1.3.7] ..." de um node_id
+function buildFullPathLabel(nodeId: string, hierMap: Map<string, TestcaseHierarchyNode>, moduloNome: string): string {
+  const direct = hierMap.get(nodeId);
+  if (direct?.full_path_label && direct.full_path_label.trim()) return direct.full_path_label.trim();
+  const parts = nodeId.split(".");
+  const segs: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const id = parts.slice(0, i + 1).join(".");
+    const h = hierMap.get(id);
+    const name = h?.node_name?.trim() || (i === 0 && moduloNome ? moduloNome : `Grupo ${id}`);
+    segs.push(`[${id}] ${name}`);
+  }
+  return segs.join(" > ");
 }
 
 function collectAllNodeIds(node: TreeNode, acc: string[] = []): string[] {
@@ -832,11 +860,12 @@ function itemMatches(it: EnrichedItem, q: string): boolean {
 }
 
 function FalhasTab({
-  moduloNome, falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
+  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare,
 }: {
   moduloNome: string;
   falhas: Falha[];
   evidencias: Evidencia[];
+  hierarchy: TestcaseHierarchyNode[];
   subTab: "todos" | "quebra" | "diferenca" | "quebra_diferenca";
   setSubTab: (s: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void;
   onSelect: (f: Falha) => void;
@@ -845,6 +874,12 @@ function FalhasTab({
   const [q, setQ] = useState("");
   const [extFilter, setExtFilter] = useState<string>("");
   const debouncedQ = useDebounce(q, 250);
+
+  const hierMap = useMemo(() => {
+    const m = new Map<string, TestcaseHierarchyNode>();
+    hierarchy.forEach((h) => { if (h?.node_id) m.set(String(h.node_id), h); });
+    return m;
+  }, [hierarchy]);
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
@@ -919,15 +954,42 @@ function FalhasTab({
     return Array.from(s).sort();
   }, [enriched]);
 
-  const filtered = useMemo(() => enriched.filter(({ tipo, pairs }, i) => {
-    const it = enriched[i];
+
+
+
+  // Busca também considera nomes reais dos grupos/casos vindos da hierarquia
+  const filteredByHierSearch = useMemo(() => {
+    if (!debouncedQ) return enriched;
+    const needle = debouncedQ.toLowerCase();
+    const matchingIds = new Set<string>();
+    hierMap.forEach((h, id) => {
+      if ((h.node_name || "").toLowerCase().includes(needle) ||
+          (h.full_path_names || "").toLowerCase().includes(needle) ||
+          (h.full_path_label || "").toLowerCase().includes(needle) ||
+          (h.script_name || "").toLowerCase().includes(needle) ||
+          (h.procedure_name || "").toLowerCase().includes(needle)) {
+        matchingIds.add(id);
+      }
+    });
+    if (matchingIds.size === 0) return enriched;
+    return enriched.filter((it) => {
+      if (itemMatches(it, debouncedQ)) return true;
+      const parts = extractCaseIdParts(it.f.id_caso_teste);
+      if (!parts) return false;
+      for (let i = 0; i < parts.length; i++) {
+        if (matchingIds.has(parts.slice(0, i + 1).join("."))) return true;
+      }
+      return false;
+    });
+  }, [enriched, debouncedQ, hierMap]);
+
+  const filtered = useMemo(() => filteredByHierSearch.filter(({ tipo, pairs }) => {
     if (subTab !== "todos" && tipo !== subTab) return false;
     if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
-    if (debouncedQ && !itemMatches(it, debouncedQ)) return false;
     return true;
-  }), [enriched, subTab, debouncedQ, extFilter]);
+  }), [filteredByHierSearch, subTab, extFilter]);
 
-  const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome), [filtered, moduloNome]);
+  const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome, hierMap), [filtered, moduloNome, hierMap]);
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -958,6 +1020,11 @@ function FalhasTab({
 
   return (
     <div className="space-y-4">
+      {hierarchy.length === 0 && enriched.length > 0 && (
+        <div className="text-[11px] text-muted-foreground/80 italic px-1">
+          Hierarquia do TestComplete ainda não carregada. Exibindo árvore simplificada por ID.
+        </div>
+      )}
       <Card className="glass-card p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
@@ -1037,6 +1104,7 @@ function TreeNodeView({
         className="group flex items-center gap-2 py-1.5 pr-2 rounded-md hover:bg-secondary/40 cursor-pointer border-l border-transparent hover:border-primary/30"
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
+        title={node.fullPath || node.label}
       >
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
@@ -1049,6 +1117,11 @@ function TreeNodeView({
           <CountsPills counts={node.counts} />
         </div>
       </div>
+      {open && node.items.length > 0 && node.fullPath && (
+        <div className="text-[10px] text-muted-foreground/70 font-mono truncate" style={{ paddingLeft: indent + 44 }} title={node.fullPath}>
+          {node.fullPath}
+        </div>
+      )}
       {open && (
         <div>
           {node.items.map((it) => (
