@@ -5,6 +5,7 @@ import {
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
   fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules, listStorageFilesByRun, mergeEvidences,
+  fetchRerunRequestsByModule, type RerunRequest,
 } from "@/services/qa";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
