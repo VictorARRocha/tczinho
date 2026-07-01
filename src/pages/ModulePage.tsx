@@ -858,11 +858,12 @@ function itemMatches(it: EnrichedItem, q: string): boolean {
 }
 
 function FalhasTab({
-  moduloNome, falhas, evidencias, subTab, setSubTab, onSelect, onCompare,
+  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare,
 }: {
   moduloNome: string;
   falhas: Falha[];
   evidencias: Evidencia[];
+  hierarchy: TestcaseHierarchyNode[];
   subTab: "todos" | "quebra" | "diferenca" | "quebra_diferenca";
   setSubTab: (s: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void;
   onSelect: (f: Falha) => void;
@@ -871,6 +872,12 @@ function FalhasTab({
   const [q, setQ] = useState("");
   const [extFilter, setExtFilter] = useState<string>("");
   const debouncedQ = useDebounce(q, 250);
+
+  const hierMap = useMemo(() => {
+    const m = new Map<string, TestcaseHierarchyNode>();
+    hierarchy.forEach((h) => { if (h?.node_id) m.set(String(h.node_id), h); });
+    return m;
+  }, [hierarchy]);
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
