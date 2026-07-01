@@ -636,10 +636,10 @@ function LastRunCard({ run, loading, moduleName }: { run: RerunRequest | null; l
             </div>
             <div className="grid gap-x-4 gap-y-2 grid-cols-[110px_1fr] md:grid-cols-[110px_1fr_110px_1fr] text-sm">
               {rows.map(([k, v], i) => (
-                <>
-                  <div key={`k-${i}`} className="text-[10px] uppercase tracking-wider text-muted-foreground self-center">{k}</div>
-                  <div key={`v-${i}`} className="min-w-0 break-words">{v}</div>
-                </>
+                <div key={i} className="contents">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground self-center">{k}</div>
+                  <div className="min-w-0 break-words">{v}</div>
+                </div>
               ))}
             </div>
             {run.build_url && (
