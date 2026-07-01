@@ -5,7 +5,8 @@ import {
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
   fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules, listStorageFilesByRun, mergeEvidences,
-  fetchRerunRequestsByModule, type RerunRequest,
+  fetchRerunRequestsByModule, fetchTestcaseHierarchy,
+  type RerunRequest, type TestcaseHierarchyNode,
 } from "@/services/qa";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -58,6 +59,7 @@ export default function ModulePage() {
   const [passos, setPassos] = useState<ProximoPasso[]>([]);
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
+  const [hierarchy, setHierarchy] = useState<TestcaseHierarchyNode[]>([]);
   const [activeTab, setActiveTab] = useState("resumo");
   const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
