@@ -952,14 +952,8 @@ function FalhasTab({
     return Array.from(s).sort();
   }, [enriched]);
 
-  const filtered0 = useMemo(() => enriched.filter(({ tipo, pairs }, i) => {
-    const it = enriched[i];
-    if (subTab !== "todos" && tipo !== subTab) return false;
-    if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
-    if (debouncedQ && !itemMatches(it, debouncedQ)) return false;
-    return true;
-  }), [enriched, subTab, debouncedQ, extFilter]);
-  void filtered0;
+
+
 
   // Busca também considera nomes reais dos grupos/casos vindos da hierarquia
   const filteredByHierSearch = useMemo(() => {
