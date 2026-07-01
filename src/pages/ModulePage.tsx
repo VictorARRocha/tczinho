@@ -952,15 +952,48 @@ function FalhasTab({
     return Array.from(s).sort();
   }, [enriched]);
 
-  const filtered = useMemo(() => enriched.filter(({ tipo, pairs }, i) => {
+  const filtered0 = useMemo(() => enriched.filter(({ tipo, pairs }, i) => {
     const it = enriched[i];
     if (subTab !== "todos" && tipo !== subTab) return false;
     if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
     if (debouncedQ && !itemMatches(it, debouncedQ)) return false;
     return true;
   }), [enriched, subTab, debouncedQ, extFilter]);
+  void filtered0;
 
-  const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome), [filtered, moduloNome]);
+  // Busca também considera nomes reais dos grupos/casos vindos da hierarquia
+  const filteredByHierSearch = useMemo(() => {
+    if (!debouncedQ) return enriched;
+    const needle = debouncedQ.toLowerCase();
+    const matchingIds = new Set<string>();
+    hierMap.forEach((h, id) => {
+      if ((h.node_name || "").toLowerCase().includes(needle) ||
+          (h.full_path_names || "").toLowerCase().includes(needle) ||
+          (h.full_path_label || "").toLowerCase().includes(needle) ||
+          (h.script_name || "").toLowerCase().includes(needle) ||
+          (h.procedure_name || "").toLowerCase().includes(needle)) {
+        matchingIds.add(id);
+      }
+    });
+    if (matchingIds.size === 0) return enriched;
+    return enriched.filter((it) => {
+      if (itemMatches(it, debouncedQ)) return true;
+      const parts = extractCaseIdParts(it.f.id_caso_teste);
+      if (!parts) return false;
+      for (let i = 0; i < parts.length; i++) {
+        if (matchingIds.has(parts.slice(0, i + 1).join("."))) return true;
+      }
+      return false;
+    });
+  }, [enriched, debouncedQ, hierMap]);
+
+  const filtered = useMemo(() => filteredByHierSearch.filter(({ tipo, pairs }) => {
+    if (subTab !== "todos" && tipo !== subTab) return false;
+    if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
+    return true;
+  }), [filteredByHierSearch, subTab, extFilter]);
+
+  const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome, hierMap), [filtered, moduloNome, hierMap]);
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
