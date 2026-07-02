@@ -954,9 +954,12 @@ function LeafItemCard({
           <div className="space-y-1.5">
             {pairs.map((p) => (
               <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
-                {p.extensao && p.extensao.toLowerCase() !== "txt" && (
-                  <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao}</Badge>
-                )}
+                {(() => {
+                  const ext = (p.extensao || "").trim().toLowerCase().replace(/^\.+/, "");
+                  return ext && ext !== "txt" ? (
+                    <Badge variant="outline" className="text-[10px] font-mono">.{ext}</Badge>
+                  ) : null;
+                })()}
                 <div className="flex-1 min-w-0">
                   <div className="font-mono truncate text-muted-foreground" title={p.base?.nome_arquivo || ""}>
                     {cleanFileName(p.base?.nome_arquivo, p.extensao)}
