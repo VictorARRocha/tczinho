@@ -48,6 +48,15 @@ function failureDescription(f: Falha): string {
   return "";
 }
 
+// Remove a extensão do nome para exibição limpa (ex: .txt não polui a lista)
+function cleanFileName(nome?: string | null, extensao?: string | null): string {
+  if (!nome) return "—";
+  const ext = (extensao || "").trim().toLowerCase();
+  if (!ext) return nome;
+  const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+  return nome.replace(re, "");
+}
+
 export default function ModulePage() {
   const { slug = "" } = useParams();
   const [modulo, setModulo] = useState<Modulo | null>(null);
