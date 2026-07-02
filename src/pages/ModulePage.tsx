@@ -1392,9 +1392,11 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
       }));
   }, [grupos, falhas, links, indices]);
 
-  if (items.length === 0) return <Empty text="Sem agrupamentos." />;
+  const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
-  const visualAviso = items.some((i) => i.isVisual);
+  if (filteredItems.length === 0) return <Empty text="Sem agrupamentos com múltiplos casos." />;
+
+  const visualAviso = filteredItems.some((i) => i.isVisual);
 
   return (
     <div className="space-y-4">
@@ -1402,7 +1404,7 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
         <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
       )}
 
-      {items.map((g) => (
+      {filteredItems.map((g) => (
         <Card key={g.id} className="glass-card p-5">
           <div className="flex items-start justify-between mb-3 gap-3">
             <div className="min-w-0">
