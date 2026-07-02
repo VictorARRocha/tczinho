@@ -334,7 +334,7 @@ function OccCard({ label, value, tone, onClick }: { label: string; value: number
   );
 }
 
-function ResumoTab({ modulo, slug, rodagem, falhas, evidencias, grupos, performance, historico, onOpenPerformance, onOpenFalhas, onOpenHistorico }: { modulo: Modulo | null; slug: string; rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; grupos: Agrupamento[]; performance: AtrasoRodagem[]; historico: Rodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void; onOpenHistorico: () => void }) {
+function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; performance: AtrasoRodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
   const classData = [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
@@ -376,35 +376,6 @@ function ResumoTab({ modulo, slug, rodagem, falhas, evidencias, grupos, performa
 
   const hasDiagText = isMeaningful(rodagem.diagnostico_curto) || isMeaningful(rodagem.diagnostico_detalhado) || isMeaningful(rodagem.conclusao_geral);
 
-  // ============ Jenkins / rerun_requests do módulo atual ============
-  const [reruns, setReruns] = useState<RerunRequest[]>([]);
-  const [rerunsLoading, setRerunsLoading] = useState(true);
-
-  useEffect(() => {
-    let cancel = false;
-    setRerunsLoading(true);
-    fetchRerunRequestsByModule(slug, modulo?.nome, 20).then((rows) => {
-      if (cancel) return;
-      setReruns(rows);
-      setRerunsLoading(false);
-    });
-    const off = subscribeToTable("rerun_requests", () => {
-      fetchRerunRequestsByModule(slug, modulo?.nome, 20).then((rows) => { if (!cancel) setReruns(rows); });
-    });
-    return () => { cancel = true; off(); };
-  }, [slug, modulo?.nome]);
-
-  const lastRun = reruns[0] || null;
-  const recentRuns = reruns.slice(0, 5);
-  const todayCount = useMemo(() => {
-    const t = new Date(); t.setHours(0, 0, 0, 0);
-    return reruns.filter((r) => new Date(r.created_at) >= t).length;
-  }, [reruns]);
-  const lastRerunOfType = useMemo(
-    () => reruns.find((r) => r.tipo_solicitacao === "reexecucao") || null,
-    [reruns],
-  );
-
   return (
     <div className="space-y-6">
       {hasDiagText && (
@@ -431,22 +402,7 @@ function ResumoTab({ modulo, slug, rodagem, falhas, evidencias, grupos, performa
         <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />
       </div>
 
-      {/* ===== Status da última rodagem ===== */}
-      <LastRunCard run={lastRun} loading={rerunsLoading} moduleName={modulo?.nome || slug} />
 
-      {/* ===== Últimas rodagens ===== */}
-      <RecentRunsCard runs={recentRuns} loading={rerunsLoading} onOpenHistorico={onOpenHistorico} />
-
-      {/* ===== Resumo operacional ===== */}
-      <OperationalSummary
-        rerunsToday={todayCount}
-        lastRun={lastRun}
-        lastRerun={lastRerunOfType}
-        falhas={rodagem.total_falhas}
-        diferencas={occCounts.diferenca + occCounts.quebra_diferenca}
-        agrupamentos={grupos.length}
-        rodagensModulo={historico.length}
-      />
 
       {performance.length > 0 && (() => {
         const slow = performance.filter((p) => p.status === "mais_lento");
