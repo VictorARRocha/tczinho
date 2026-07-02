@@ -1392,9 +1392,11 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
       }));
   }, [grupos, falhas, links, indices]);
 
-  if (items.length === 0) return <Empty text="Sem agrupamentos." />;
+  const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
-  const visualAviso = items.some((i) => i.isVisual);
+  if (filteredItems.length === 0) return <Empty text="Sem agrupamentos com múltiplos casos." />;
+
+  const visualAviso = filteredItems.some((i) => i.isVisual);
 
   return (
     <div className="space-y-4">
