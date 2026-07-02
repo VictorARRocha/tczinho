@@ -1404,7 +1404,7 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
         <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
       )}
 
-      {items.map((g) => (
+      {filteredItems.map((g) => (
         <Card key={g.id} className="glass-card p-5">
           <div className="flex items-start justify-between mb-3 gap-3">
             <div className="min-w-0">
