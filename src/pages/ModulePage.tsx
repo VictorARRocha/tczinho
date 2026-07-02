@@ -51,8 +51,9 @@ function failureDescription(f: Falha): string {
 // Remove a extensão do nome para exibição limpa (ex: .txt não polui a lista)
 function cleanFileName(nome?: string | null, extensao?: string | null): string {
   if (!nome) return "—";
-  const ext = (extensao || "").trim().toLowerCase();
+  let ext = (extensao || "").trim().toLowerCase();
   if (!ext) return nome;
+  if (ext.startsWith(".")) ext = ext.slice(1);
   const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
   return nome.replace(re, "");
 }
