@@ -953,19 +953,21 @@ function LeafItemCard({
           <div className="space-y-1.5">
             {pairs.map((p) => (
               <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
-                <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
+                {p.extensao && p.extensao.toLowerCase() !== "txt" && (
+                  <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao}</Badge>
+                )}
                 <div className="flex-1 min-w-0">
-                  <div className="font-mono truncate" title={p.base!.nome_arquivo || ""}>
-                    <span className="text-muted-foreground">base:</span> {p.base!.nome_arquivo}
+                  <div className="font-mono truncate text-muted-foreground" title={p.base?.nome_arquivo || ""}>
+                    {cleanFileName(p.base?.nome_arquivo, p.extensao)}
                   </div>
-                  <div className="font-mono truncate" title={p.atual!.nome_arquivo || ""}>
-                    <span className="text-muted-foreground">atual:</span> {p.atual!.nome_arquivo}
+                  <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
+                    {cleanFileName(p.atual?.nome_arquivo, p.extensao)}
                   </div>
                   {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
                 </div>
                 <div className="flex gap-1 flex-wrap">
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar base</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar atual</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar</Button>
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar</Button>
                   <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
                 </div>
               </div>
