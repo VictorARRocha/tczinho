@@ -789,10 +789,14 @@ function buildFailuresTree(
     cur.items.push(it);
   }
 
+  const nameMap = buildNameMapFromHierarchy(hierMap);
   const finalize = (node: TreeNode, depth: number) => {
-    // Prioridade de nomes: hierarquia real (testcase_hierarchy) > metadados da falha > fallback
+    // Prioridade: nameMap (derivado de full_path_label) > node_name > metadados da falha > fallback
+    const nm = nameMap.get(node.id);
     const hier = hierMap.get(node.id);
-    if (hier?.node_name && hier.node_name.trim()) {
+    if (nm && nm.trim()) {
+      node.label = nm.trim();
+    } else if (hier?.node_name && hier.node_name.trim()) {
       node.label = hier.node_name.trim();
     } else if (node.items.length) {
       const it = node.items[0];
@@ -802,7 +806,7 @@ function buildFailuresTree(
     } else {
       node.label = `Grupo ${node.id}`;
     }
-    node.fullPath = buildFullPathLabel(node.id, hierMap, moduloNome);
+    node.fullPath = buildFullPathLabel(node.id, hierMap, nameMap, moduloNome);
     node.children.forEach((c) => {
       finalize(c, depth + 1);
       node.counts.quebra += c.counts.quebra;
@@ -819,16 +823,42 @@ function buildFailuresTree(
   return { root, orphans };
 }
 
+// Parseia "[2] Fiscal > [2.6] Integrações > ..." em pares {id, name}
+function parseFullPathLabel(label: string): Array<{ id: string; name: string }> {
+  if (!label) return [];
+  return label.split(">").map((seg) => {
+    const m = seg.trim().match(/^\[([^\]]+)\]\s*(.*)$/);
+    if (!m) return null;
+    return { id: m[1].trim(), name: m[2].trim() };
+  }).filter(Boolean) as Array<{ id: string; name: string }>;
+}
+
+// Constrói id -> nome extraindo de full_path_label de TODOS os nós da hierarquia,
+// garantindo nomes reais de pais/intermediários mesmo sem linha própria em testcase_hierarchy.
+function buildNameMapFromHierarchy(hierMap: Map<string, TestcaseHierarchyNode>): Map<string, string> {
+  const nameMap = new Map<string, string>();
+  hierMap.forEach((h) => {
+    parseFullPathLabel(h?.full_path_label || "").forEach(({ id, name }) => {
+      if (id && name && !nameMap.has(id)) nameMap.set(id, name);
+    });
+    if (h?.node_id && h?.node_name && !nameMap.has(String(h.node_id))) {
+      nameMap.set(String(h.node_id), String(h.node_name).trim());
+    }
+  });
+  return nameMap;
+}
+
 // Constrói caminho completo "[1] Folha > [1.3] Tabelas > [1.3.7] ..." de um node_id
-function buildFullPathLabel(nodeId: string, hierMap: Map<string, TestcaseHierarchyNode>, moduloNome: string): string {
+function buildFullPathLabel(nodeId: string, hierMap: Map<string, TestcaseHierarchyNode>, nameMap: Map<string, string>, moduloNome: string): string {
   const direct = hierMap.get(nodeId);
   if (direct?.full_path_label && direct.full_path_label.trim()) return direct.full_path_label.trim();
   const parts = nodeId.split(".");
   const segs: string[] = [];
   for (let i = 0; i < parts.length; i++) {
     const id = parts.slice(0, i + 1).join(".");
+    const nm = nameMap.get(id);
     const h = hierMap.get(id);
-    const name = h?.node_name?.trim() || (i === 0 && moduloNome ? moduloNome : `Grupo ${id}`);
+    const name = (nm && nm.trim()) || h?.node_name?.trim() || (i === 0 && moduloNome ? moduloNome : `Grupo ${id}`);
     segs.push(`[${id}] ${name}`);
   }
   return segs.join(" > ");
