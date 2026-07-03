@@ -1658,19 +1658,18 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead>Código</TableHead>
-              {hasName && <TableHead>Caso de teste</TableHead>}
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Tempo base</TableHead>
-              <TableHead className="text-right">Tempo atual</TableHead>
-              <TableHead className="text-right">Diferença</TableHead>
-              <TableHead className="text-right">Variação</TableHead>
-              <TableHead></TableHead>
+              <SortableTH label="Código" k="codigo" active={sortKey} dir={sortDir} onClick={toggleSort} />
+              {hasName && <SortableTH label="Caso de teste" k="nome" active={sortKey} dir={sortDir} onClick={toggleSort} />}
+              <SortableTH label="Status" k="status" active={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTH label="Tempo base" k="base" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Tempo atual" k="atual" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Diferença" k="diff" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Variação" k="var" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={hasName ? 8 : 7} className="text-center text-sm text-muted-foreground py-12">Nenhum registro corresponde aos filtros.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={hasName ? 7 : 6} className="text-center text-sm text-muted-foreground py-12">Nenhum registro corresponde aos filtros.</TableCell></TableRow>
             ) : filtered.map((d) => (
               <TableRow key={d.id} className="border-border">
                 <TableCell className="font-mono text-xs">{d.codigo_teste || "—"}</TableCell>
@@ -1684,12 +1683,12 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
                 <TableCell className={`text-right font-mono text-xs ${d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : ""}`}>
                   {d.variacao_pct > 0 ? "+" : ""}{d.variacao_pct.toFixed(1)}%
                 </TableCell>
-                <TableCell><Button size="icon" variant="ghost" onClick={() => copyRow(d)}><Copy className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
     </div>
   );
 }
