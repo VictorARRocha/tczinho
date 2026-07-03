@@ -847,7 +847,7 @@ function FalhasTab({
             : "Nenhuma falha encontrada neste módulo."}
         </Card>
       ) : (
-        <Card className="glass-card p-2 md:p-3">
+        <Card className="p-2 md:p-3 bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
           <div className="space-y-0.5">
             {rootChildren.map((c) => (
               <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
@@ -887,21 +887,21 @@ function nodeStyleForDepth(depth: number) {
   if (depth === 0) {
     return {
       row: "py-2.5 mt-2 first:mt-0",
-      idChip: "font-mono text-sm font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
+      idChip: "font-mono text-sm font-semibold text-foreground bg-foreground/[0.14] border border-foreground/20 rounded-md px-2 py-0.5",
       label: "text-base font-semibold text-foreground tracking-tight",
     };
   }
   if (depth === 1) {
     return {
       row: "py-2",
-      idChip: "font-mono text-[13px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
-      label: "text-[15px] font-medium text-foreground/90",
+      idChip: "font-mono text-[13px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5",
+      label: "text-[15px] font-medium text-foreground",
     };
   }
   return {
     row: "py-1.5",
-    idChip: "font-mono text-xs font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
-    label: "text-sm text-foreground/80",
+    idChip: "font-mono text-xs font-semibold text-foreground/85 bg-muted/70 border border-border/70 rounded-md px-1.5 py-0.5",
+    label: "text-sm text-foreground/90",
   };
 }
 
@@ -921,13 +921,13 @@ function TreeNodeView({
   return (
     <div>
       <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/50 ${style.row}`}
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/70 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
         title={node.fullPath || node.label}
       >
-        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground/70 group-hover:text-foreground/80 transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
-          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
+          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
         </span>
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
@@ -938,7 +938,7 @@ function TreeNodeView({
         <div className="relative">
           {/* Linha guia sutil */}
           <div
-            className="absolute top-0 bottom-0 w-px bg-border/40"
+            className="absolute top-0 bottom-0 w-px bg-border/70"
             style={{ left: indent + 15 }}
             aria-hidden
           />
@@ -979,7 +979,7 @@ function LeafItemCard({
 
   return (
     <div
-      className={`ml-1 my-2 border-l-2 ${accent} bg-card/40 hover:bg-card/70 rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
+      className={`ml-1 my-2 border-l-2 ${accent} bg-card/80 hover:bg-card border border-border/60 hover:border-border rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
       style={{ marginLeft: indent }}
       onClick={() => onSelect(f)}
       role="button"
@@ -990,7 +990,7 @@ function LeafItemCard({
         {/* Cabeçalho: ID + Nome + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
           {idCaso && (
-            <span className="font-mono text-[11px] font-semibold text-foreground/90 bg-muted/60 border border-border/60 rounded-md px-2 py-0.5 shrink-0 tabular-nums">
+            <span className="font-mono text-[11px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 tabular-nums">
               #{idCaso}
             </span>
           )}
@@ -1007,7 +1007,7 @@ function LeafItemCard({
             {f.classificacao && <ClassificationBadge value={f.classificacao} />}
             {script && (
               <span className="text-[11px] text-muted-foreground">
-                <span className="opacity-70">Script:</span> <span className="font-mono">{script}</span>
+                <span className="opacity-80">Script:</span> <span className="font-mono text-foreground/80">{script}</span>
               </span>
             )}
           </div>
@@ -1015,7 +1015,7 @@ function LeafItemCard({
 
         {/* Descrição */}
         {isQuebra && desc && (
-          <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">{desc}</p>
+          <p className="text-[13px] text-foreground/75 leading-relaxed line-clamp-3">{desc}</p>
         )}
 
         {/* Pares de comparação */}
