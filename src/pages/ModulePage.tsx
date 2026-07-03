@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree, ArrowUp, ArrowDown } from "lucide-react";
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
@@ -1429,11 +1429,28 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [caseFilter, setCaseFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  type SortKey = "codigo" | "nome" | "status" | "base" | "atual" | "diff" | "var";
+  const [sortKey, setSortKey] = useState<SortKey>("diff");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const debouncedQ = useDebounce(q, 250);
 
   const groupOf = (codigo?: string | null) => {
     const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
     return m ? m[1] : "";
+  };
+
+  const parseTimeToSec = (s?: string | null): number => {
+    if (!s) return 0;
+    const parts = String(s).trim().split(":").map((p) => parseInt(p, 10));
+    if (parts.some(isNaN)) return 0;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return parts[0] || 0;
+  };
+
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "codigo" || k === "nome" ? "asc" : "desc"); }
   };
 
   const filtered = useMemo(() => {
@@ -1445,12 +1462,24 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
     }
-    return out.sort((a, b) => {
-      const ga = groupOf(a.codigo_teste), gb = groupOf(b.codigo_teste);
-      if (ga !== gb) return ga.localeCompare(gb, undefined, { numeric: true });
-      return (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true });
+    const dir = sortDir === "asc" ? 1 : -1;
+    const statusRank: Record<string, number> = { mais_lento: 0, igual: 1, mais_rapido: 2 };
+    out.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "codigo": cmp = (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true }); break;
+        case "nome": cmp = (a.nome_teste || "").localeCompare(b.nome_teste || ""); break;
+        case "status": cmp = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9); break;
+        case "base": cmp = parseTimeToSec(a.tempo_padrao) - parseTimeToSec(b.tempo_padrao); break;
+        case "atual": cmp = parseTimeToSec(a.tempo_atual) - parseTimeToSec(b.tempo_atual); break;
+        case "diff": cmp = Math.abs(a.delay_segundos) - Math.abs(b.delay_segundos); break;
+        case "var": cmp = Math.abs(a.variacao_pct) - Math.abs(b.variacao_pct); break;
+      }
+      return cmp * dir;
     });
-  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter]);
+    return out;
+  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir]);
+
 
 
   if (data.length === 0) {
@@ -1629,19 +1658,18 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
-              <TableHead>Código</TableHead>
-              {hasName && <TableHead>Caso de teste</TableHead>}
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Tempo base</TableHead>
-              <TableHead className="text-right">Tempo atual</TableHead>
-              <TableHead className="text-right">Diferença</TableHead>
-              <TableHead className="text-right">Variação</TableHead>
-              <TableHead></TableHead>
+              <SortableTH label="Código" k="codigo" active={sortKey} dir={sortDir} onClick={toggleSort} />
+              {hasName && <SortableTH label="Caso de teste" k="nome" active={sortKey} dir={sortDir} onClick={toggleSort} />}
+              <SortableTH label="Status" k="status" active={sortKey} dir={sortDir} onClick={toggleSort} />
+              <SortableTH label="Tempo base" k="base" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Tempo atual" k="atual" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Diferença" k="diff" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              <SortableTH label="Variação" k="var" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={hasName ? 8 : 7} className="text-center text-sm text-muted-foreground py-12">Nenhum registro corresponde aos filtros.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={hasName ? 7 : 6} className="text-center text-sm text-muted-foreground py-12">Nenhum registro corresponde aos filtros.</TableCell></TableRow>
             ) : filtered.map((d) => (
               <TableRow key={d.id} className="border-border">
                 <TableCell className="font-mono text-xs">{d.codigo_teste || "—"}</TableCell>
@@ -1655,12 +1683,33 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
                 <TableCell className={`text-right font-mono text-xs ${d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : ""}`}>
                   {d.variacao_pct > 0 ? "+" : ""}{d.variacao_pct.toFixed(1)}%
                 </TableCell>
-                <TableCell><Button size="icon" variant="ghost" onClick={() => copyRow(d)}><Copy className="h-3.5 w-3.5" /></Button></TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
     </div>
   );
 }
+
+function SortableTH<K extends string>({
+  label, k, active, dir, onClick, align = "left",
+}: { label: string; k: K; active: K; dir: "asc" | "desc"; onClick: (k: K) => void; align?: "left" | "right" }) {
+  const isActive = active === k;
+  return (
+    <TableHead className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        onClick={() => onClick(k)}
+        className={`inline-flex items-center gap-1 select-none transition-colors ${align === "right" ? "flex-row-reverse" : ""} ${isActive ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <span>{label}</span>
+        {isActive
+          ? (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+      </button>
+    </TableHead>
+  );
+}
+
