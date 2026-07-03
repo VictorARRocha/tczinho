@@ -6,8 +6,10 @@ import {
   fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules, listStorageFilesByRun, mergeEvidences,
   fetchTestcaseHierarchy,
+  extractVmName,
   type TestcaseHierarchyNode,
 } from "@/services/qa";
+
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
@@ -1372,7 +1374,7 @@ function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?
               return (
                 <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
                   <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.maquina || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem) || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.versao_sistema || "—"}</TableCell>
                   <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
                   <TableCell>
