@@ -50,6 +50,18 @@ async function fetchTextSmart(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+const TXT_PLACEHOLDERS = [
+  "arquivo textual com evidência técnica.",
+  "arquivo txt com evidência técnica.",
+  "evidência técnica textual.",
+  "arquivo textual.",
+];
+function isTxtPlaceholder(s?: string | null): boolean {
+  if (!s) return true;
+  return TXT_PLACEHOLDERS.includes(s.trim().toLowerCase());
+}
+
+
 
 
 
@@ -480,7 +492,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   const [imgError, setImgError] = useState(false);
   const [visible, setVisible] = useState(!!priority);
   const [preview, setPreview] = useState(false);
-  const [txtContent, setTxtContent] = useState<string | null>(ev.conteudo_texto ?? null);
+  const [txtContent, setTxtContent] = useState<string | null>(isTxtPlaceholder(ev.conteudo_texto) ? null : (ev.conteudo_texto ?? null));
   const [txtStatus, setTxtStatus] = useState<"idle" | "loading" | "error">("idle");
   const [txtOpen, setTxtOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -566,7 +578,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
                 : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
             </div>
           )}
-          {!hideCaption && ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
+          
         </Card>
         <ImagePreviewDialog url={url} alt={ev.nome_arquivo || "evidência"} open={preview} onOpenChange={setPreview} />
       </>
