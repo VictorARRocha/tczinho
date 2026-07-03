@@ -1547,48 +1547,26 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       </div>
 
 
-      {(topSlow.length > 0 || topFast.length > 0) && (
-        <div className="grid gap-4 md:grid-cols-2">
-          {topSlow.length > 0 && (
-            <Card className="glass-card p-6">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingUp className="h-4 w-4 text-destructive" />Top atrasos</h3>
-              <div className="space-y-2">
-                {topSlow.map((d) => (
-                  <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/40">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{d.nome_teste || d.codigo_teste}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground">{d.codigo_teste} · {d.tempo_padrao} → {d.tempo_atual}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-sm text-destructive">+{formatDuration(d.delay_segundos)}</div>
-                      <PerfBadge status={d.status} />
-                    </div>
-                  </div>
-                ))}
+      {topFast.length > 0 && (
+        <Card className="glass-card p-6">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingDown className="h-4 w-4 text-success" />Top ganhos</h3>
+          <div className="space-y-2">
+            {topFast.map((d) => (
+              <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/40">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium truncate">{d.nome_teste || d.codigo_teste}</div>
+                  <div className="font-mono text-[11px] text-muted-foreground">{d.codigo_teste} · {d.tempo_padrao} → {d.tempo_atual}</div>
+                </div>
+                <div className="text-right">
+                  <div className="font-mono text-sm text-success">{formatDuration(d.delay_segundos)}</div>
+                  <PerfBadge status={d.status} />
+                </div>
               </div>
-            </Card>
-          )}
-          {topFast.length > 0 && (
-            <Card className="glass-card p-6">
-              <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingDown className="h-4 w-4 text-success" />Top ganhos</h3>
-              <div className="space-y-2">
-                {topFast.map((d) => (
-                  <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/40">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{d.nome_teste || d.codigo_teste}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground">{d.codigo_teste} · {d.tempo_padrao} → {d.tempo_atual}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-mono text-sm text-success">{formatDuration(d.delay_segundos)}</div>
-                      <PerfBadge status={d.status} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </Card>
-          )}
-        </div>
+            ))}
+          </div>
+        </Card>
       )}
+
 
       <Card className="glass-card p-4 space-y-3">
         <div className="flex items-center gap-2">
