@@ -46,10 +46,6 @@ export default function Dashboard() {
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
       <div className="mb-8 sm:mb-10">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-4">
-          <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-          <span className="truncate">Sistema ÚNICO · TestComplete 12/14</span>
-        </div>
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
           <span className="gradient-text">TC SCI</span>
         </h1>
