@@ -82,11 +82,11 @@ export default function ReexecutarTestes() {
   const loadRuns = async () => {
     try {
       const list = await fetchAllRuns();
-      console.log("[ReexecutarTestes] loadRuns", list.length, list[0]);
       setRuns(list);
       if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
-    } catch (e) {
+    } catch (e: any) {
       console.error("[ReexecutarTestes] loadRuns error", e);
+      toast.error("Erro ao carregar rodagens", { description: e?.message });
     }
   };
 
