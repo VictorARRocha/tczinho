@@ -11,7 +11,7 @@ function getModuleIcon(nome: string): LucideIcon {
   if (n.includes("folha")) return Users;
   if (n.includes("ponto")) return Clock;
   if (n.includes("fiscal")) return Receipt;
-  if (n.includes("contabil")) return BookOpen;
+  if (n.includes("contabil")) return Scale;
   if (n.includes("patrimonio")) return Building2;
   if (n.includes("lalur")) return Calculator;
   if (n.includes("financeiro")) return Wallet;
