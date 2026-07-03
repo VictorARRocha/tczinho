@@ -906,11 +906,6 @@ function TreeNodeView({
         </span>
         <span className="text-sm text-foreground/90 truncate" title={node.label}>{node.label}</span>
       </div>
-      {open && node.items.length > 0 && node.fullPath && (
-        <div className="text-[10px] text-muted-foreground/70 font-mono truncate" style={{ paddingLeft: indent + 44 }} title={node.fullPath}>
-          {node.fullPath}
-        </div>
-      )}
       {open && (
         <div>
           {node.items.map((it) => (
