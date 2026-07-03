@@ -194,7 +194,6 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
       const nb = parseInt((b.nome_arquivo || "").match(/^\d+/)?.[0] || "0", 10);
       return na - nb;
     });
-    const others = rest.filter((e) => !isNumberedPrint(e));
     const zip = evidencias.find((e) => {
       const ext = (e.extensao || "").toLowerCase();
       if (["zip", "rar"].includes(ext)) return true;
@@ -202,6 +201,8 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
       const name = (e.nome_arquivo || "").toLowerCase();
       return falha?.arquivo_zip && name === falha.arquivo_zip.toLowerCase();
     }) || null;
+    const others = rest.filter((e) => !isNumberedPrint(e) && e.id !== zip?.id);
+
     return { errorImage: errImg, numberedPrints: nums, otherEvidences: others, zipEvidence: zip };
   }, [evidencias, realPairs, falha?.arquivo_zip]);
 
@@ -211,24 +212,23 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <ResizableSheetContent>
         <div className="px-7 pt-7 pb-5 border-b border-border/60">
-          <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10">
-            {falha.erro_titulo || falha.caso_teste_provavel || falha.arquivo_zip || "Falha"}
+          <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            {falha.id_caso_teste && (
+              <span className="text-[13px] font-mono font-medium text-muted-foreground bg-muted/50 border border-border/60 rounded-md px-2 py-0.5 shrink-0">
+                {falha.id_caso_teste}
+              </span>
+            )}
+            <span>{falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}</span>
           </SheetTitle>
-          {falha.erro_principal && (
-            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{falha.erro_principal}</p>
+          {(falha.erro_principal || falha.mensagem_principal) && (
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+              {falha.erro_principal || falha.mensagem_principal}
+            </p>
           )}
         </div>
 
         <div className="px-7 py-6 space-y-8">
-          <Section title="Identificação">
-            <Grid>
-              <Field label="ID do caso" value={falha.id_caso_teste} />
-              <Field label="Grupo" value={falha.grupo} />
-              <Field label="Nome do caso" value={falha.caso_teste_provavel} full />
-              <Field label="Subgrupo" value={falha.subgrupo} />
-              <Field label="Rotina funcional" value={falha.rotina_funcional} />
-            </Grid>
-          </Section>
+
 
           {falha.arquivo_zip && (
             <Section title="Arquivo ZIP/RAR">
@@ -247,7 +247,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
               <Field label="Tipo técnico" value={falha.tipo_tecnico} />
               <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
               <Field label="Componente" value={falha.componente} />
-              <Field label="Descrição" value={falha.mensagem_principal} full />
+              
               <Field label="Fato observado" value={falha.fato_observado} full />
               <Field label="Hipótese principal" value={falha.hipotese_principal} full />
               <Field label="Análise técnica" value={falha.analise_tecnica} full />
