@@ -578,7 +578,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
                 : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
             </div>
           )}
-          {!hideCaption && ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
+          
         </Card>
         <ImagePreviewDialog url={url} alt={ev.nome_arquivo || "evidência"} open={preview} onOpenChange={setPreview} />
       </>
