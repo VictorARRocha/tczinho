@@ -183,7 +183,7 @@ export default function JenkinsRodagemCompleta() {
         <TabsContent value="simplificada">
           <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
 
-            <Card className="glass-card p-6 space-y-5">
+            <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="VM">
                 <Select value={sVm} onValueChange={setSVm}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -253,8 +253,8 @@ export default function JenkinsRodagemCompleta() {
 
         {/* ============================== CONFIGURADA ============================== */}
         <TabsContent value="configurada">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card className="glass-card p-6 space-y-5">
+          <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+            <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="vm_name">
                 <Select value={cVm} onValueChange={setCVm}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -313,7 +313,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function JsonPreview({ title, data, onCopy }: { title: string; data: any; onCopy: () => void }) {
   return (
-    <Card className="glass-card p-6">
+    <Card className="glass-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
         <Button size="sm" variant="ghost" onClick={onCopy}>
