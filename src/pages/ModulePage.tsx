@@ -1535,16 +1535,20 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
 
   const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, groups, hasName } = stats;
 
-  const cards = useMemo(() => ([
-    { label: "Registros", value: data.length, tone: "" },
-    { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
-    { label: "Mais rápidos", value: fast.length, tone: "text-success" },
-    { label: "Sem variação", value: equal.length, tone: "text-muted-foreground" },
-    maxDelay && { label: "Maior atraso", value: formatDuration(maxDelay.delay_segundos), tone: "text-destructive" },
-    maxGain && { label: "Maior ganho", value: formatDuration(Math.abs(maxGain.delay_segundos)), tone: "text-success" },
-    totalAdded > 0 && { label: "Tempo adicional", value: formatDuration(totalAdded), tone: "text-destructive" },
-    totalSaved > 0 && { label: "Tempo economizado", value: formatDuration(totalSaved), tone: "text-success" },
-  ].filter(Boolean) as { label: string; value: any; tone: string }[]), [data.length, slow.length, fast.length, equal.length, maxDelay, maxGain, totalAdded, totalSaved]);
+  const cards = useMemo(() => {
+    const netDelta = totalAdded - totalSaved; // >0 mais lento no total; <0 mais rápido
+    const netTone = netDelta > 0 ? "text-destructive" : netDelta < 0 ? "text-success" : "text-muted-foreground";
+    const netValue = netDelta === 0 ? formatDuration(0) : `${netDelta > 0 ? "+" : "-"}${formatDuration(Math.abs(netDelta))}`;
+    return ([
+      { label: "Registros", value: data.length, tone: "" },
+      { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
+      { label: "Mais rápidos", value: fast.length, tone: "text-success" },
+      { label: "Maior atraso", value: maxDelay ? `+${formatDuration(maxDelay.delay_segundos)}` : "—", tone: "text-destructive" },
+      { label: "Maior ganho", value: maxGain ? `-${formatDuration(Math.abs(maxGain.delay_segundos))}` : "—", tone: "text-success" },
+      { label: "Diferença de tempo total", value: netValue, tone: netTone },
+    ] as { label: string; value: any; tone: string }[]);
+  }, [data.length, slow.length, fast.length, maxDelay, maxGain, totalAdded, totalSaved]);
+
 
   const distData = useMemo(() => ([
     { name: "Mais lentos", value: slow.length, color: "hsl(var(--destructive))" },
