@@ -565,12 +565,13 @@ function buildFailuresTree(
       node.label = hier.node_name.trim();
     } else if (node.items.length) {
       const it = node.items[0];
-      node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || `Grupo ${node.id}`).toString();
-    } else if (depth === 1) {
-      node.label = moduloNome ? moduloNome : `Grupo ${node.id}`;
+      node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || "").toString();
+    } else if (depth === 1 && moduloNome) {
+      node.label = moduloNome;
     } else {
-      node.label = `Grupo ${node.id}`;
+      node.label = "";
     }
+
     node.fullPath = buildFullPathLabel(node.id, hierMap, nameMap, moduloNome);
     node.children.forEach((c) => {
       finalize(c, depth + 1);
