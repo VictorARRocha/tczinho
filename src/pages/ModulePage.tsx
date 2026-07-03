@@ -1429,11 +1429,28 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [caseFilter, setCaseFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
+  type SortKey = "codigo" | "nome" | "status" | "base" | "atual" | "diff" | "var";
+  const [sortKey, setSortKey] = useState<SortKey>("diff");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const debouncedQ = useDebounce(q, 250);
 
   const groupOf = (codigo?: string | null) => {
     const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
     return m ? m[1] : "";
+  };
+
+  const parseTimeToSec = (s?: string | null): number => {
+    if (!s) return 0;
+    const parts = String(s).trim().split(":").map((p) => parseInt(p, 10));
+    if (parts.some(isNaN)) return 0;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    return parts[0] || 0;
+  };
+
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(k); setSortDir(k === "codigo" || k === "nome" ? "asc" : "desc"); }
   };
 
   const filtered = useMemo(() => {
@@ -1445,12 +1462,24 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
     }
-    return out.sort((a, b) => {
-      const ga = groupOf(a.codigo_teste), gb = groupOf(b.codigo_teste);
-      if (ga !== gb) return ga.localeCompare(gb, undefined, { numeric: true });
-      return (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true });
+    const dir = sortDir === "asc" ? 1 : -1;
+    const statusRank: Record<string, number> = { mais_lento: 0, igual: 1, mais_rapido: 2 };
+    out.sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "codigo": cmp = (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true }); break;
+        case "nome": cmp = (a.nome_teste || "").localeCompare(b.nome_teste || ""); break;
+        case "status": cmp = (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9); break;
+        case "base": cmp = parseTimeToSec(a.tempo_padrao) - parseTimeToSec(b.tempo_padrao); break;
+        case "atual": cmp = parseTimeToSec(a.tempo_atual) - parseTimeToSec(b.tempo_atual); break;
+        case "diff": cmp = Math.abs(a.delay_segundos) - Math.abs(b.delay_segundos); break;
+        case "var": cmp = Math.abs(a.variacao_pct) - Math.abs(b.variacao_pct); break;
+      }
+      return cmp * dir;
     });
-  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter]);
+    return out;
+  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir]);
+
 
 
   if (data.length === 0) {
