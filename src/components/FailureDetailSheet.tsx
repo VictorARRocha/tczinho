@@ -329,6 +329,14 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             </Section>
           )}
 
+          {otherEvidences.length > 0 && (
+            <Section title={`Outras evidências (${otherEvidences.length})`}>
+              <div className="space-y-3">
+                {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              </div>
+            </Section>
+          )}
+
           {numberedPrints.length > 0 && (
             <Collapsible>
               <CollapsibleTrigger asChild>
@@ -343,19 +351,11 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
-                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} hideCaption />)}
               </CollapsibleContent>
             </Collapsible>
           )}
 
-
-          {otherEvidences.length > 0 && (
-            <Section title={`Outras evidências (${otherEvidences.length})`}>
-              <div className="space-y-3">
-                {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
-              </div>
-            </Section>
-          )}
 
           {evidencias.length === 0 && (
             <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
