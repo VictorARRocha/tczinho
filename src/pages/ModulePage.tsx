@@ -974,7 +974,7 @@ function LeafItemCard({
 
   const accent =
     tipo === "quebra" ? "border-rose-500/40"
-    : tipo === "diferenca" ? "border-amber-500/40"
+    : tipo === "diferenca" ? "border-amber-700/50"
     : "border-fuchsia-500/40";
 
   return (
