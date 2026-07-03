@@ -342,19 +342,30 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                     : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
-          <Button size="sm" variant="ghost" className="h-8" onClick={copyNames}>
-            <Copy className="h-3.5 w-3.5 mr-1" /> Copiar nomes
-          </Button>
-          {baseUrl && (
-            <a href={baseUrl} download={baseName} target="_blank" rel="noreferrer">
-              <Button size="sm" variant="ghost" className="h-8"><Download className="h-3.5 w-3.5 mr-1" />Baseline</Button>
-            </a>
+          {(baseUrl || atualUrl) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={() => {
+                const trigger = (url: string, name: string) => {
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = name || "";
+                  a.target = "_blank";
+                  a.rel = "noreferrer";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                };
+                if (baseUrl) trigger(baseUrl, baseName);
+                if (atualUrl) setTimeout(() => trigger(atualUrl, atualName), 150);
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" /> Baixar arquivos
+            </Button>
           )}
-          {atualUrl && (
-            <a href={atualUrl} download={atualName} target="_blank" rel="noreferrer">
-              <Button size="sm" variant="ghost" className="h-8"><Download className="h-3.5 w-3.5 mr-1" />Checked</Button>
-            </a>
-          )}
+
         </div>
 
 
