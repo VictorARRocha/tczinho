@@ -212,14 +212,11 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <ResizableSheetContent>
         <div className="px-7 pt-7 pb-5 border-b border-border/60">
-          <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10 flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-            {falha.id_caso_teste && (
-              <span className="text-[13px] font-mono font-medium text-muted-foreground bg-muted/50 border border-border/60 rounded-md px-2 py-0.5 shrink-0">
-                {falha.id_caso_teste}
-              </span>
-            )}
-            <span>{falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}</span>
+          <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10">
+            {falha.id_caso_teste && <span>[{falha.id_caso_teste}] </span>}
+            {falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}
           </SheetTitle>
+
           {(falha.erro_principal || falha.mensagem_principal) && (
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {falha.erro_principal || falha.mensagem_principal}
