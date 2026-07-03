@@ -118,11 +118,12 @@ export function AppSidebar() {
             <SidebarMenu>
               {modulos.map((m) => {
                 const url = `/modulo/${m.slug}`;
+                const Icon = getModuleIcon(m.nome);
                 return (
                   <SidebarMenuItem key={m.id}>
                     <SidebarMenuButton asChild isActive={pathname.startsWith(url)}>
                       <NavLink to={url}>
-                        <History />
+                        <Icon />
                         <span>{m.nome}</span>
                       </NavLink>
                     </SidebarMenuButton>
