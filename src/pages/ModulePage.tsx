@@ -805,6 +805,29 @@ function FalhasTab({
   const expandAll = () => setExpanded(new Set(allIds));
   const collapseAll = () => setExpanded(new Set());
 
+  // Smart open: ao clicar num grupo/subgrupo abaixo do módulo, expande o
+  // caminho até o primeiro caso com falha/diferença visível no filtro atual.
+  const smartOpen = (node: TreeNode, depth: number) => {
+    if (depth === 0) { toggle(node.id); return; }
+    if (expanded.has(node.id)) { toggle(node.id); return; }
+    const path: string[] = [];
+    const dfs = (n: TreeNode): boolean => {
+      if (n.items.length > 0) return true;
+      const kids = Array.from(n.children.values())
+        .filter((k) => k.counts.total > 0)
+        .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment));
+      for (const k of kids) {
+        path.push(k.id);
+        if (dfs(k)) return true;
+        path.pop();
+      }
+      return false;
+    };
+    dfs(node);
+    setExpanded((prev) => new Set([...prev, node.id, ...path]));
+  };
+
+
   const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
     <button
       onClick={() => setSubTab(id)}
