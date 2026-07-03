@@ -921,13 +921,13 @@ function TreeNodeView({
   return (
     <div>
       <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/50 ${style.row}`}
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/70 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
         title={node.fullPath || node.label}
       >
-        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground/70 group-hover:text-foreground/80 transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
-          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
+          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
         </span>
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
@@ -938,7 +938,7 @@ function TreeNodeView({
         <div className="relative">
           {/* Linha guia sutil */}
           <div
-            className="absolute top-0 bottom-0 w-px bg-border/40"
+            className="absolute top-0 bottom-0 w-px bg-border/70"
             style={{ left: indent + 15 }}
             aria-hidden
           />
