@@ -787,8 +787,8 @@ function FalhasTab({
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // expande tudo por padrão sempre que o conjunto de nós mudar
-  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds.join("|")]);
+  // expande tudo por padrão sempre que o conjunto de nós mudar (allIds já é memoizado por root)
+  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds]);
 
   const toggle = (id: string) => setExpanded((prev) => {
     const n = new Set(prev);
