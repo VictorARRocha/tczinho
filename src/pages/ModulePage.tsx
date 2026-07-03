@@ -1468,6 +1468,7 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     const fast: AtrasoRodagem[] = [];
     const equal: AtrasoRodagem[] = [];
     const casesSet = new Set<string>();
+    const groupsSet = new Set<string>();
     let totalAdded = 0;
     let totalSaved = 0;
     let maxDelay: AtrasoRodagem | null = null;
@@ -1486,17 +1487,22 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         equal.push(d);
       }
       if (d.codigo_teste) casesSet.add(d.codigo_teste);
+      const g = groupOf(d.codigo_teste);
+      if (g) groupsSet.add(g);
       if (!hasName && d.nome_teste && d.nome_teste.trim()) hasName = true;
     }
     const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
     const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
+    const sortNum = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
     return {
       slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved,
       topSlow, topFast,
-      cases: Array.from(casesSet),
+      cases: Array.from(casesSet).sort(sortNum),
+      groups: Array.from(groupsSet).sort(sortNum),
       hasName,
     };
   }, [data]);
+
 
   const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
 
