@@ -935,10 +935,11 @@ function nodeStyleForDepth(depth: number, open: boolean) {
 }
 
 function TreeNodeView({
-  node, depth, expanded, onToggle, onSelect, onCompare,
+  node, depth, expanded, onToggle, onSmartOpen, onSelect, onCompare,
 }: {
   node: TreeNode; depth: number; expanded: Set<string>;
   onToggle: (id: string) => void;
+  onSmartOpen: (node: TreeNode, depth: number) => void;
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
@@ -952,8 +953,9 @@ function TreeNodeView({
       <div
         className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
-        onClick={() => hasChildren && onToggle(node.id)}
+        onClick={() => hasChildren && onSmartOpen(node, depth)}
       >
+
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
         </span>
