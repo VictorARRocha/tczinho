@@ -1641,15 +1641,6 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
               </SelectContent>
             </Select>
           )}
-          {cases.length > 0 && (
-            <Select value={caseFilter} onValueChange={setCaseFilter}>
-              <SelectTrigger className="h-9 w-[220px] text-xs bg-background"><SelectValue placeholder="Caso" /></SelectTrigger>
-              <SelectContent className="max-h-[320px]">
-                <SelectItem value="all">Caso: todos</SelectItem>
-                {cases.filter((c) => groupFilter === "all" || groupOf(c) === groupFilter).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
         </div>
 
       </Card>
