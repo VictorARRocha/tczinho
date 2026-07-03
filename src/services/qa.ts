@@ -2,7 +2,7 @@ import { supabase, STORAGE_BUCKET, STORAGE_BUCKET_FALLBACKS } from "@/lib/supaba
 import type { Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem } from "@/types/db";
 
 // =====================================================================
-// Mapeamento para o schema REAL do Supabase (Tczinho):
+// Mapeamento para o schema REAL do Supabase (TC Agente SCI):
 //
 //   modulos(id_modulo text PK, nome text UNIQUE)
 //   rodagens(id_rodagem text PK, sistema, versao, data_inicio, caminho_logs,
