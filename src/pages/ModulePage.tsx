@@ -883,25 +883,32 @@ function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
 }
 
 // Estilo hierárquico por profundidade: nível 0 = módulo (forte), 1 = grupo, 2 = subgrupo, 3+ = subgrupos menores
-function nodeStyleForDepth(depth: number) {
+function nodeStyleForDepth(depth: number, open: boolean) {
+  const activeChip = "bg-primary/15 border-primary/40 text-primary";
   if (depth === 0) {
     return {
       row: "py-2.5 mt-2 first:mt-0",
-      idChip: "font-mono text-sm font-semibold text-foreground bg-foreground/[0.14] border border-foreground/20 rounded-md px-2 py-0.5",
+      idChip: `font-mono text-sm font-semibold rounded-md px-2 py-0.5 border transition-colors ${
+        open ? activeChip : "bg-muted/60 border-border/60 text-foreground/85 group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
+      }`,
       label: "text-base font-semibold text-foreground tracking-tight",
     };
   }
   if (depth === 1) {
     return {
       row: "py-2",
-      idChip: "font-mono text-[13px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5",
-      label: "text-[15px] font-medium text-foreground",
+      idChip: `font-mono text-[13px] font-semibold rounded-md px-2 py-0.5 border transition-colors ${
+        open ? activeChip : "bg-muted/50 border-border/60 text-foreground/75 group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
+      }`,
+      label: "text-[15px] font-medium text-foreground/95",
     };
   }
   return {
     row: "py-1.5",
-    idChip: "font-mono text-xs font-semibold text-foreground/85 bg-muted/70 border border-border/70 rounded-md px-1.5 py-0.5",
-    label: "text-sm text-foreground/90",
+    idChip: `font-mono text-xs font-semibold rounded-md px-1.5 py-0.5 border transition-colors ${
+      open ? activeChip : "bg-muted/40 border-border/50 text-muted-foreground group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
+    }`,
+    label: "text-sm text-foreground/85",
   };
 }
 
@@ -916,15 +923,14 @@ function TreeNodeView({
   const hasChildren = node.children.size > 0 || node.items.length > 0;
   const open = expanded.has(node.id);
   const indent = depth * 16;
-  const style = nodeStyleForDepth(depth);
+  const style = nodeStyleForDepth(depth, open);
 
   return (
     <div>
       <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/70 ${style.row}`}
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
-        title={node.fullPath || node.label}
       >
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
@@ -932,7 +938,7 @@ function TreeNodeView({
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
         </span>
-        <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
+        <span className={`truncate ${style.label}`}>{node.label}</span>
       </div>
       {open && (
         <div className="relative">
