@@ -1,5 +1,30 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw } from "lucide-react";
+import {
+  Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
+  Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package,
+  type LucideIcon,
+} from "lucide-react";
+
+function getModuleIcon(nome: string): LucideIcon {
+  const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (n.includes("folha")) return Users;
+  if (n.includes("ponto")) return Clock;
+  if (n.includes("fiscal")) return Receipt;
+  if (n.includes("contabil")) return BookOpen;
+  if (n.includes("patrimonio")) return Building2;
+  if (n.includes("lalur")) return Calculator;
+  if (n.includes("financeiro")) return Wallet;
+  if (n.includes("tarefa") || n.includes("gestao")) return CheckSquare;
+  if (n.includes("orcamento")) return PiggyBank;
+  if (n.includes("protocolo")) return FileText;
+  if (n.includes("notificac")) return Bell;
+  if (n.includes("imposto")) return Landmark;
+  if (n.includes("temporizador")) return Timer;
+  if (n.includes("bi") || n.includes("geral")) return BarChart3;
+  if (n.includes("push")) return Send;
+  return Package;
+}
 import {
   Sidebar,
   SidebarContent,
