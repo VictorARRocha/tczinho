@@ -141,18 +141,28 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
     window.addEventListener("pointerup", stop);
   };
 
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+  useEffect(() => {
+    const on = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
         {...props}
-        style={{ width: `min(100vw, ${width}px)` }}
+        style={{ width: isMobile ? "100vw" : `min(100vw, ${width}px)` }}
         className={cn(
           "fixed inset-y-0 right-0 z-50 flex h-full flex-col gap-0 border-l border-border bg-card p-0 shadow-2xl",
           "transition-none data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           "data-[state=closed]:duration-300 data-[state=open]:duration-400",
           className,
+
         )}
       >
         {/* Drag handle */}
