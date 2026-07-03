@@ -1640,7 +1640,7 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
               <SelectItem value="all">Status: todos</SelectItem>
               <SelectItem value="mais_lento">Mais lento</SelectItem>
               <SelectItem value="mais_rapido">Mais rápido</SelectItem>
-              <SelectItem value="igual">Sem variação</SelectItem>
+              
             </SelectContent>
           </Select>
           {groups.length > 0 && (
