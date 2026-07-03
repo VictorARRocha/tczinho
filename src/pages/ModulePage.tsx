@@ -991,18 +991,17 @@ function LeafItemCard({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
     >
       <div className="px-4 py-3 space-y-2.5">
-        {/* Cabeçalho: ID + Nome + Status */}
+        {/* Cabeçalho: ID + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
           {idCaso && (
             <span className="font-mono text-[11px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 tabular-nums">
               #{idCaso}
             </span>
           )}
-          <span className="flex-1 min-w-0 text-sm font-semibold text-foreground leading-snug" title={titulo}>
-            {titulo}
-          </span>
+          <div className="flex-1 min-w-0" />
           <TipoBadge tipo={tipo} />
         </div>
+
 
         {/* Metadata secundária */}
         {(script || f.severidade || f.classificacao) && (
