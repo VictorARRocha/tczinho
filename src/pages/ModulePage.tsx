@@ -1268,42 +1268,70 @@ function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupame
       )}
 
       {filteredItems.map((g) => (
-        <Card key={g.id} className="glass-card p-5">
-          <div className="flex items-start justify-between mb-3 gap-3">
-            <div className="min-w-0">
-              {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
-              <h3 className="font-semibold mt-0.5">{g.titulo}</h3>
-            </div>
-            <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
-          </div>
-          {g.descricao && <p className="text-sm text-muted-foreground mb-3">{g.descricao}</p>}
-          <div className="flex flex-wrap gap-2 mb-4">
-            {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
-            {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
-          </div>
-          {g.acao_recomendada && (
-            <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs mb-4">
-              <strong className="text-primary">Ação:</strong> {g.acao_recomendada}
-            </div>
-          )}
-
-          {g.casos.length > 0 ? (
-            <GroupCasesList casos={g.casos} onSelect={onSelect} />
-          ) : g.semVinculo ? (
-            <p className="text-xs text-muted-foreground italic">
-              Este agrupamento ainda não possui vínculos gravados. O Codex precisa preencher a tabela <code>agrupamentos_falhas</code>.
-            </p>
-          ) : null}
-        </Card>
+        <AgrupamentoCard key={g.id} g={g} onSelect={onSelect} />
       ))}
     </div>
   );
 }
 
-function GroupCasesList({ casos, onSelect }: { casos: Falha[]; onSelect: (f: Falha) => void }) {
+function fixMojibake(s: string): string {
+  if (!s) return s;
+  if (!/[ÃÂ][\u0080-\u00BF]/.test(s)) return s;
+  try {
+    const bytes = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
+    return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+  } catch {
+    return s;
+  }
+}
+
+function AgrupamentoCard({ g, onSelect }: { g: any; onSelect: (f: Falha) => void }) {
   const [open, setOpen] = useState(false);
+  const rawTitulo = fixMojibake(g.titulo || "");
+  const rawDescricao = fixMojibake(g.descricao || "");
+  const tituloParecePlaceholder = /informacaoerro/i.test(rawTitulo) || /^erro t[eé]cnico/i.test(rawTitulo);
+  const displayTitulo = tituloParecePlaceholder && rawDescricao ? rawDescricao : rawTitulo;
+  const displayDescricao = tituloParecePlaceholder && rawDescricao ? "" : rawDescricao;
+  const acao = fixMojibake(g.acao_recomendada || "");
+
   return (
-    <div>
+    <Card
+      className="glass-card p-5 cursor-pointer hover:bg-secondary/20 transition-smooth"
+      onClick={() => g.casos.length > 0 && setOpen((v) => !v)}
+    >
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="min-w-0">
+          {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
+          <h3 className="font-semibold mt-0.5">{displayTitulo}</h3>
+        </div>
+        <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
+      </div>
+      {displayDescricao && <p className="text-sm text-muted-foreground mb-3">{displayDescricao}</p>}
+      <div className="flex flex-wrap gap-2 mb-4">
+        {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
+        {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
+      </div>
+      {acao && (
+        <div className="p-3 rounded-lg bg-primary/5 border border-primary/20 text-xs mb-4">
+          {acao}
+        </div>
+      )}
+
+      {g.casos.length > 0 ? (
+        <GroupCasesList casos={g.casos} onSelect={onSelect} open={open} setOpen={setOpen} />
+      ) : g.semVinculo ? (
+        <p className="text-xs text-muted-foreground italic">
+          Este agrupamento ainda não possui vínculos gravados. O Codex precisa preencher a tabela <code>agrupamentos_falhas</code>.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
+
+function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; onSelect: (f: Falha) => void; open: boolean; setOpen: (v: boolean | ((p: boolean) => boolean)) => void }) {
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Casos vinculados a esta quebra ({casos.length})
