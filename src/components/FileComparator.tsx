@@ -341,19 +341,25 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
               size="sm"
               variant="ghost"
               className="h-8"
-              onClick={() => {
-                const trigger = (url: string, name: string) => {
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = name || "";
-                  a.target = "_blank";
-                  a.rel = "noreferrer";
-                  document.body.appendChild(a);
-                  a.click();
-                  document.body.removeChild(a);
+              onClick={async () => {
+                const trigger = async (url: string, name: string) => {
+                  try {
+                    const res = await fetch(url);
+                    const blob = await res.blob();
+                    const objUrl = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = objUrl;
+                    a.download = name || "arquivo";
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+                  } catch {
+                    toast.error(`Não foi possível baixar ${name}`);
+                  }
                 };
-                if (baseUrl) trigger(baseUrl, baseName);
-                if (atualUrl) setTimeout(() => trigger(atualUrl, atualName), 150);
+                if (baseUrl) await trigger(baseUrl, baseName);
+                if (atualUrl) await trigger(atualUrl, atualName);
               }}
             >
               <Download className="h-3.5 w-3.5 mr-1" /> Baixar arquivos
