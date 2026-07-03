@@ -565,12 +565,13 @@ function buildFailuresTree(
       node.label = hier.node_name.trim();
     } else if (node.items.length) {
       const it = node.items[0];
-      node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || `Grupo ${node.id}`).toString();
-    } else if (depth === 1) {
-      node.label = moduloNome ? moduloNome : `Grupo ${node.id}`;
+      node.label = (it.f.caso_teste_provavel || it.f.descricao_caso || it.f.erro_titulo || "").toString();
+    } else if (depth === 1 && moduloNome) {
+      node.label = moduloNome;
     } else {
-      node.label = `Grupo ${node.id}`;
+      node.label = "";
     }
+
     node.fullPath = buildFullPathLabel(node.id, hierMap, nameMap, moduloNome);
     node.children.forEach((c) => {
       finalize(c, depth + 1);
@@ -844,11 +845,6 @@ function FalhasTab({
 
   return (
     <div className="space-y-4">
-      {hierarchy.length === 0 && enriched.length > 0 && (
-        <div className="text-[11px] text-muted-foreground/80 italic px-1">
-          Hierarquia do TestComplete ainda não carregada. Exibindo árvore simplificada por ID.
-        </div>
-      )}
       <Card className="glass-card p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
           <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
