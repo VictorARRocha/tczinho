@@ -157,9 +157,9 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
           100% { transform: translateX(400%); }
         }
       `}</style>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-base sm:text-lg font-semibold">{title}</h2>
           {hasActive && (
             <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px]">
               Atualizando ao vivo
@@ -171,7 +171,9 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
         </Button>
       </div>
       <Card className="glass-card overflow-hidden">
-        <Table>
+        <div className="overflow-x-auto">
+          <Table>
+
           <TableHeader>
             <TableRow>
               <TableHead>Data/hora</TableHead>
