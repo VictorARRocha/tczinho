@@ -371,8 +371,9 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
         {/* Cabeçalho dos painéis */}
         <div className="grid grid-cols-2 border-b border-border bg-background">
-          <PaneHeader label="Baseline file" name={baseName} url={baseUrl} side="left" />
-          <PaneHeader label="Checked file" name={atualName} url={atualUrl} side="right" />
+          <PaneHeader name={baseName} side="left" />
+          <PaneHeader name={atualName} side="right" />
+
         </div>
 
         <div className="flex-1 overflow-hidden">
