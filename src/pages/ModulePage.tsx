@@ -88,12 +88,10 @@ export default function ModulePage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const mods = await fetchModules();
+      // Fetches independentes rodam em paralelo
+      const [mods, runs] = await Promise.all([fetchModules(), fetchRunsByModule(targetSlug)]);
       if (reqId !== requestRef.current) return;
-      const m = mods.find((x) => x.slug === targetSlug) || null;
-      setModulo(m);
-      const runs = await fetchRunsByModule(targetSlug);
-      if (reqId !== requestRef.current) return;
+      setModulo(mods.find((x) => x.slug === targetSlug) || null);
       setHistorico(runs);
       const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(targetSlug)));
       if (reqId !== requestRef.current) return;
