@@ -29,6 +29,27 @@ function formatBytes(b?: number | null) {
   return `${n.toFixed(n < 10 ? 1 : 0)} ${u[i]}`;
 }
 
+function countBad(s: string) { let n = 0; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 0xfffd) n++; return n; }
+function decodeBufferSmart(buffer: ArrayBuffer): string {
+  const encs = ["utf-8", "windows-1252", "iso-8859-1"];
+  const cands: { text: string; bad: number }[] = [];
+  for (const enc of encs) {
+    try { const t = new TextDecoder(enc, { fatal: false }).decode(buffer); cands.push({ text: t, bad: countBad(t) }); } catch {}
+  }
+  if (!cands.length) return "";
+  cands.sort((a, b) => a.bad - b.bad);
+  return cands[0].text;
+}
+async function fetchTextSmart(url: string): Promise<string | null> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const buf = await r.arrayBuffer();
+    if (buf.byteLength > 8 * 1024 * 1024) return null;
+    return decodeBufferSmart(buf);
+  } catch { return null; }
+
+
 async function resolveDownloadUrl(ev: Evidencia): Promise<string | null> {
   if (ev.public_url) return ev.public_url;
   if (ev.signed_url) return ev.signed_url;
