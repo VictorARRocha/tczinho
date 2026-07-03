@@ -5,13 +5,13 @@ import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 export default function JenkinsHome() {
   return (
-    <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
-      <div className="mb-8">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
+      <div className="mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
           <Server className="h-3 w-3" />
           Jenkins
         </div>
-        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
           Disparar execuções no <span className="gradient-text">Jenkins</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
@@ -20,7 +20,7 @@ export default function JenkinsHome() {
         </p>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 mb-10">
+      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 mb-8 sm:mb-10">
         <JenkinsCard
           to="/jenkins/rodagem-completa"
           icon={<PlayCircle className="h-8 w-8" />}
@@ -39,6 +39,7 @@ export default function JenkinsHome() {
     </div>
   );
 }
+
 
 function JenkinsCard({ to, icon, title, description }: {
   to: string; icon: React.ReactNode; title: string; description: string;
