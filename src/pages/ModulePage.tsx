@@ -295,7 +295,7 @@ function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { modulo:
                               {formatDateTime(r.data_analise)}
                               {r.maquina && <span className="text-muted-foreground font-normal"> — {r.maquina}</span>}
                             </span>
-                            <Badge variant="outline" className={`${h.className} text-[10px] h-5`}>{h.label}</Badge>
+                            {h.label !== "Sem dados" && <Badge variant="outline" className={`${h.className} text-[10px] h-5`}>{h.label}</Badge>}
                           </div>
                           <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 ml-5">
                             {r.versao_sistema && <span>v{r.versao_sistema}</span>}
