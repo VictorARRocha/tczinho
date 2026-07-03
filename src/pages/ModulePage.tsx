@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree } from "lucide-react";
+import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree, ArrowUp, ArrowDown } from "lucide-react";
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
