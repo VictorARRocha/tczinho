@@ -13,6 +13,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -1424,20 +1426,32 @@ function PerfBadge({ status }: { status: AtrasoRodagem["status"] }) {
 
 function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [caseFilter, setCaseFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [caseFilter, setCaseFilter] = useState<string>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
   const debouncedQ = useDebounce(q, 250);
+
+  const groupOf = (codigo?: string | null) => {
+    const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
+    return m ? m[1] : "";
+  };
 
   const filtered = useMemo(() => {
     let out = [...data];
-    if (statusFilter) out = out.filter((d) => d.status === statusFilter);
-    if (caseFilter) out = out.filter((d) => d.codigo_teste === caseFilter);
+    if (statusFilter !== "all") out = out.filter((d) => d.status === statusFilter);
+    if (groupFilter !== "all") out = out.filter((d) => groupOf(d.codigo_teste) === groupFilter);
+    if (caseFilter !== "all") out = out.filter((d) => d.codigo_teste === caseFilter);
     if (debouncedQ) {
       const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
     }
-    return out.sort((a, b) => Math.abs(b.delay_segundos) - Math.abs(a.delay_segundos));
-  }, [data, debouncedQ, statusFilter, caseFilter]);
+    return out.sort((a, b) => {
+      const ga = groupOf(a.codigo_teste), gb = groupOf(b.codigo_teste);
+      if (ga !== gb) return ga.localeCompare(gb, undefined, { numeric: true });
+      return (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true });
+    });
+  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter]);
+
 
   if (data.length === 0) {
     return (
@@ -1454,6 +1468,7 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     const fast: AtrasoRodagem[] = [];
     const equal: AtrasoRodagem[] = [];
     const casesSet = new Set<string>();
+    const groupsSet = new Set<string>();
     let totalAdded = 0;
     let totalSaved = 0;
     let maxDelay: AtrasoRodagem | null = null;
@@ -1472,19 +1487,24 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         equal.push(d);
       }
       if (d.codigo_teste) casesSet.add(d.codigo_teste);
+      const g = groupOf(d.codigo_teste);
+      if (g) groupsSet.add(g);
       if (!hasName && d.nome_teste && d.nome_teste.trim()) hasName = true;
     }
     const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
     const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
+    const sortNum = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
     return {
       slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved,
       topSlow, topFast,
-      cases: Array.from(casesSet),
+      cases: Array.from(casesSet).sort(sortNum),
+      groups: Array.from(groupsSet).sort(sortNum),
       hasName,
     };
   }, [data]);
 
-  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
+
+  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, groups, hasName } = stats;
 
   const cards = useMemo(() => ([
     { label: "Registros", value: data.length, tone: "" },
@@ -1574,19 +1594,35 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           <Input placeholder="Buscar por código ou nome do caso..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
-            <option value="">Status: todos</option>
-            <option value="mais_lento">Mais lento</option>
-            <option value="mais_rapido">Mais rápido</option>
-            <option value="igual">Sem variação</option>
-          </select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Status: todos</SelectItem>
+              <SelectItem value="mais_lento">Mais lento</SelectItem>
+              <SelectItem value="mais_rapido">Mais rápido</SelectItem>
+              <SelectItem value="igual">Sem variação</SelectItem>
+            </SelectContent>
+          </Select>
+          {groups.length > 0 && (
+            <Select value={groupFilter} onValueChange={setGroupFilter}>
+              <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Grupo" /></SelectTrigger>
+              <SelectContent className="max-h-[320px]">
+                <SelectItem value="all">Grupo: todos</SelectItem>
+                {groups.map((g) => <SelectItem key={g} value={g}>[{g}]</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           {cases.length > 0 && (
-            <select value={caseFilter} onChange={(e) => setCaseFilter(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
-              <option value="">Caso: todos</option>
-              {cases.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <Select value={caseFilter} onValueChange={setCaseFilter}>
+              <SelectTrigger className="h-9 w-[220px] text-xs bg-background"><SelectValue placeholder="Caso" /></SelectTrigger>
+              <SelectContent className="max-h-[320px]">
+                <SelectItem value="all">Caso: todos</SelectItem>
+                {cases.filter((c) => groupFilter === "all" || groupOf(c) === groupFilter).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
         </div>
+
       </Card>
 
       <Card className="glass-card overflow-hidden">
