@@ -863,19 +863,46 @@ function FalhasTab({
 }
 
 function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
-  if (tipo === "quebra") return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30">Quebra</Badge>;
-  if (tipo === "diferenca") return <Badge variant="outline" className="bg-warning/15 text-warning border-warning/30">Diferença</Badge>;
-  return <Badge variant="outline" className="bg-primary/15 text-primary border-primary/30">Quebra + Diferença</Badge>;
+  const base = "text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full border";
+  if (tipo === "quebra")
+    return <Badge variant="outline" className={`${base} bg-rose-500/10 text-rose-300 border-rose-500/30`}>Quebra</Badge>;
+  if (tipo === "diferenca")
+    return <Badge variant="outline" className={`${base} bg-amber-500/10 text-amber-300 border-amber-500/30`}>Diferença</Badge>;
+  return <Badge variant="outline" className={`${base} bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30`}>Quebra + Diferença</Badge>;
 }
 
 function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
   const totalDif = counts.diferenca + counts.quebra_diferenca;
+  const pill = "text-[10px] font-medium px-1.5 py-0 rounded-full border tabular-nums";
   return (
     <div className="flex gap-1 flex-wrap">
-      {counts.quebra > 0 && <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] px-1.5 py-0">{counts.quebra} quebra</Badge>}
-      {totalDif > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{totalDif} dif.</Badge>}
+      {counts.quebra > 0 && <Badge variant="outline" className={`${pill} bg-rose-500/10 text-rose-300 border-rose-500/25`}>{counts.quebra} quebra</Badge>}
+      {totalDif > 0 && <Badge variant="outline" className={`${pill} bg-amber-500/10 text-amber-300 border-amber-500/25`}>{totalDif} dif.</Badge>}
     </div>
   );
+}
+
+// Estilo hierárquico por profundidade: nível 0 = módulo (forte), 1 = grupo, 2 = subgrupo, 3+ = subgrupos menores
+function nodeStyleForDepth(depth: number) {
+  if (depth === 0) {
+    return {
+      row: "py-2.5 mt-2 first:mt-0",
+      idChip: "font-mono text-xs font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
+      label: "text-[15px] font-semibold text-foreground tracking-tight",
+    };
+  }
+  if (depth === 1) {
+    return {
+      row: "py-2",
+      idChip: "font-mono text-[11px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
+      label: "text-sm font-medium text-foreground/90",
+    };
+  }
+  return {
+    row: "py-1.5",
+    idChip: "font-mono text-[10.5px] font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
+    label: "text-[13px] text-foreground/80",
+  };
 }
 
 function TreeNodeView({
@@ -886,28 +913,38 @@ function TreeNodeView({
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
-  const hasChildren = node.children.size > 0;
+  const hasChildren = node.children.size > 0 || node.items.length > 0;
   const open = expanded.has(node.id);
-  const indent = depth * 18;
+  const indent = depth * 16;
+  const style = nodeStyleForDepth(depth);
 
   return (
     <div>
       <div
-        className="group flex items-center gap-2 py-1.5 pr-2 rounded-md hover:bg-secondary/40 cursor-pointer border-l border-transparent hover:border-primary/30"
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/50 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
         title={node.fullPath || node.label}
       >
-        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground/70 group-hover:text-foreground/80 transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
         </span>
-        <span className="font-mono text-sm font-semibold text-foreground bg-muted/60 border border-border/70 rounded-md px-2 py-0.5 shrink-0 tabular-nums tracking-tight">
+        <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
         </span>
-        <span className="text-sm text-foreground/90 truncate" title={node.label}>{node.label}</span>
+        <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
+        <div className="ml-auto opacity-70 group-hover:opacity-100 transition-opacity">
+          <CountsPills counts={node.counts} />
+        </div>
       </div>
       {open && (
-        <div>
+        <div className="relative">
+          {/* Linha guia sutil */}
+          <div
+            className="absolute top-0 bottom-0 w-px bg-border/40"
+            style={{ left: indent + 15 }}
+            aria-hidden
+          />
           {node.items.map((it) => (
             <LeafItemCard key={it.f.id} item={it} depth={depth + 1} onSelect={onSelect} onCompare={onCompare} />
           ))}
@@ -935,36 +972,65 @@ function LeafItemCard({
   const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
   const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
   const script = f.rotina_funcional || f.componente || f.formulario_ou_tela;
-  const indent = depth * 18 + 20;
+  const idCaso = f.id_caso_teste;
+  const indent = depth * 16 + 20;
+
+  const accent =
+    tipo === "quebra" ? "border-rose-500/40"
+    : tipo === "diferenca" ? "border-amber-500/40"
+    : "border-fuchsia-500/40";
 
   return (
     <div
-      className="ml-1 my-1 border-l-2 border-primary/40 bg-secondary/20 rounded-r-md hover:bg-secondary/40 transition-colors cursor-pointer"
+      className={`ml-1 my-2 border-l-2 ${accent} bg-card/40 hover:bg-card/70 rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
       style={{ marginLeft: indent }}
       onClick={() => onSelect(f)}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
     >
-      <div className="p-3 space-y-2">
-        <div className="flex items-start gap-2 flex-wrap">
+      <div className="px-4 py-3 space-y-2.5">
+        {/* Cabeçalho: ID + Nome + Status */}
+        <div className="flex items-start gap-2.5 flex-wrap">
+          {idCaso && (
+            <span className="font-mono text-[11px] font-semibold text-foreground/90 bg-muted/60 border border-border/60 rounded-md px-2 py-0.5 shrink-0 tabular-nums">
+              #{idCaso}
+            </span>
+          )}
+          <span className="flex-1 min-w-0 text-sm font-semibold text-foreground leading-snug" title={titulo}>
+            {titulo}
+          </span>
           <TipoBadge tipo={tipo} />
-          {f.severidade && <SeverityBadge value={f.severidade} />}
-          {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-          <span className="text-xs text-muted-foreground truncate" title={titulo}>{titulo}</span>
         </div>
-        {script && <div className="text-[11px] text-muted-foreground"><span className="opacity-70">Script:</span> <span className="font-mono">{script}</span></div>}
-        {isQuebra && desc && <p className="text-xs text-muted-foreground line-clamp-2">{desc}</p>}
 
+        {/* Metadata secundária */}
+        {(script || f.severidade || f.classificacao) && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {f.severidade && <SeverityBadge value={f.severidade} />}
+            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
+            {script && (
+              <span className="text-[11px] text-muted-foreground">
+                <span className="opacity-70">Script:</span> <span className="font-mono">{script}</span>
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Descrição */}
+        {isQuebra && desc && (
+          <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">{desc}</p>
+        )}
+
+        {/* Pares de comparação */}
         {isDiff && pairs.length > 0 && (
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 pt-1">
             {pairs.map((p) => {
               const ext = (p.extensao || "").trim().toLowerCase().replace(/^\.+/, "");
               const displayName = cleanFileName(p.base?.nome_arquivo, p.extensao) || cleanFileName(p.atual?.nome_arquivo, p.extensao);
               return (
-                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
+                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/50 rounded-md px-3 py-2 border border-border/50">
                   {ext && ext !== "txt" && <Badge variant="outline" className="text-[10px] font-mono">.{ext}</Badge>}
-                  <div className="flex-1 min-w-0 font-mono truncate" title={displayName}>{displayName}</div>
+                  <div className="flex-1 min-w-0 font-mono text-[12px] truncate text-foreground/85" title={displayName}>{displayName}</div>
                   <Button
                     size="sm"
                     variant="default"
@@ -982,7 +1048,8 @@ function LeafItemCard({
           <p className="text-[11px] text-muted-foreground italic">Arquivos de comparação não vinculados.</p>
         )}
 
-        <div className="flex gap-1.5">
+        {/* Rodapé de ações */}
+        <div className="flex justify-end pt-1">
           <Button
             size="sm"
             variant="secondary"
@@ -996,6 +1063,7 @@ function LeafItemCard({
     </div>
   );
 }
+
 
 function OrphanGroup({
   items, expanded, onToggle, onSelect, onCompare,
