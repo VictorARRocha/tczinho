@@ -1360,40 +1360,43 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     );
   }
 
-  const slow = data.filter((d) => d.status === "mais_lento");
-  const fast = data.filter((d) => d.status === "mais_rapido");
-  const equal = data.filter((d) => d.status === "igual");
-  const maxDelay = slow.reduce((a, b) => (b.delay_segundos > a.delay_segundos ? b : a), slow[0] || null as any);
-  const maxGain = fast.reduce((a, b) => (b.delay_segundos < a.delay_segundos ? b : a), fast[0] || null as any);
-  const totalAdded = slow.reduce((s, d) => s + d.delay_segundos, 0);
-  const totalSaved = fast.reduce((s, d) => s + Math.abs(d.delay_segundos), 0);
+  const stats = useMemo(() => {
+    const slow: AtrasoRodagem[] = [];
+    const fast: AtrasoRodagem[] = [];
+    const equal: AtrasoRodagem[] = [];
+    const casesSet = new Set<string>();
+    let totalAdded = 0;
+    let totalSaved = 0;
+    let maxDelay: AtrasoRodagem | null = null;
+    let maxGain: AtrasoRodagem | null = null;
+    let hasName = false;
+    for (const d of data) {
+      if (d.status === "mais_lento") {
+        slow.push(d);
+        totalAdded += d.delay_segundos;
+        if (!maxDelay || d.delay_segundos > maxDelay.delay_segundos) maxDelay = d;
+      } else if (d.status === "mais_rapido") {
+        fast.push(d);
+        totalSaved += Math.abs(d.delay_segundos);
+        if (!maxGain || d.delay_segundos < maxGain.delay_segundos) maxGain = d;
+      } else if (d.status === "igual") {
+        equal.push(d);
+      }
+      if (d.codigo_teste) casesSet.add(d.codigo_teste);
+      if (!hasName && d.nome_teste && d.nome_teste.trim()) hasName = true;
+    }
+    const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
+    const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
+    return {
+      slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved,
+      topSlow, topFast,
+      cases: Array.from(casesSet),
+      hasName,
+    };
+  }, [data]);
 
-  const cards = [
-    { label: "Registros", value: data.length, tone: "" },
-    { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
-    { label: "Mais rápidos", value: fast.length, tone: "text-success" },
-    { label: "Sem variação", value: equal.length, tone: "text-muted-foreground" },
-    maxDelay && { label: "Maior atraso", value: formatDuration(maxDelay.delay_segundos), tone: "text-destructive" },
-    maxGain && { label: "Maior ganho", value: formatDuration(Math.abs(maxGain.delay_segundos)), tone: "text-success" },
-    totalAdded > 0 && { label: "Tempo adicional", value: formatDuration(totalAdded), tone: "text-destructive" },
-    totalSaved > 0 && { label: "Tempo economizado", value: formatDuration(totalSaved), tone: "text-success" },
-  ].filter(Boolean) as { label: string; value: any; tone: string }[];
+  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
 
-  const distData = [
-    { name: "Mais lentos", value: slow.length, color: "hsl(var(--destructive))" },
-    { name: "Mais rápidos", value: fast.length, color: "hsl(var(--success))" },
-    { name: "Sem variação", value: equal.length, color: "hsl(var(--muted-foreground))" },
-  ].filter((d) => d.value > 0);
-
-  const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
-  const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
-
-  const topSlowChart = topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) }));
-  const topFastChart = topFast.map((d) => ({ name: d.codigo_teste || d.id, value: Math.abs(d.delay_segundos), label: formatDuration(Math.abs(d.delay_segundos)) }));
-
-  const cases = Array.from(new Set(data.map((d) => d.codigo_teste).filter(Boolean))) as string[];
-
-  const hasName = data.some((d) => d.nome_teste && d.nome_teste.trim());
 
   const copyRow = (d: AtrasoRodagem) => {
     const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");
