@@ -366,6 +366,7 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
   }, [falhas]);
 
   const cards: { label: string; value: number; tone?: string; force?: boolean }[] = [
+    { label: "Casos rodados", value: rodagem.total_analisados, tone: "text-primary", force: true },
     { label: "Falhas", value: rodagem.total_falhas, force: true },
     { label: "Funcional", value: rodagem.total_possivel_funcional, tone: "text-functional" },
     { label: "Automação", value: rodagem.total_automacao, tone: "text-automation" },
