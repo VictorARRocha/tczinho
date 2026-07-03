@@ -203,13 +203,6 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
     }) || null;
     const others = rest.filter((e) => !isNumberedPrint(e) && e.id !== zip?.id);
 
-    const zip = evidencias.find((e) => {
-      const ext = (e.extensao || "").toLowerCase();
-      if (["zip", "rar"].includes(ext)) return true;
-      if (e.tipo === "zip" || e.tipo === "rar") return true;
-      const name = (e.nome_arquivo || "").toLowerCase();
-      return falha?.arquivo_zip && name === falha.arquivo_zip.toLowerCase();
-    }) || null;
     return { errorImage: errImg, numberedPrints: nums, otherEvidences: others, zipEvidence: zip };
   }, [evidencias, realPairs, falha?.arquivo_zip]);
 
