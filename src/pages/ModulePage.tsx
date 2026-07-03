@@ -373,7 +373,7 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [falhas]);
 
-  const cards: { label: string; value: number; tone?: string; force?: boolean }[] = [
+  const cards = useMemo(() => ([
     { label: "Casos rodados", value: rodagem.total_analisados, tone: "text-primary", force: true },
     { label: "Falhas", value: rodagem.total_falhas, force: true },
     { label: "Funcional", value: rodagem.total_possivel_funcional, tone: "text-functional" },
@@ -384,7 +384,7 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
     { label: "Sev. Alta", value: rodagem.total_alta, tone: "text-destructive" },
     { label: "Sev. Média", value: rodagem.total_media, tone: "text-warning" },
     { label: "Sev. Baixa", value: rodagem.total_baixa, tone: "text-success" },
-  ].filter((c) => c.force || c.value > 0);
+  ] as { label: string; value: number; tone?: string; force?: boolean }[]).filter((c) => c.force || c.value > 0), [rodagem]);
 
   const occCounts = useMemo(() => {
     const evMap = groupEvidsByFailure(evidencias);
