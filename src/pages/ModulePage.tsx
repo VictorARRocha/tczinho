@@ -985,8 +985,8 @@ function LeafItemCard({
         <div className="flex gap-1.5">
           <Button
             size="sm"
-            variant="ghost"
-            className="h-7 text-xs"
+            variant="secondary"
+            className="h-7 text-xs bg-secondary hover:bg-secondary/80 border border-border/60"
             onClick={(e) => { e.stopPropagation(); onSelect(f); }}
           >
             Detalhes
