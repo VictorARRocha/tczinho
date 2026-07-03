@@ -913,29 +913,31 @@ function TreeNodeView({
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
-  const hasChildren = node.children.size > 0 || node.items.length > 0;
-  const open = expanded.has(node.id);
+  const hasSubgroups = node.children.size > 0;
+  const isLeafCase = !hasSubgroups && node.items.length > 0;
+  // Casos de teste (folhas) não são retráteis — mostram sempre o header + cards
+  const open = isLeafCase ? true : expanded.has(node.id);
   const indent = depth * 16;
   const style = nodeStyleForDepth(depth);
 
   return (
     <div>
       <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/50 ${style.row}`}
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg transition-colors ${style.row} ${hasSubgroups ? "cursor-pointer hover:bg-secondary/50" : ""}`}
         style={{ paddingLeft: indent + 8 }}
-        onClick={() => hasChildren && onToggle(node.id)}
+        onClick={() => hasSubgroups && onToggle(node.id)}
         title={node.fullPath || node.label}
       >
-        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground/70 group-hover:text-foreground/80 transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
-          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground/70 group-hover:text-foreground/80">
+          {hasSubgroups ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
         </span>
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
         </span>
         <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
       </div>
-      {open && (
-        <div className="relative">
+      {open && (node.items.length > 0 || hasSubgroups) && (
+        <div className="relative space-y-2 mt-1 mb-2">
           {/* Linha guia sutil */}
           <div
             className="absolute top-0 bottom-0 w-px bg-border/40"
