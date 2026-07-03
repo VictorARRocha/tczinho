@@ -867,7 +867,7 @@ function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
   if (tipo === "quebra")
     return <Badge variant="outline" className={`${base} bg-rose-500/10 text-rose-300 border-rose-500/30`}>Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className={`${base} bg-amber-500/10 text-amber-300 border-amber-500/30`}>Diferença</Badge>;
+    return <Badge variant="outline" className={`${base} bg-amber-900/25 text-amber-200/90 border-amber-700/40`}>Diferença</Badge>;
   return <Badge variant="outline" className={`${base} bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30`}>Quebra + Diferença</Badge>;
 }
 
@@ -887,21 +887,21 @@ function nodeStyleForDepth(depth: number) {
   if (depth === 0) {
     return {
       row: "py-2.5 mt-2 first:mt-0",
-      idChip: "font-mono text-xs font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
-      label: "text-[15px] font-semibold text-foreground tracking-tight",
+      idChip: "font-mono text-sm font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
+      label: "text-base font-semibold text-foreground tracking-tight",
     };
   }
   if (depth === 1) {
     return {
       row: "py-2",
-      idChip: "font-mono text-[11px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
-      label: "text-sm font-medium text-foreground/90",
+      idChip: "font-mono text-[13px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
+      label: "text-[15px] font-medium text-foreground/90",
     };
   }
   return {
     row: "py-1.5",
-    idChip: "font-mono text-[10.5px] font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
-    label: "text-[13px] text-foreground/80",
+    idChip: "font-mono text-xs font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
+    label: "text-sm text-foreground/80",
   };
 }
 
@@ -933,9 +933,6 @@ function TreeNodeView({
           [{node.id}]
         </span>
         <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
-        <div className="ml-auto opacity-70 group-hover:opacity-100 transition-opacity">
-          <CountsPills counts={node.counts} />
-        </div>
       </div>
       {open && (
         <div className="relative">
@@ -977,7 +974,7 @@ function LeafItemCard({
 
   const accent =
     tipo === "quebra" ? "border-rose-500/40"
-    : tipo === "diferenca" ? "border-amber-500/40"
+    : tipo === "diferenca" ? "border-amber-700/50"
     : "border-fuchsia-500/40";
 
   return (
