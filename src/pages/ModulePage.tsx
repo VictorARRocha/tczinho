@@ -1268,27 +1268,26 @@ function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
               <TableHead>Data</TableHead>
-              <TableHead>Branch</TableHead>
+              <TableHead>VM</TableHead>
               <TableHead>Versão</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead className="text-right">Falhas</TableHead>
-              <TableHead className="text-right">Funcional</TableHead>
               <TableHead></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRuns.map((r) => {
-              const h = getHealthStatus(r.status_label || r.status_geral, r.score_saude);
               const active = r.id === currentId;
               return (
                 <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
                   <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.branch || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.maquina || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.versao_sistema || "—"}</TableCell>
-                  <TableCell><Badge variant="outline" className={h.className}>{h.label}</Badge></TableCell>
                   <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
-                  <TableCell className="text-right font-mono text-functional">{r.total_possivel_funcional}</TableCell>
-                  <TableCell><Button size="sm" variant={active ? "default" : "ghost"} onClick={() => onPick(r.id)}>{active ? "Atual" : "Abrir"}</Button></TableCell>
+                  <TableCell>
+                    {active
+                      ? <Button size="sm" variant="ghost" disabled>Atual</Button>
+                      : <Button size="sm" variant="ghost" onClick={() => onPick(r.id)}>Abrir</Button>}
+                  </TableCell>
                 </TableRow>
               );
             })}
