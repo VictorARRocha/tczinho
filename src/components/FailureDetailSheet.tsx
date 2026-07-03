@@ -235,43 +235,45 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 
           {errorImage && (
             <div>
-              <EvidenceItem ev={errorImage} priority />
-            </div>
+          {(falha.tipo_tecnico || falha.formulario_ou_tela || falha.componente ||
+            falha.fato_observado || falha.hipotese_principal || falha.analise_tecnica ||
+            falha.analise_funcional || falha.impacto_possivel || falha.trecho_relevante ||
+            falha.call_stack_resumido || falha.primeira_acao_recomendada ||
+            (Array.isArray(falha.tags) && falha.tags.length > 0)) && (
+            <section className="space-y-3">
+              <Grid>
+                <Field label="Tipo técnico" value={falha.tipo_tecnico} />
+                <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
+                <Field label="Componente" value={falha.componente} />
+                <Field label="Fato observado" value={falha.fato_observado} full />
+                <Field label="Hipótese principal" value={falha.hipotese_principal} full />
+                <Field label="Análise técnica" value={falha.analise_tecnica} full />
+                <Field label="Análise funcional" value={falha.analise_funcional} full />
+                <Field label="Impacto possível" value={falha.impacto_possivel} full />
+              </Grid>
+              {falha.trecho_relevante && <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />}
+              {falha.call_stack_resumido && <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />}
+              {falha.primeira_acao_recomendada && (
+                <Card className="p-4 border-primary/40 bg-primary/5">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs uppercase tracking-wider text-primary font-semibold mb-1">Primeira ação recomendada</p>
+                      <p className="text-sm">{falha.primeira_acao_recomendada}</p>
+                    </div>
+                  </div>
+                </Card>
+              )}
+              {Array.isArray(falha.tags) && falha.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {falha.tags.map((t: string, i: number) => (
+                    <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{t}</span>
+                  ))}
+                </div>
+              )}
+            </section>
           )}
 
-          <section className="space-y-3">
-            <Grid>
-              <Field label="Tipo técnico" value={falha.tipo_tecnico} />
-              <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
-              <Field label="Componente" value={falha.componente} />
-              
-              <Field label="Fato observado" value={falha.fato_observado} full />
-              <Field label="Hipótese principal" value={falha.hipotese_principal} full />
-              <Field label="Análise técnica" value={falha.analise_tecnica} full />
-              <Field label="Análise funcional" value={falha.analise_funcional} full />
-              <Field label="Impacto possível" value={falha.impacto_possivel} full />
-            </Grid>
-            {falha.trecho_relevante && <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />}
-            {falha.call_stack_resumido && <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />}
-            {falha.primeira_acao_recomendada && (
-              <Card className="p-4 border-primary/40 bg-primary/5">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-primary font-semibold mb-1">Primeira ação recomendada</p>
-                    <p className="text-sm">{falha.primeira_acao_recomendada}</p>
-                  </div>
-                </div>
-              </Card>
-            )}
-            {Array.isArray(falha.tags) && falha.tags.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {falha.tags.map((t: string, i: number) => (
-                  <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{t}</span>
-                ))}
-              </div>
-            )}
-          </section>
 
           {realPairs.length > 0 && (
             <Section title={`Comparações (${realPairs.length})`}>
