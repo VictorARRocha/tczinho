@@ -1386,7 +1386,7 @@ function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?
                   <TableCell>
                     {active
                       ? <Button size="sm" variant="ghost" disabled>Atual</Button>
-                      : <Button size="sm" variant="ghost" onClick={() => onPick(r.id)}>Abrir</Button>}
+                      : <Button size="sm" variant="outline" onClick={() => onPick(r.id)}>Abrir</Button>}
                   </TableCell>
                 </TableRow>
               );
