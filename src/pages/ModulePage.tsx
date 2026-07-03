@@ -805,6 +805,29 @@ function FalhasTab({
   const expandAll = () => setExpanded(new Set(allIds));
   const collapseAll = () => setExpanded(new Set());
 
+  // Smart open: ao clicar num grupo/subgrupo abaixo do módulo, expande o
+  // caminho até o primeiro caso com falha/diferença visível no filtro atual.
+  const smartOpen = (node: TreeNode, depth: number) => {
+    if (depth === 0) { toggle(node.id); return; }
+    if (expanded.has(node.id)) { toggle(node.id); return; }
+    const path: string[] = [];
+    const dfs = (n: TreeNode): boolean => {
+      if (n.items.length > 0) return true;
+      const kids = Array.from(n.children.values())
+        .filter((k) => k.counts.total > 0)
+        .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment));
+      for (const k of kids) {
+        path.push(k.id);
+        if (dfs(k)) return true;
+        path.pop();
+      }
+      return false;
+    };
+    dfs(node);
+    setExpanded((prev) => new Set([...prev, node.id, ...path]));
+  };
+
+
   const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
     <button
       onClick={() => setSubTab(id)}
@@ -853,8 +876,9 @@ function FalhasTab({
         <Card className="p-2 md:p-3 bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
           <div className="space-y-0.5">
             {rootChildren.map((c) => (
-              <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
+              <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSmartOpen={smartOpen} onSelect={onSelect} onCompare={onCompare} />
             ))}
+
             {orphans.length > 0 && (
               <OrphanGroup items={orphans} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
             )}
@@ -911,10 +935,11 @@ function nodeStyleForDepth(depth: number, open: boolean) {
 }
 
 function TreeNodeView({
-  node, depth, expanded, onToggle, onSelect, onCompare,
+  node, depth, expanded, onToggle, onSmartOpen, onSelect, onCompare,
 }: {
   node: TreeNode; depth: number; expanded: Set<string>;
   onToggle: (id: string) => void;
+  onSmartOpen: (node: TreeNode, depth: number) => void;
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
@@ -928,8 +953,9 @@ function TreeNodeView({
       <div
         className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
-        onClick={() => hasChildren && onToggle(node.id)}
+        onClick={() => hasChildren && onSmartOpen(node, depth)}
       >
+
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
         </span>
@@ -952,7 +978,7 @@ function TreeNodeView({
           {Array.from(node.children.values())
             .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment))
             .map((c) => (
-              <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onCompare={onCompare} />
+              <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSmartOpen={onSmartOpen} onSelect={onSelect} onCompare={onCompare} />
             ))}
         </div>
       )}
