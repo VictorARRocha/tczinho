@@ -933,9 +933,6 @@ function TreeNodeView({
           [{node.id}]
         </span>
         <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
-        <div className="ml-auto opacity-70 group-hover:opacity-100 transition-opacity">
-          <CountsPills counts={node.counts} />
-        </div>
       </div>
       {open && (
         <div className="relative">
