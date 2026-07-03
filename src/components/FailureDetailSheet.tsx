@@ -234,7 +234,10 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
 
           {errorImage && (
-            <div>
+            <EvidenceItem ev={errorImage} priority />
+          )}
+
+
           {(falha.tipo_tecnico || falha.formulario_ou_tela || falha.componente ||
             falha.fato_observado || falha.hipotese_principal || falha.analise_tecnica ||
             falha.analise_funcional || falha.impacto_possivel || falha.trecho_relevante ||
