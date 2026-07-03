@@ -6,8 +6,10 @@ import {
   fetchPerformanceByRun, fetchGroupLinksByRun,
   subscribeToTable, fetchModules, listStorageFilesByRun, mergeEvidences,
   fetchTestcaseHierarchy,
+  extractVmName,
   type TestcaseHierarchyNode,
 } from "@/services/qa";
+
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
