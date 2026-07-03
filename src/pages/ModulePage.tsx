@@ -1344,22 +1344,20 @@ function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; on
         <div className="space-y-2">
           {casos.map((f) => {
             const desc = failureDescription(f);
-            const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
-            const rid = f.rotina_funcional || f.subgrupo || "";
+            const nome = f.caso_teste_provavel || f.erro_titulo || "Caso";
+            const idCaso = f.id_caso_teste || "";
             return (
               <div
                 key={f.id}
-                className="rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
+                className="rounded-lg border border-border bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
                 onClick={() => onSelect(f)}
               >
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">
-                      {rid ? `[${rid}] ` : ""}{titulo}
+                      {idCaso ? `[${idCaso}] ` : ""}{nome}
                     </div>
                     <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                      {f.id_caso_teste && <span className="font-mono">#{f.id_caso_teste}</span>}
-                      {f.arquivo_zip && <span className="truncate max-w-[220px]">{f.arquivo_zip}</span>}
                       {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
                       {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
                     </div>
