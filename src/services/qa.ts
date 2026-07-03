@@ -179,7 +179,7 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
     public_url: row?.public_url ?? null,
     signed_url: row?.signed_url ?? null,
     url_expira_em: row?.url_expira_em ?? null,
-    conteudo_texto: row?.conteudo_texto ?? row?.conteudo_resumo ?? null,
+    conteudo_texto: fixMojibake(row?.conteudo_texto ?? row?.conteudo_resumo ?? null),
     mime_type: mime,
     extensao: ext,
     tamanho_bytes: row?.tamanho_bytes ?? null,
