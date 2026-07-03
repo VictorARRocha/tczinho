@@ -791,8 +791,11 @@ function FalhasTab({
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // expande tudo por padrão sempre que o conjunto de nós mudar (allIds já é memoizado por root)
-  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds]);
+  const hasActiveFilter = Boolean(debouncedQ || extFilter || subTab !== "todos");
+  // Estado inicial recolhido; expande automaticamente apenas quando há filtro/busca ativos
+  useEffect(() => {
+    setExpanded(hasActiveFilter ? new Set(allIds) : new Set());
+  }, [allIds, hasActiveFilter]);
 
   const toggle = (id: string) => setExpanded((prev) => {
     const n = new Set(prev);
@@ -884,31 +887,26 @@ function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
 
 // Estilo hierárquico por profundidade: nível 0 = módulo (forte), 1 = grupo, 2 = subgrupo, 3+ = subgrupos menores
 function nodeStyleForDepth(depth: number, open: boolean) {
-  const activeChip = "bg-primary/15 border-primary/40 text-primary";
+  const activeChip = "bg-foreground/[0.14] border-foreground/25 text-foreground font-semibold";
+  const idleChip = "bg-muted/40 border-border/50 text-muted-foreground group-hover:bg-muted/70 group-hover:border-border group-hover:text-foreground";
   if (depth === 0) {
     return {
       row: "py-2.5 mt-2 first:mt-0",
-      idChip: `font-mono text-sm font-semibold rounded-md px-2 py-0.5 border transition-colors ${
-        open ? activeChip : "bg-muted/60 border-border/60 text-foreground/85 group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
-      }`,
-      label: "text-base font-semibold text-foreground tracking-tight",
+      idChip: `font-mono text-sm rounded-md px-2 py-0.5 border transition-colors ${open ? activeChip : `font-semibold ${idleChip}`}`,
+      label: `text-base tracking-tight ${open ? "font-bold text-foreground" : "font-semibold text-foreground/90"}`,
     };
   }
   if (depth === 1) {
     return {
       row: "py-2",
-      idChip: `font-mono text-[13px] font-semibold rounded-md px-2 py-0.5 border transition-colors ${
-        open ? activeChip : "bg-muted/50 border-border/60 text-foreground/75 group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
-      }`,
-      label: "text-[15px] font-medium text-foreground/95",
+      idChip: `font-mono text-[13px] rounded-md px-2 py-0.5 border transition-colors ${open ? activeChip : `font-semibold ${idleChip}`}`,
+      label: `text-[15px] ${open ? "font-semibold text-foreground" : "font-medium text-foreground/85"}`,
     };
   }
   return {
     row: "py-1.5",
-    idChip: `font-mono text-xs font-semibold rounded-md px-1.5 py-0.5 border transition-colors ${
-      open ? activeChip : "bg-muted/40 border-border/50 text-muted-foreground group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:text-primary"
-    }`,
-    label: "text-sm text-foreground/85",
+    idChip: `font-mono text-xs rounded-md px-1.5 py-0.5 border transition-colors ${open ? activeChip : `font-medium ${idleChip}`}`,
+    label: `text-sm ${open ? "font-medium text-foreground" : "text-foreground/75"}`,
   };
 }
 
