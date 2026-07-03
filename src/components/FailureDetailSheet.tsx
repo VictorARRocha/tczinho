@@ -430,16 +430,50 @@ function ZipFileRow({ name, evidence }: { name: string; evidence: Evidencia | nu
   );
 }
 
-function EvidenceItem({ ev, priority }: { ev: Evidencia; priority?: boolean }) {
+function ImagePreviewDialog({ url, alt, open, onOpenChange }: { url: string | null; alt: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[95vw] w-fit p-0 bg-transparent border-0 shadow-none">
+        {url && (
+          <img src={url} alt={alt} className="max-w-[95vw] max-h-[92vh] object-contain rounded-md" />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TextPreviewDialog({ title, content, open, onOpenChange }: { title: string; content: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl">
+        <div className="flex items-center gap-2 pb-2 border-b border-border">
+          <FileText className="h-4 w-4 text-warning" />
+          <span className="text-sm font-medium truncate">{title}</span>
+          <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
+            <Copy className="h-3 w-3 mr-1" /> Copiar
+          </Button>
+        </div>
+        <pre className="font-mono text-xs p-3 overflow-auto max-h-[70vh] bg-background text-foreground/80 whitespace-pre-wrap rounded">{content || "(vazio)"}</pre>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?: boolean; hideCaption?: boolean }) {
   const isImage = isImageEv(ev);
+  const isTxt = ev.tipo === "txt" || (ev.extensao || "").toLowerCase() === "txt";
   const directUrl = ev.public_url || ev.signed_url || null;
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
   const [visible, setVisible] = useState(!!priority);
+  const [preview, setPreview] = useState(false);
+  const [txtContent, setTxtContent] = useState<string | null>(ev.conteudo_texto ?? null);
+  const [txtStatus, setTxtStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [txtOpen, setTxtOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!isImage || directUrl || !containerRef.current || visible) return;
+    if ((!isImage && !isTxt) || directUrl || !containerRef.current || visible) return;
     const el = containerRef.current;
     if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const io = new IntersectionObserver((entries) => {
@@ -447,7 +481,7 @@ function EvidenceItem({ ev, priority }: { ev: Evidencia; priority?: boolean }) {
     }, { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [isImage, directUrl, visible]);
+  }, [isImage, isTxt, directUrl, visible]);
 
   useEffect(() => {
     let cancel = false;
@@ -462,75 +496,109 @@ function EvidenceItem({ ev, priority }: { ev: Evidencia; priority?: boolean }) {
     return () => { cancel = true; };
   }, [ev.id, visible]);
 
+  // Carrega conteúdo real de TXT sob demanda
+  useEffect(() => {
+    if (!isTxt || txtContent != null || txtStatus !== "idle" || !visible) return;
+    let cancel = false;
+    (async () => {
+      setTxtStatus("loading");
+      const url = await resolveDownloadUrl(ev);
+      if (!url) { if (!cancel) setTxtStatus("error"); return; }
+      const text = await fetchTextSmart(url);
+      if (cancel) return;
+      if (text == null) setTxtStatus("error");
+      else { setTxtContent(text); setTxtStatus("idle"); }
+    })();
+    return () => { cancel = true; };
+  }, [ev.id, isTxt, visible]);
+
   const url = imgUrl;
 
   if (isImage) {
     return (
-      <Card className={cn("overflow-hidden", priority && "border-primary/40 ring-1 ring-primary/20")} ref={containerRef as any}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
-          <ImageIcon className="h-4 w-4 text-primary" />
-          <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
-          {formatBytes(ev.tamanho_bytes) && (
-            <span className="text-[11px] text-muted-foreground">{formatBytes(ev.tamanho_bytes)}</span>
-          )}
-          <div className="ml-auto flex gap-1">
-            {url && (
-              <a href={url} target="_blank" rel="noreferrer">
-                <Button variant="ghost" size="sm" className="h-7 text-xs"><ExternalLink className="h-3 w-3 mr-1" />Abrir</Button>
-              </a>
+      <>
+        <Card className={cn("overflow-hidden", priority && "border-primary/40 ring-1 ring-primary/20")} ref={containerRef as any}>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
+            <ImageIcon className="h-4 w-4 text-primary" />
+            <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
+            {formatBytes(ev.tamanho_bytes) && (
+              <span className="text-[11px] text-muted-foreground">{formatBytes(ev.tamanho_bytes)}</span>
             )}
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
-              <Download className="h-3 w-3 mr-1" />Baixar
-            </Button>
+            <div className="ml-auto flex gap-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
+                <Download className="h-3 w-3 mr-1" />Baixar
+              </Button>
+            </div>
           </div>
-        </div>
-        {url && !imgError ? (
-          <img
-            src={url}
-            alt={ev.imagem_descricao || ev.nome_arquivo || "evidência"}
-            loading="lazy"
-            decoding="async"
-            className={cn("w-full object-contain bg-background", priority ? "max-h-[520px]" : "max-h-96")}
-            onError={() => setImgError(true)}
-          />
-        ) : (
-          <div className="p-6 text-center text-xs text-muted-foreground">
-            {imgError ? "Não foi possível carregar esta evidência."
-              : !visible && ev.storage_path ? "Imagem será carregada quando visível…"
-              : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
-          </div>
-        )}
-        {ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
-      </Card>
+          {url && !imgError ? (
+            <button
+              type="button"
+              onClick={() => setPreview(true)}
+              className="block w-full cursor-zoom-in group/img"
+              title="Clique para ampliar"
+            >
+              <img
+                src={url}
+                alt={ev.nome_arquivo || "evidência"}
+                loading="lazy"
+                decoding="async"
+                className={cn("w-full object-contain bg-background transition-opacity group-hover/img:opacity-90", priority ? "max-h-[520px]" : "max-h-96")}
+                onError={() => setImgError(true)}
+              />
+            </button>
+          ) : (
+            <div className="p-6 text-center text-xs text-muted-foreground">
+              {imgError ? "Não foi possível carregar esta evidência."
+                : !visible && ev.storage_path ? "Imagem será carregada quando visível…"
+                : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
+            </div>
+          )}
+          {!hideCaption && ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
+        </Card>
+        <ImagePreviewDialog url={url} alt={ev.nome_arquivo || "evidência"} open={preview} onOpenChange={setPreview} />
+      </>
     );
   }
-  if (ev.tipo === "txt") {
+  if (isTxt) {
+    const firstLine = (txtContent || "").split(/\r?\n/).find((l) => l.trim().length > 0) || "";
+    const previewText =
+      txtStatus === "loading" ? "Carregando conteúdo…"
+      : txtStatus === "error" ? "Não foi possível carregar o conteúdo do TXT."
+      : txtContent == null ? "Carregando conteúdo…"
+      : firstLine ? firstLine
+      : "Arquivo TXT sem conteúdo.";
+    const canCopy = !!txtContent;
     return (
-      <Card>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
-          <FileText className="h-4 w-4 text-warning" />
-          <span className="text-xs font-medium">{ev.nome_arquivo || "Erro / Call stack"}</span>
-          <div className="ml-auto flex gap-1">
-            {ev.conteudo_texto && (
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { navigator.clipboard.writeText(ev.conteudo_texto!); toast.success("TXT copiado"); }}>
+      <>
+        <Card ref={containerRef as any}>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
+            <FileText className="h-4 w-4 text-warning" />
+            <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Erro / Call stack"}</span>
+            <div className="ml-auto flex gap-1">
+              <Button
+                variant="ghost" size="sm" className="h-7 text-xs"
+                disabled={!canCopy}
+                onClick={() => { if (txtContent) { navigator.clipboard.writeText(txtContent); toast.success("TXT copiado"); } }}
+              >
                 <Copy className="h-3 w-3 mr-1" />Copiar
               </Button>
-            )}
-            {url && (
-              <a href={url} target="_blank" rel="noreferrer">
-                <Button variant="ghost" size="sm" className="h-7 text-xs"><ExternalLink className="h-3 w-3 mr-1" />Abrir</Button>
-              </a>
-            )}
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setTxtOpen(true)} disabled={!canCopy}>
+                <ExternalLink className="h-3 w-3 mr-1" />Abrir
+              </Button>
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
+                <Download className="h-3 w-3 mr-1" />Baixar
+              </Button>
+            </div>
           </div>
-        </div>
-        {ev.conteudo_texto ? (
-          <pre className="font-mono text-xs p-3 overflow-x-auto max-h-80 bg-background text-foreground/80 whitespace-pre-wrap">{ev.conteudo_texto}</pre>
-        ) : (
-          <div className="p-6 text-center text-xs text-muted-foreground">Sem conteúdo de texto disponível.</div>
-        )}
-      </Card>
+          <div className="px-3 py-2.5 text-xs text-foreground/80 font-mono truncate" title={firstLine || undefined}>
+            {previewText}
+          </div>
+        </Card>
+        <TextPreviewDialog title={ev.nome_arquivo || "TXT"} content={txtContent || ""} open={txtOpen} onOpenChange={setTxtOpen} />
+      </>
     );
   }
+
   const isArchive = ev.tipo === "zip" || ev.tipo === "rar";
   if (isArchive || ev.tipo === "pdf" || ev.tipo === "outro") {
     const upper = (ev.tipo || "ARQUIVO").toUpperCase();
