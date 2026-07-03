@@ -791,8 +791,11 @@ function FalhasTab({
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // expande tudo por padrão sempre que o conjunto de nós mudar (allIds já é memoizado por root)
-  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds]);
+  const hasActiveFilter = Boolean(debouncedQ || extFilter || subTab !== "todos");
+  // Estado inicial recolhido; expande automaticamente apenas quando há filtro/busca ativos
+  useEffect(() => {
+    setExpanded(hasActiveFilter ? new Set(allIds) : new Set());
+  }, [allIds, hasActiveFilter]);
 
   const toggle = (id: string) => setExpanded((prev) => {
     const n = new Set(prev);
