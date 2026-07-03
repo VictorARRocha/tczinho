@@ -1531,43 +1531,8 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        {distData.length > 0 && (
-          <Card className="glass-card p-6">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição</h3>
-            <ResponsiveContainer width="100%" height={220}>
-              <PieChart>
-                <Pie data={distData} dataKey="value" innerRadius={50} outerRadius={80} paddingAngle={2}>
-                  {distData.map((d, i) => <Cell key={i} fill={d.color} stroke="hsl(var(--background))" strokeWidth={2} />)}
-                </Pie>
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="flex flex-wrap gap-2 justify-center mt-2">
-              {distData.map((d) => (
-                <div key={d.name} className="flex items-center gap-1.5 text-xs">
-                  <span className="h-2 w-2 rounded-full" style={{ background: d.color }} />{d.name} <span className="font-mono text-muted-foreground">{d.value}</span>
-                </div>
-              ))}
-            </div>
-          </Card>
-        )}
-
-        {topSlowChart.length > 0 && (
-          <Card className="glass-card p-6">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Top {topSlowChart.length} maiores atrasos</h3>
-            <ResponsiveContainer width="100%" height={Math.max(220, topSlowChart.length * 26)}>
-              <BarChart data={topSlowChart} layout="vertical" margin={{ left: 10 }}>
-                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v) => formatDuration(Number(v))} />
-                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} width={90} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(v: any) => formatDuration(Number(v))} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-                <Bar dataKey="value" fill="hsl(var(--destructive))" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-
         {topFastChart.length > 0 && (
-          <Card className="glass-card p-6">
+          <Card className="glass-card p-6 md:col-span-3">
             <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Top {topFastChart.length} maiores ganhos</h3>
             <ResponsiveContainer width="100%" height={Math.max(220, topFastChart.length * 26)}>
               <BarChart data={topFastChart} layout="vertical" margin={{ left: 10 }}>
@@ -1580,6 +1545,7 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           </Card>
         )}
       </div>
+
 
       {(topSlow.length > 0 || topFast.length > 0) && (
         <div className="grid gap-4 md:grid-cols-2">
