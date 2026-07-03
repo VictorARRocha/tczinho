@@ -253,7 +253,7 @@ function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { modulo:
     { label: "Sistema", value: rodagem.sistema },
     { label: "Branch", value: rodagem.branch },
     { label: "Versão", value: rodagem.versao_sistema },
-    { label: "Análise", value: formatDateTime(rodagem.data_analise) },
+    { label: "Data", value: formatDateTime(rodagem.data_analise) },
   ].filter((f) => isMeaningful(f.value)) : [];
   return (
     <Card className="glass-card p-6 lg:p-8 relative overflow-hidden">
