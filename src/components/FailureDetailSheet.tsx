@@ -332,6 +332,12 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             <EvidenceItem ev={errorImage} priority />
           )}
 
+          {otherEvidences.length > 0 && (
+            <div className="space-y-3">
+              {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+            </div>
+          )}
+
 
           {(falha.tipo_tecnico || falha.formulario_ou_tela || falha.componente ||
             falha.fato_observado || falha.hipotese_principal || falha.analise_tecnica ||
