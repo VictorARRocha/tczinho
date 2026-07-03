@@ -1504,7 +1504,7 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   }, [data]);
 
 
-  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
+  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, groups, hasName } = stats;
 
   const cards = useMemo(() => ([
     { label: "Registros", value: data.length, tone: "" },
