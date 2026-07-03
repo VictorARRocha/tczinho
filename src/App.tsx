@@ -12,7 +12,7 @@ import Index from "./pages/Index";
 
 // Demais rotas carregadas sob demanda (code-splitting) — bundle inicial menor
 const ModulePage = lazy(() => import("./pages/ModulePage"));
-const ImportPage = lazy(() => import("./pages/ImportPage"));
+
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
