@@ -8,6 +8,7 @@ import {
 
 function getModuleIcon(nome: string): LucideIcon {
   const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (n.includes("practice")) return NotebookText;
   if (n.includes("suprema")) return PiggyBank;
   if (n.includes("folha")) return Users;
   if (n.includes("ponto")) return Clock;
