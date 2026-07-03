@@ -979,7 +979,7 @@ function LeafItemCard({
 
   return (
     <div
-      className={`ml-1 my-2 border-l-2 ${accent} bg-card/40 hover:bg-card/70 rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
+      className={`ml-1 my-2 border-l-2 ${accent} bg-card/80 hover:bg-card border border-border/60 hover:border-border rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
       style={{ marginLeft: indent }}
       onClick={() => onSelect(f)}
       role="button"
@@ -990,7 +990,7 @@ function LeafItemCard({
         {/* Cabeçalho: ID + Nome + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
           {idCaso && (
-            <span className="font-mono text-[11px] font-semibold text-foreground/90 bg-muted/60 border border-border/60 rounded-md px-2 py-0.5 shrink-0 tabular-nums">
+            <span className="font-mono text-[11px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 tabular-nums">
               #{idCaso}
             </span>
           )}
@@ -1007,7 +1007,7 @@ function LeafItemCard({
             {f.classificacao && <ClassificationBadge value={f.classificacao} />}
             {script && (
               <span className="text-[11px] text-muted-foreground">
-                <span className="opacity-70">Script:</span> <span className="font-mono">{script}</span>
+                <span className="opacity-80">Script:</span> <span className="font-mono text-foreground/80">{script}</span>
               </span>
             )}
           </div>
@@ -1015,7 +1015,7 @@ function LeafItemCard({
 
         {/* Descrição */}
         {isQuebra && desc && (
-          <p className="text-[13px] text-muted-foreground leading-relaxed line-clamp-3">{desc}</p>
+          <p className="text-[13px] text-foreground/75 leading-relaxed line-clamp-3">{desc}</p>
         )}
 
         {/* Pares de comparação */}
