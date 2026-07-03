@@ -274,8 +274,10 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
               );
             })}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </Card>
+
 
       <DetailDialog request={detail} onClose={() => setDetail(null)} />
     </TooltipProvider>
