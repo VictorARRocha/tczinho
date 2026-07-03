@@ -42,6 +42,22 @@ const DEFAULT_MODULES = [
 ];
 const OFFICIAL_SLUGS = new Set(DEFAULT_MODULES.map((m) => m.slug));
 
+// Corrige mojibake: texto UTF-8 que foi decodificado como Latin-1 antes de salvar
+// no banco (ex.: "tÃ©cnico" -> "técnico"). Só re-decodifica quando detectamos
+// os marcadores clássicos ("Ã", "Â") para evitar mexer em textos já corretos.
+function fixMojibake<T extends string | null | undefined>(s: T): T {
+  if (typeof s !== "string" || !s) return s;
+  if (!/[ÃÂ][\x80-\xBF]/.test(s)) return s;
+  try {
+    const bytes = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
+    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    return (decoded.includes("\uFFFD") ? s : decoded) as T;
+  } catch {
+    return s;
+  }
+}
+
 // ---------- Normalizadores ----------
 function normModulo(row: any, ordem = 0): Modulo {
   const nome = row?.nome ?? "";
