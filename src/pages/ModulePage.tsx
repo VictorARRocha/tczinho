@@ -901,8 +901,8 @@ function TreeNodeView({
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />}
         </span>
-        <span className="font-mono text-sm font-bold text-primary bg-primary/10 border border-primary/30 rounded px-2 py-0.5 shrink-0">
-          [{node.id}]
+        <span className="font-mono text-xs font-medium text-muted-foreground shrink-0 tabular-nums">
+          {node.id}
         </span>
         <span className="text-sm text-foreground/90 truncate" title={node.label}>{node.label}</span>
       </div>
