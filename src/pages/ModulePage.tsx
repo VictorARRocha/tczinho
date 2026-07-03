@@ -1329,10 +1329,9 @@ function AgrupamentoCard({ g, onSelect }: { g: any; onSelect: (f: Falha) => void
   );
 }
 
-function GroupCasesList({ casos, onSelect }: { casos: Falha[]; onSelect: (f: Falha) => void }) {
-  const [open, setOpen] = useState(false);
+function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; onSelect: (f: Falha) => void; open: boolean; setOpen: (v: boolean | ((p: boolean) => boolean)) => void }) {
   return (
-    <div>
+    <div onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
           Casos vinculados a esta quebra ({casos.length})
