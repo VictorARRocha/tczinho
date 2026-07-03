@@ -156,7 +156,7 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold">Sem dados reais ainda</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-        Nenhum módulo encontrado. Execute as migrations no Supabase do projeto Tczinho para começar.
+        Nenhum módulo encontrado. Execute as migrations no Supabase do projeto TC Agente SCI para começar.
       </p>
     </Card>
   );

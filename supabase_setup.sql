@@ -1,6 +1,6 @@
 -- =====================================================================
--- TCzinho — SCI QA Agent — Migration completa (idempotente)
--- Projeto Supabase: bxbqciqyxvcrlkheszdk (Tczinho)
+-- TC Agente SCI — SCI QA Agent — Migration completa (idempotente)
+-- Projeto Supabase: bxbqciqyxvcrlkheszdk (TC Agente SCI)
 -- Cole tudo no SQL Editor e execute. Pode rodar várias vezes.
 -- =====================================================================
 
