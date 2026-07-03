@@ -56,14 +56,6 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/importar"}>
-                  <NavLink to="/importar">
-                    <FileSearch />
-                    <span>Importar JSON</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
                   <NavLink to="/jenkins">
                     <Server />
