@@ -247,7 +247,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
               <Field label="Tipo técnico" value={falha.tipo_tecnico} />
               <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
               <Field label="Componente" value={falha.componente} />
-              <Field label="Descrição" value={falha.mensagem_principal} full />
+              
               <Field label="Fato observado" value={falha.fato_observado} full />
               <Field label="Hipótese principal" value={falha.hipotese_principal} full />
               <Field label="Análise técnica" value={falha.analise_tecnica} full />
