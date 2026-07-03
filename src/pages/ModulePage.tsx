@@ -262,9 +262,16 @@ function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { modulo:
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
             <h1 className="text-3xl font-bold tracking-tight">{modulo?.nome || "Módulo"}</h1>
-            <Badge variant="outline" className={`${health.className} gap-1.5`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />{health.label}
-            </Badge>
+            {(rodagem && health.label !== "Sem dados") && (
+              <Badge variant="outline" className={`${health.className} gap-1.5`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />{health.label}
+              </Badge>
+            )}
+            {!rodagem && (
+              <Badge variant="outline" className={`${health.className} gap-1.5`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />Sem dados
+              </Badge>
+            )}
             {runs.length > 0 && (
               <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
