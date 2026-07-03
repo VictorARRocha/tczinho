@@ -492,7 +492,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   const [imgError, setImgError] = useState(false);
   const [visible, setVisible] = useState(!!priority);
   const [preview, setPreview] = useState(false);
-  const [txtContent, setTxtContent] = useState<string | null>(ev.conteudo_texto ?? null);
+  const [txtContent, setTxtContent] = useState<string | null>(isTxtPlaceholder(ev.conteudo_texto) ? null : (ev.conteudo_texto ?? null));
   const [txtStatus, setTxtStatus] = useState<"idle" | "loading" | "error">("idle");
   const [txtOpen, setTxtOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
