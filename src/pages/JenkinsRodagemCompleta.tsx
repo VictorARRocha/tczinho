@@ -154,18 +154,18 @@ export default function JenkinsRodagemCompleta() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
+      <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs text-muted-foreground">
         <Link to="/jenkins" className="inline-flex items-center gap-1 hover:text-foreground">
           <ChevronLeft className="h-3.5 w-3.5" /> Jenkins
         </Link>
       </div>
 
-      <div className="mb-8">
+      <div className="mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
           <Server className="h-3 w-3" /> Rodagem completa
         </div>
-        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
           Nova rodagem <span className="gradient-text">Jenkins</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
@@ -173,16 +173,17 @@ export default function JenkinsRodagemCompleta() {
         </p>
       </div>
 
-      <Tabs defaultValue="simplificada" className="mb-10">
-        <TabsList className="mb-4">
-          <TabsTrigger value="simplificada">Simplificada</TabsTrigger>
-          <TabsTrigger value="configurada">Configurada</TabsTrigger>
+      <Tabs defaultValue="simplificada" className="mb-8 sm:mb-10">
+        <TabsList className="mb-4 w-full sm:w-auto">
+          <TabsTrigger value="simplificada" className="flex-1 sm:flex-none">Simplificada</TabsTrigger>
+          <TabsTrigger value="configurada" className="flex-1 sm:flex-none">Configurada</TabsTrigger>
         </TabsList>
 
         {/* ============================== SIMPLIFICADA ============================== */}
         <TabsContent value="simplificada">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card className="glass-card p-6 space-y-5">
+          <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+
+            <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="VM">
                 <Select value={sVm} onValueChange={setSVm}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -252,8 +253,8 @@ export default function JenkinsRodagemCompleta() {
 
         {/* ============================== CONFIGURADA ============================== */}
         <TabsContent value="configurada">
-          <div className="grid gap-5 lg:grid-cols-2">
-            <Card className="glass-card p-6 space-y-5">
+          <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
+            <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="vm_name">
                 <Select value={cVm} onValueChange={setCVm}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -312,7 +313,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 
 function JsonPreview({ title, data, onCopy }: { title: string; data: any; onCopy: () => void }) {
   return (
-    <Card className="glass-card p-6">
+    <Card className="glass-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
         <Button size="sm" variant="ghost" onClick={onCopy}>

@@ -141,30 +141,43 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
     window.addEventListener("pointerup", stop);
   };
 
+  const [isMobile, setIsMobile] = useState<boolean>(
+    typeof window !== "undefined" ? window.innerWidth < 768 : false,
+  );
+  useEffect(() => {
+    const on = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", on);
+    return () => window.removeEventListener("resize", on);
+  }, []);
+
   return (
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
         {...props}
-        style={{ width: `min(100vw, ${width}px)` }}
+        style={{ width: isMobile ? "100vw" : `min(100vw, ${width}px)` }}
         className={cn(
           "fixed inset-y-0 right-0 z-50 flex h-full flex-col gap-0 border-l border-border bg-card p-0 shadow-2xl",
           "transition-none data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           "data-[state=closed]:duration-300 data-[state=open]:duration-400",
           className,
+
         )}
       >
-        {/* Drag handle */}
-        <div
-          onPointerDown={onHandleDown}
-          role="separator"
-          aria-orientation="vertical"
-          className="group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors"
-          title="Arraste para redimensionar"
-        >
-          <div className="absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/60 group-hover:bg-primary/70" />
-        </div>
+        {/* Drag handle — desktop only */}
+        {!isMobile && (
+          <div
+            onPointerDown={onHandleDown}
+            role="separator"
+            aria-orientation="vertical"
+            className="group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors"
+            title="Arraste para redimensionar"
+          >
+            <div className="absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/60 group-hover:bg-primary/70" />
+          </div>
+        )}
+
 
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
 
@@ -237,7 +250,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
       <ResizableSheetContent>
-        <div className="px-7 pt-7 pb-5 border-b border-border/60">
+        <div className="px-4 sm:px-7 pt-5 sm:pt-7 pb-4 sm:pb-5 border-b border-border/60">
           <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10">
             {falha.id_caso_teste && <span>[{falha.id_caso_teste}] </span>}
             {falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}
@@ -250,7 +263,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
         </div>
 
-        <div className="px-7 py-6 space-y-8">
+        <div className="px-4 sm:px-7 py-5 sm:py-6 space-y-6 sm:space-y-8">
 
 
           {falha.arquivo_zip && (
