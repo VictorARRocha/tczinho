@@ -1426,20 +1426,32 @@ function PerfBadge({ status }: { status: AtrasoRodagem["status"] }) {
 
 function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [q, setQ] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [caseFilter, setCaseFilter] = useState<string>("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [caseFilter, setCaseFilter] = useState<string>("all");
+  const [groupFilter, setGroupFilter] = useState<string>("all");
   const debouncedQ = useDebounce(q, 250);
+
+  const groupOf = (codigo?: string | null) => {
+    const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
+    return m ? m[1] : "";
+  };
 
   const filtered = useMemo(() => {
     let out = [...data];
-    if (statusFilter) out = out.filter((d) => d.status === statusFilter);
-    if (caseFilter) out = out.filter((d) => d.codigo_teste === caseFilter);
+    if (statusFilter !== "all") out = out.filter((d) => d.status === statusFilter);
+    if (groupFilter !== "all") out = out.filter((d) => groupOf(d.codigo_teste) === groupFilter);
+    if (caseFilter !== "all") out = out.filter((d) => d.codigo_teste === caseFilter);
     if (debouncedQ) {
       const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
     }
-    return out.sort((a, b) => Math.abs(b.delay_segundos) - Math.abs(a.delay_segundos));
-  }, [data, debouncedQ, statusFilter, caseFilter]);
+    return out.sort((a, b) => {
+      const ga = groupOf(a.codigo_teste), gb = groupOf(b.codigo_teste);
+      if (ga !== gb) return ga.localeCompare(gb, undefined, { numeric: true });
+      return (a.codigo_teste || "").localeCompare(b.codigo_teste || "", undefined, { numeric: true });
+    });
+  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter]);
+
 
   if (data.length === 0) {
     return (
