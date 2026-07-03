@@ -353,19 +353,19 @@ function OccCard({ label, value, tone, onClick }: { label: string; value: number
 }
 
 function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; performance: AtrasoRodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
-  const classData = [
+  const classData = useMemo(() => [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
     { name: "Ambiente", value: rodagem.total_ambiente, color: "hsl(var(--environment))" },
     { name: "Possível funcional", value: rodagem.total_possivel_funcional, color: "hsl(var(--functional))" },
     { name: "Inconclusivo", value: rodagem.total_inconclusivo, color: "hsl(var(--inconclusive))" },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0), [rodagem.total_automacao, rodagem.total_massa_dados, rodagem.total_ambiente, rodagem.total_possivel_funcional, rodagem.total_inconclusivo]);
 
-  const sevData = [
+  const sevData = useMemo(() => [
     { name: "Alta", value: rodagem.total_alta, color: "hsl(var(--destructive))" },
     { name: "Média", value: rodagem.total_media, color: "hsl(var(--warning))" },
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0), [rodagem.total_alta, rodagem.total_media, rodagem.total_baixa]);
 
   const rotinaData = useMemo(() => {
     const m = new Map<string, number>();
