@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale,
   type LucideIcon,
 } from "lucide-react";
 
@@ -11,7 +11,7 @@ function getModuleIcon(nome: string): LucideIcon {
   if (n.includes("folha")) return Users;
   if (n.includes("ponto")) return Clock;
   if (n.includes("fiscal")) return Receipt;
-  if (n.includes("contabil")) return BookOpen;
+  if (n.includes("contabil")) return Scale;
   if (n.includes("patrimonio")) return Building2;
   if (n.includes("lalur")) return Calculator;
   if (n.includes("financeiro")) return Wallet;
