@@ -80,9 +80,14 @@ export default function ReexecutarTestes() {
   );
 
   const loadRuns = async () => {
-    const list = await fetchAllRuns();
-    setRuns(list);
-    if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
+    try {
+      const list = await fetchAllRuns();
+      console.log("[ReexecutarTestes] loadRuns", list.length, list[0]);
+      setRuns(list);
+      if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
+    } catch (e) {
+      console.error("[ReexecutarTestes] loadRuns error", e);
+    }
   };
 
   const loadHistory = async () => {
