@@ -766,31 +766,14 @@ export async function fetchAllRuns(): Promise<RodagemListItem[]> {
     console.error("[fetchAllRuns]", error);
     return [];
   }
-  // descobre módulo via fk_modulo de falhas → agrupamentos → rodagens
-  const ids = (data || []).map((r: any) => r.id_rodagem);
-  const moduloByRun = new Map<string, string>();
-  if (ids.length > 0) {
-    const { data: ag } = await supabase
-      .from("agrupamentos")
-      .select("id_cluster, fk_rodagem")
-      .in("fk_rodagem", ids);
-    const clusterToRun = new Map<string, string>();
-    (ag || []).forEach((a: any) => clusterToRun.set(a.id_cluster, a.fk_rodagem));
-    const clusterIds = Array.from(clusterToRun.keys());
-    if (clusterIds.length > 0) {
-      const { data: fs } = await supabase
-        .from("falhas")
-        .select("fk_cluster, fk_modulo")
-        .in("fk_cluster", clusterIds);
-      const { data: mods } = await supabase.from("modulos").select("id_modulo, nome");
-      const modById = new Map<string, string>();
-      (mods || []).forEach((m: any) => modById.set(m.id_modulo, slugify(m.nome)));
-      (fs || []).forEach((f: any) => {
-        const run = clusterToRun.get(f.fk_cluster);
-        const slug = modById.get(f.fk_modulo);
-        if (run && slug && !moduloByRun.has(run)) moduloByRun.set(run, slug);
-      });
-    }
+  // Enrichimento leve: mapeia fk_modulo -> slug via tabela modulos (uma única query).
+  // Evita joins pesados via agrupamentos/falhas que estouram o tamanho da URL com muitas rodagens.
+  const modById = new Map<string, string>();
+  try {
+    const { data: mods } = await supabase.from("modulos").select("id_modulo, nome");
+    (mods || []).forEach((m: any) => modById.set(m.id_modulo, slugify(m.nome)));
+  } catch (e) {
+    console.warn("[fetchAllRuns] modulos enrich falhou", e);
   }
   return (data || []).map((r: any) => ({
     id_rodagem: r.id_rodagem,
@@ -802,7 +785,7 @@ export async function fetchAllRuns(): Promise<RodagemListItem[]> {
     total_falhas: r.total_falhas ?? 0,
     total_clusters: r.total_clusters ?? 0,
     created_at: r.created_at ?? null,
-    modulo_slug: moduloByRun.get(r.id_rodagem) ?? null,
+    modulo_slug: (r.fk_modulo && modById.get(r.fk_modulo)) ?? null,
   }));
 }
 

@@ -80,9 +80,14 @@ export default function ReexecutarTestes() {
   );
 
   const loadRuns = async () => {
-    const list = await fetchAllRuns();
-    setRuns(list);
-    if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
+    try {
+      const list = await fetchAllRuns();
+      setRuns(list);
+      if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
+    } catch (e: any) {
+      console.error("[ReexecutarTestes] loadRuns error", e);
+      toast.error("Erro ao carregar rodagens", { description: e?.message });
+    }
   };
 
   const loadHistory = async () => {
