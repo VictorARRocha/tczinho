@@ -92,7 +92,8 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
 
   return (
     <Link to={`/modulo/${modulo.slug}`} className="group">
-      <Card className={`relative overflow-hidden p-6 glass-card transition-smooth hover:-translate-y-0.5 hover:border-primary/40 ${!hasData ? "opacity-80" : ""}`}>
+      <Card className={`relative overflow-hidden p-5 sm:p-6 glass-card transition-smooth hover:-translate-y-0.5 hover:border-primary/40 ${!hasData ? "opacity-80" : ""}`}>
+
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
         <div className="flex items-start justify-between mb-5">
