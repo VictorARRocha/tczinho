@@ -1538,14 +1538,15 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const cards = useMemo(() => {
     const netDelta = totalAdded - totalSaved; // >0 mais lento no total; <0 mais rápido
     const netTone = netDelta > 0 ? "text-destructive" : netDelta < 0 ? "text-success" : "text-muted-foreground";
-    const netValue = netDelta === 0 ? formatDuration(0) : `${netDelta > 0 ? "+" : "-"}${formatDuration(Math.abs(netDelta))}`;
+    const netValue = netDelta === 0 ? formatDuration(0) : `${netDelta > 0 ? "+" : "-"} ${formatDuration(Math.abs(netDelta))}`;
     return ([
       { label: "Registros", value: data.length, tone: "" },
       { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
       { label: "Mais rápidos", value: fast.length, tone: "text-success" },
-      { label: "Maior atraso", value: maxDelay ? `+${formatDuration(maxDelay.delay_segundos)}` : "—", tone: "text-destructive" },
-      { label: "Maior ganho", value: maxGain ? `-${formatDuration(Math.abs(maxGain.delay_segundos))}` : "—", tone: "text-success" },
+      { label: "Maior atraso", value: maxDelay ? `+ ${formatDuration(maxDelay.delay_segundos)}` : "—", tone: "text-destructive" },
+      { label: "Maior ganho", value: maxGain ? `- ${formatDuration(Math.abs(maxGain.delay_segundos))}` : "—", tone: "text-success" },
       { label: "Diferença de tempo total", value: netValue, tone: netTone },
+
     ] as { label: string; value: any; tone: string }[]);
   }, [data.length, slow.length, fast.length, maxDelay, maxGain, totalAdded, totalSaved]);
 
