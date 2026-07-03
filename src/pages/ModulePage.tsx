@@ -887,21 +887,21 @@ function nodeStyleForDepth(depth: number) {
   if (depth === 0) {
     return {
       row: "py-2.5 mt-2 first:mt-0",
-      idChip: "font-mono text-xs font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
-      label: "text-[15px] font-semibold text-foreground tracking-tight",
+      idChip: "font-mono text-sm font-semibold text-foreground bg-foreground/10 border border-foreground/15 rounded-md px-2 py-0.5",
+      label: "text-base font-semibold text-foreground tracking-tight",
     };
   }
   if (depth === 1) {
     return {
       row: "py-2",
-      idChip: "font-mono text-[11px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
-      label: "text-sm font-medium text-foreground/90",
+      idChip: "font-mono text-[13px] font-semibold text-foreground/90 bg-muted/70 border border-border/70 rounded-md px-2 py-0.5",
+      label: "text-[15px] font-medium text-foreground/90",
     };
   }
   return {
     row: "py-1.5",
-    idChip: "font-mono text-[10.5px] font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
-    label: "text-[13px] text-foreground/80",
+    idChip: "font-mono text-xs font-medium text-muted-foreground bg-muted/40 border border-border/50 rounded-md px-1.5 py-0.5",
+    label: "text-sm text-foreground/80",
   };
 }
 
