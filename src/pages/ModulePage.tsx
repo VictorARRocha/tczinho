@@ -938,7 +938,7 @@ function TreeNodeView({
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
         </span>
-        <span className={`truncate ${style.label}`} title={node.label}>{node.label}</span>
+        <span className={`truncate ${style.label}`}>{node.label}</span>
       </div>
       {open && (
         <div className="relative">
