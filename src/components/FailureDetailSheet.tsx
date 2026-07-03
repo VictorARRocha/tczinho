@@ -225,23 +225,24 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
               <Field label="ID do caso" value={falha.id_caso_teste} />
               <Field label="Grupo" value={falha.grupo} />
               <Field label="Nome do caso" value={falha.caso_teste_provavel} full />
-              {falha.arquivo_zip && (
-                <div className="col-span-2">
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Arquivo ZIP/RAR</div>
-                  <ZipFileRow name={falha.arquivo_zip} evidence={zipEvidence} />
-                </div>
-              )}
               <Field label="Subgrupo" value={falha.subgrupo} />
               <Field label="Rotina funcional" value={falha.rotina_funcional} />
             </Grid>
           </Section>
 
-          <Section title="Análise">
-            {errorImage && (
-              <div className="mb-4">
-                <EvidenceItem ev={errorImage} priority />
-              </div>
-            )}
+          {falha.arquivo_zip && (
+            <Section title="Arquivo ZIP/RAR">
+              <ZipFileRow name={falha.arquivo_zip} evidence={zipEvidence} />
+            </Section>
+          )}
+
+          {errorImage && (
+            <div>
+              <EvidenceItem ev={errorImage} priority />
+            </div>
+          )}
+
+          <section className="space-y-3">
             <Grid>
               <Field label="Tipo técnico" value={falha.tipo_tecnico} />
               <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
@@ -273,7 +274,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                 ))}
               </div>
             )}
-          </Section>
+          </section>
 
           {realPairs.length > 0 && (
             <Section title={`Comparações (${realPairs.length})`}>
@@ -302,22 +303,23 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 
           {numberedPrints.length > 0 && (
             <Collapsible>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Prints do teste <span className="text-foreground/60 normal-case font-normal">({numberedPrints.length})</span>
-                </h3>
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 text-xs group">
-                    <ChevronRight className="h-3.5 w-3.5 mr-1 transition-transform group-data-[state=open]:rotate-90 data-[state=open]:rotate-90" />
-                    Expandir
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="group flex w-full items-center gap-2 text-left mb-3 hover:text-foreground transition-colors"
+                >
+                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
+                    Prints do teste <span className="text-foreground/60 normal-case font-normal">({numberedPrints.length})</span>
+                  </h3>
+                </button>
+              </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
                 {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} />)}
               </CollapsibleContent>
             </Collapsible>
           )}
+
 
           {otherEvidences.length > 0 && (
             <Section title={`Outras evidências (${otherEvidences.length})`}>
