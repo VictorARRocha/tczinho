@@ -978,7 +978,7 @@ function TreeNodeView({
           {Array.from(node.children.values())
             .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment))
             .map((c) => (
-              <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSelect={onSelect} onCompare={onCompare} />
+              <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSmartOpen={onSmartOpen} onSelect={onSelect} onCompare={onCompare} />
             ))}
         </div>
       )}
