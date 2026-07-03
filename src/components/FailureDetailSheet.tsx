@@ -9,10 +9,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
   AlertCircle, GitCompare, X, ChevronDown, ChevronRight,
 } from "lucide-react";
+
 import { toast } from "sonner";
 import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
 import { FileComparatorDialog } from "./FileComparator";
