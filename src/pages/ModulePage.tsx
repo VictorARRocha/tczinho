@@ -869,11 +869,11 @@ function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
 }
 
 function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
+  const totalDif = counts.diferenca + counts.quebra_diferenca;
   return (
     <div className="flex gap-1 flex-wrap">
       {counts.quebra > 0 && <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] px-1.5 py-0">{counts.quebra} quebra</Badge>}
-      {counts.diferenca > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{counts.diferenca} dif.</Badge>}
-      {counts.quebra_diferenca > 0 && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] px-1.5 py-0">{counts.quebra_diferenca} misto</Badge>}
+      {totalDif > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{totalDif} dif.</Badge>}
     </div>
   );
 }
