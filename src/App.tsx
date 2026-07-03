@@ -47,10 +47,7 @@ const App = () => (
               path="/modulo/:slug"
               element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
             />
-            <Route
-              path="/importar"
-              element={withSuspense(<ImportPage />, "Carregando importação...")}
-            />
+            <Route path="/importar" element={<Navigate to="/" replace />} />
             <Route
               path="/jenkins"
               element={withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
