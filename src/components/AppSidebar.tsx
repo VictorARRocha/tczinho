@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale,
   type LucideIcon,
 } from "lucide-react";
 
