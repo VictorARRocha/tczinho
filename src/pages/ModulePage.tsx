@@ -1594,19 +1594,35 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           <Input placeholder="Buscar por código ou nome do caso..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
         </div>
         <div className="flex flex-wrap gap-2">
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
-            <option value="">Status: todos</option>
-            <option value="mais_lento">Mais lento</option>
-            <option value="mais_rapido">Mais rápido</option>
-            <option value="igual">Sem variação</option>
-          </select>
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Status: todos</SelectItem>
+              <SelectItem value="mais_lento">Mais lento</SelectItem>
+              <SelectItem value="mais_rapido">Mais rápido</SelectItem>
+              <SelectItem value="igual">Sem variação</SelectItem>
+            </SelectContent>
+          </Select>
+          {groups.length > 0 && (
+            <Select value={groupFilter} onValueChange={setGroupFilter}>
+              <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Grupo" /></SelectTrigger>
+              <SelectContent className="max-h-[320px]">
+                <SelectItem value="all">Grupo: todos</SelectItem>
+                {groups.map((g) => <SelectItem key={g} value={g}>[{g}]</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
           {cases.length > 0 && (
-            <select value={caseFilter} onChange={(e) => setCaseFilter(e.target.value)} className="h-8 rounded-md border border-border bg-background px-2 text-xs">
-              <option value="">Caso: todos</option>
-              {cases.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            <Select value={caseFilter} onValueChange={setCaseFilter}>
+              <SelectTrigger className="h-9 w-[220px] text-xs bg-background"><SelectValue placeholder="Caso" /></SelectTrigger>
+              <SelectContent className="max-h-[320px]">
+                <SelectItem value="all">Caso: todos</SelectItem>
+                {cases.filter((c) => groupFilter === "all" || groupOf(c) === groupFilter).map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
           )}
         </div>
+
       </Card>
 
       <Card className="glass-card overflow-hidden">
