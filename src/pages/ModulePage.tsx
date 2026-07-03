@@ -923,15 +923,14 @@ function TreeNodeView({
   const hasChildren = node.children.size > 0 || node.items.length > 0;
   const open = expanded.has(node.id);
   const indent = depth * 16;
-  const style = nodeStyleForDepth(depth);
+  const style = nodeStyleForDepth(depth, open);
 
   return (
     <div>
       <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/70 ${style.row}`}
+        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
         style={{ paddingLeft: indent + 8 }}
         onClick={() => hasChildren && onToggle(node.id)}
-        title={node.fullPath || node.label}
       >
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
           {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
