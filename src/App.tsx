@@ -12,7 +12,7 @@ import Index from "./pages/Index";
 
 // Demais rotas carregadas sob demanda (code-splitting) — bundle inicial menor
 const ModulePage = lazy(() => import("./pages/ModulePage"));
-const ImportPage = lazy(() => import("./pages/ImportPage"));
+
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
@@ -47,10 +47,7 @@ const App = () => (
               path="/modulo/:slug"
               element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
             />
-            <Route
-              path="/importar"
-              element={withSuspense(<ImportPage />, "Carregando importação...")}
-            />
+            <Route path="/importar" element={<Navigate to="/" replace />} />
             <Route
               path="/jenkins"
               element={withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
