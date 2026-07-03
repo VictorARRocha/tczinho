@@ -1,16 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import * as SheetPrimitive from "@radix-ui/react-dialog";
+import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/qa";
 import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
-import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "./Badges";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive, AlertCircle, GitCompare } from "lucide-react";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import {
+  Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
+  AlertCircle, GitCompare, X, ChevronDown, ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
 import { FileComparatorDialog } from "./FileComparator";
+
+/* ---------------- helpers ---------------- */
 
 function formatBytes(b?: number | null) {
   if (!b || b <= 0) return null;
@@ -37,12 +44,119 @@ async function handleDownload(ev: Evidencia) {
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+function isImageEv(ev: Evidencia) {
+  return (
+    ev.tipo === "print" ||
+    (ev.mime_type || "").toLowerCase().startsWith("image/") ||
+    ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ev.extensao || "").toLowerCase())
+  );
+}
+
+function isErrorImage(ev: Evidencia) {
+  if (!isImageEv(ev)) return false;
+  const name = (ev.nome_arquivo || "").toLowerCase();
+  return /(imagem[_\s-]*erro|imagemerro|^erro[_\s-]|_erro\.|print[_\s-]*erro)/.test(name);
+}
+
+function isNumberedPrint(ev: Evidencia) {
+  if (!isImageEv(ev)) return false;
+  const name = (ev.nome_arquivo || "").trim();
+  return /^\d+[\s._\-)]/.test(name) || /^\d+\./.test(name);
+}
+
+/* ---------------- resizable sheet content ---------------- */
+
+const MIN_W = 672; // ~ sm:max-w-2xl
+const ABS_MAX = 1400;
+
+interface ResizableSheetContentProps extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content> {
+  children: React.ReactNode;
+}
+
+const ResizableSheetContent = ({ className, children, ...props }: ResizableSheetContentProps) => {
+  const [width, setWidth] = useState<number>(MIN_W);
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const startWRef = useRef(MIN_W);
+
+  useEffect(() => {
+    const clamp = () => {
+      const max = Math.min(ABS_MAX, Math.max(MIN_W, window.innerWidth - 40));
+      setWidth((w) => Math.min(Math.max(w, MIN_W), max));
+    };
+    clamp();
+    window.addEventListener("resize", clamp);
+    return () => window.removeEventListener("resize", clamp);
+  }, []);
+
+  const onPointerMove = useCallback((e: PointerEvent) => {
+    if (!draggingRef.current) return;
+    const dx = startXRef.current - e.clientX; // dragging left = wider
+    const max = Math.min(ABS_MAX, Math.max(MIN_W, window.innerWidth - 40));
+    setWidth(Math.min(max, Math.max(MIN_W, startWRef.current + dx)));
+  }, []);
+
+  const stop = useCallback(() => {
+    draggingRef.current = false;
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", stop);
+  }, [onPointerMove]);
+
+  const onHandleDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    draggingRef.current = true;
+    startXRef.current = e.clientX;
+    startWRef.current = width;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", stop);
+  };
+
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        {...props}
+        style={{ width: `min(100vw, ${width}px)` }}
+        className={cn(
+          "fixed inset-y-0 right-0 z-50 flex h-full flex-col gap-0 border-l border-border bg-card p-0 shadow-2xl",
+          "transition-none data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "data-[state=closed]:duration-300 data-[state=open]:duration-400",
+          className,
+        )}
+      >
+        {/* Drag handle */}
+        <div
+          onPointerDown={onHandleDown}
+          role="separator"
+          aria-orientation="vertical"
+          className="group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors"
+          title="Arraste para redimensionar"
+        >
+          <div className="absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/60 group-hover:bg-primary/70" />
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+
+        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring">
+          <X className="h-4 w-4" />
+          <span className="sr-only">Fechar</span>
+        </SheetPrimitive.Close>
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  );
+};
+
+/* ---------------- main component ---------------- */
 
 interface Props {
   falha: Falha | null;
   open: boolean;
   onClose: () => void;
-  /** Evidências pré-carregadas (ex.: descobertas no Storage para falhas sintéticas). */
   evidencias?: Evidencia[];
 }
 
@@ -53,7 +167,6 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   useEffect(() => {
     if (!falha) return;
     if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
-    // Falhas sintéticas (id começa com "storage:") não existem no banco.
     if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
     fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
   }, [falha?.id, evidsProp]);
@@ -61,63 +174,87 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
   const realPairs = pairs.filter((p) => p.base && p.atual);
 
+  // Split evidences into buckets
+  const {
+    errorImage,
+    numberedPrints,
+    otherEvidences,
+    zipEvidence,
+  } = useMemo(() => {
+    const pairedIds = new Set<string>();
+    realPairs.forEach((p) => {
+      if (p.base) pairedIds.add(p.base.id);
+      if (p.atual) pairedIds.add(p.atual.id);
+    });
+    const remaining = evidencias.filter((e) => !pairedIds.has(e.id));
+    const errImg = remaining.find(isErrorImage) || null;
+    const rest = remaining.filter((e) => e !== errImg);
+    const nums = rest.filter(isNumberedPrint).sort((a, b) => {
+      const na = parseInt((a.nome_arquivo || "").match(/^\d+/)?.[0] || "0", 10);
+      const nb = parseInt((b.nome_arquivo || "").match(/^\d+/)?.[0] || "0", 10);
+      return na - nb;
+    });
+    const others = rest.filter((e) => !isNumberedPrint(e));
+    const zip = evidencias.find((e) => {
+      const ext = (e.extensao || "").toLowerCase();
+      if (["zip", "rar"].includes(ext)) return true;
+      if (e.tipo === "zip" || e.tipo === "rar") return true;
+      const name = (e.nome_arquivo || "").toLowerCase();
+      return falha?.arquivo_zip && name === falha.arquivo_zip.toLowerCase();
+    }) || null;
+    return { errorImage: errImg, numberedPrints: nums, otherEvidences: others, zipEvidence: zip };
+  }, [evidencias, realPairs, falha?.arquivo_zip]);
+
   if (!falha) return null;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto bg-card border-l border-border">
-        <SheetHeader className="space-y-3 pb-6 border-b border-border">
-          <div className="flex items-center gap-2">
-            <ClassificationBadge value={falha.classificacao} />
-            <SeverityBadge value={falha.severidade} />
-            <ConfidenceBadge value={falha.confianca} />
-          </div>
-          <SheetTitle className="text-xl leading-tight">
+      <ResizableSheetContent>
+        <div className="px-7 pt-7 pb-5 border-b border-border/60">
+          <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10">
             {falha.erro_titulo || falha.caso_teste_provavel || falha.arquivo_zip || "Falha"}
           </SheetTitle>
           {falha.erro_principal && (
-            <p className="text-sm text-muted-foreground">{falha.erro_principal}</p>
+            <p className="mt-2 text-sm text-muted-foreground leading-relaxed">{falha.erro_principal}</p>
           )}
-        </SheetHeader>
+        </div>
 
-        <div className="space-y-6 py-6">
+        <div className="px-7 py-6 space-y-8">
           <Section title="Identificação">
             <Grid>
               <Field label="ID do caso" value={falha.id_caso_teste} />
-              <Field label="Caso provável" value={falha.caso_teste_provavel} />
               <Field label="Grupo" value={falha.grupo} />
+              <Field label="Nome do caso" value={falha.caso_teste_provavel} full />
+              {falha.arquivo_zip && (
+                <div className="col-span-2">
+                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Arquivo ZIP/RAR</div>
+                  <ZipFileRow name={falha.arquivo_zip} evidence={zipEvidence} />
+                </div>
+              )}
               <Field label="Subgrupo" value={falha.subgrupo} />
               <Field label="Rotina funcional" value={falha.rotina_funcional} />
-              <Field label="Confiança associação" value={falha.confianca_associacao} />
-              <Field label="Arquivo ZIP" value={falha.arquivo_zip} mono />
-              <Field label="Arquivo TXT" value={falha.arquivo_txt} mono />
-              <Field label="Arquivo Print" value={falha.arquivo_print} mono />
             </Grid>
           </Section>
 
-          <Section title="Erro">
+          <Section title="Análise">
+            {errorImage && (
+              <div className="mb-4">
+                <EvidenceItem ev={errorImage} priority />
+              </div>
+            )}
             <Grid>
               <Field label="Tipo técnico" value={falha.tipo_tecnico} />
               <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
               <Field label="Componente" value={falha.componente} />
-              <Field label="Mensagem principal" value={falha.mensagem_principal} full />
-            </Grid>
-            {falha.trecho_relevante && (
-              <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />
-            )}
-            {falha.call_stack_resumido && (
-              <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />
-            )}
-          </Section>
-
-          <Section title="Análise">
-            <Grid>
+              <Field label="Descrição" value={falha.mensagem_principal} full />
               <Field label="Fato observado" value={falha.fato_observado} full />
               <Field label="Hipótese principal" value={falha.hipotese_principal} full />
               <Field label="Análise técnica" value={falha.analise_tecnica} full />
               <Field label="Análise funcional" value={falha.analise_funcional} full />
               <Field label="Impacto possível" value={falha.impacto_possivel} full />
             </Grid>
+            {falha.trecho_relevante && <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />}
+            {falha.call_stack_resumido && <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />}
             {falha.primeira_acao_recomendada && (
               <Card className="p-4 border-primary/40 bg-primary/5">
                 <div className="flex items-start gap-2">
@@ -142,16 +279,17 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             <Section title={`Comparações (${realPairs.length})`}>
               <div className="space-y-2">
                 {realPairs.map((p) => (
-                  <Card key={p.key} className="p-3 flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="text-[10px] font-mono">.{p.extensao || "—"}</Badge>
-                    <div className="flex-1 min-w-0 text-xs">
+                  <Card key={p.key} className="p-3.5 flex items-center gap-3 flex-wrap bg-card/60">
+                    <div className="flex-1 min-w-0 text-xs space-y-1">
                       <div className="font-mono truncate" title={p.base?.nome_arquivo || ""}>
-                        <span className="text-muted-foreground">base:</span> {p.base?.nome_arquivo}
+                        <span className="text-muted-foreground font-sans not-italic mr-1">Base:</span>
+                        <span className="text-foreground/90">{p.base?.nome_arquivo}</span>
                       </div>
                       <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
-                        <span className="text-muted-foreground">atual:</span> {p.atual?.nome_arquivo}
+                        <span className="text-muted-foreground font-sans not-italic mr-1">Atual:</span>
+                        <span className="text-foreground/90">{p.atual?.nome_arquivo}</span>
                       </div>
-                      {p.auto && <div className="text-[10px] text-muted-foreground italic mt-0.5">Par identificado automaticamente</div>}
+                      {p.auto && <div className="text-[10px] text-muted-foreground italic">Par identificado automaticamente</div>}
                     </div>
                     <Button size="sm" onClick={() => setComparePair(p)}>
                       <GitCompare className="h-3.5 w-3.5 mr-1" /> Ver diferenças
@@ -162,21 +300,44 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             </Section>
           )}
 
-          <Section title={`Evidências (${evidencias.length})`}>
-            {evidencias.length === 0 ? (
-              <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
-            ) : (
-              <div className="space-y-3">
-                {evidencias.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+          {numberedPrints.length > 0 && (
+            <Collapsible>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Prints do teste <span className="text-foreground/60 normal-case font-normal">({numberedPrints.length})</span>
+                </h3>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" size="sm" className="h-7 text-xs group">
+                    <ChevronRight className="h-3.5 w-3.5 mr-1 transition-transform group-data-[state=open]:rotate-90 data-[state=open]:rotate-90" />
+                    Expandir
+                  </Button>
+                </CollapsibleTrigger>
               </div>
-            )}
-          </Section>
+              <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
+                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
+
+          {otherEvidences.length > 0 && (
+            <Section title={`Outras evidências (${otherEvidences.length})`}>
+              <div className="space-y-3">
+                {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              </div>
+            </Section>
+          )}
+
+          {evidencias.length === 0 && (
+            <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
+          )}
         </div>
-      </SheetContent>
+      </ResizableSheetContent>
       <FileComparatorDialog open={!!comparePair} pair={comparePair} falha={falha} onClose={() => setComparePair(null)} />
     </Sheet>
   );
 }
+
+/* ---------------- small building blocks ---------------- */
 
 function Section({ title, children }: { title: string; children: any }) {
   return (
@@ -188,15 +349,15 @@ function Section({ title, children }: { title: string; children: any }) {
 }
 
 function Grid({ children }: { children: any }) {
-  return <div className="grid grid-cols-2 gap-x-4 gap-y-3">{children}</div>;
+  return <div className="grid grid-cols-2 gap-x-5 gap-y-3.5">{children}</div>;
 }
 
 function Field({ label, value, mono, full }: { label: string; value: any; mono?: boolean; full?: boolean }) {
   if (!value) return null;
   return (
     <div className={full ? "col-span-2" : ""}>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-0.5">{label}</div>
-      <div className={`text-sm ${mono ? "font-mono break-all" : ""}`}>{value}</div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+      <div className={`text-sm text-foreground/90 leading-relaxed ${mono ? "font-mono break-all" : ""}`}>{value}</div>
     </div>
   );
 }
@@ -215,26 +376,44 @@ function CodeBlock({ title, content }: { title: string; content: string }) {
   );
 }
 
-function EvidenceItem({ ev }: { ev: Evidencia }) {
-  const isImage =
-    ev.tipo === "print" ||
-    (ev.mime_type || "").toLowerCase().startsWith("image/") ||
-    ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ev.extensao || "").toLowerCase());
+function ZipFileRow({ name, evidence }: { name: string; evidence: Evidencia | null }) {
+  const canDownload = !!evidence;
+  return (
+    <div
+      className="group flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
+    >
+      <FileArchive className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+      <span className="flex-1 text-sm font-mono truncate text-foreground/90">{name}</span>
+      {canDownload ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          onClick={() => evidence && handleDownload(evidence)}
+        >
+          <Download className="h-3.5 w-3.5 mr-1" /> Baixar
+        </Button>
+      ) : (
+        <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">indisponível</span>
+      )}
+    </div>
+  );
+}
+
+function EvidenceItem({ ev, priority }: { ev: Evidencia; priority?: boolean }) {
+  const isImage = isImageEv(ev);
   const directUrl = ev.public_url || ev.signed_url || null;
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(!!priority);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Observa entrada na viewport para só então gerar a signed URL
   useEffect(() => {
     if (!isImage || directUrl || !containerRef.current || visible) return;
     const el = containerRef.current;
     if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const io = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) { setVisible(true); io.disconnect(); }
-      });
+      entries.forEach((entry) => { if (entry.isIntersecting) { setVisible(true); io.disconnect(); } });
     }, { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
@@ -257,8 +436,8 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
 
   if (isImage) {
     return (
-      <Card className="overflow-hidden" ref={containerRef as any}>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+      <Card className={cn("overflow-hidden", priority && "border-primary/40 ring-1 ring-primary/20")} ref={containerRef as any}>
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
           <ImageIcon className="h-4 w-4 text-primary" />
           <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
           {formatBytes(ev.tamanho_bytes) && (
@@ -281,18 +460,14 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
             alt={ev.imagem_descricao || ev.nome_arquivo || "evidência"}
             loading="lazy"
             decoding="async"
-            className="w-full max-h-96 object-contain bg-background"
+            className={cn("w-full object-contain bg-background", priority ? "max-h-[520px]" : "max-h-96")}
             onError={() => setImgError(true)}
           />
         ) : (
           <div className="p-6 text-center text-xs text-muted-foreground">
-            {imgError
-              ? "Não foi possível carregar esta evidência."
-              : !visible && ev.storage_path
-                ? "Imagem será carregada quando visível…"
-                : ev.storage_path
-                  ? "Carregando imagem…"
-                  : "Arquivo não encontrado no Storage."}
+            {imgError ? "Não foi possível carregar esta evidência."
+              : !visible && ev.storage_path ? "Imagem será carregada quando visível…"
+              : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
           </div>
         )}
         {ev.imagem_descricao && <p className="px-3 py-2 text-xs text-muted-foreground">{ev.imagem_descricao}</p>}
@@ -302,7 +477,7 @@ function EvidenceItem({ ev }: { ev: Evidencia }) {
   if (ev.tipo === "txt") {
     return (
       <Card>
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
           <FileText className="h-4 w-4 text-warning" />
           <span className="text-xs font-medium">{ev.nome_arquivo || "Erro / Call stack"}</span>
           <div className="ml-auto flex gap-1">
