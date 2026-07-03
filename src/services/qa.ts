@@ -37,6 +37,8 @@ const DEFAULT_MODULES = [
   { slug: "gestao", nome: "Gestão", ordem: 4 },
   { slug: "financeiro", nome: "Financeiro", ordem: 5 },
   { slug: "geral", nome: "Geral", ordem: 6 },
+  { slug: "suprema", nome: "Suprema", ordem: 7 },
+  { slug: "practice", nome: "Practice", ordem: 8 },
 ];
 const OFFICIAL_SLUGS = new Set(DEFAULT_MODULES.map((m) => m.slug));
 
