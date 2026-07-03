@@ -88,12 +88,10 @@ export default function ModulePage() {
     setLoading(true);
     setLoadError(null);
     try {
-      const mods = await fetchModules();
+      // Fetches independentes rodam em paralelo
+      const [mods, runs] = await Promise.all([fetchModules(), fetchRunsByModule(targetSlug)]);
       if (reqId !== requestRef.current) return;
-      const m = mods.find((x) => x.slug === targetSlug) || null;
-      setModulo(m);
-      const runs = await fetchRunsByModule(targetSlug);
-      if (reqId !== requestRef.current) return;
+      setModulo(mods.find((x) => x.slug === targetSlug) || null);
       setHistorico(runs);
       const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(targetSlug)));
       if (reqId !== requestRef.current) return;
@@ -355,19 +353,19 @@ function OccCard({ label, value, tone, onClick }: { label: string; value: number
 }
 
 function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; performance: AtrasoRodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
-  const classData = [
+  const classData = useMemo(() => [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
     { name: "Ambiente", value: rodagem.total_ambiente, color: "hsl(var(--environment))" },
     { name: "Possível funcional", value: rodagem.total_possivel_funcional, color: "hsl(var(--functional))" },
     { name: "Inconclusivo", value: rodagem.total_inconclusivo, color: "hsl(var(--inconclusive))" },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0), [rodagem.total_automacao, rodagem.total_massa_dados, rodagem.total_ambiente, rodagem.total_possivel_funcional, rodagem.total_inconclusivo]);
 
-  const sevData = [
+  const sevData = useMemo(() => [
     { name: "Alta", value: rodagem.total_alta, color: "hsl(var(--destructive))" },
     { name: "Média", value: rodagem.total_media, color: "hsl(var(--warning))" },
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0), [rodagem.total_alta, rodagem.total_media, rodagem.total_baixa]);
 
   const rotinaData = useMemo(() => {
     const m = new Map<string, number>();
@@ -375,7 +373,7 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
     return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
   }, [falhas]);
 
-  const cards: { label: string; value: number; tone?: string; force?: boolean }[] = [
+  const cards = useMemo(() => ([
     { label: "Casos rodados", value: rodagem.total_analisados, tone: "text-primary", force: true },
     { label: "Falhas", value: rodagem.total_falhas, force: true },
     { label: "Funcional", value: rodagem.total_possivel_funcional, tone: "text-functional" },
@@ -386,7 +384,7 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
     { label: "Sev. Alta", value: rodagem.total_alta, tone: "text-destructive" },
     { label: "Sev. Média", value: rodagem.total_media, tone: "text-warning" },
     { label: "Sev. Baixa", value: rodagem.total_baixa, tone: "text-success" },
-  ].filter((c) => c.force || c.value > 0);
+  ] as { label: string; value: number; tone?: string; force?: boolean }[]).filter((c) => c.force || c.value > 0), [rodagem]);
 
   const occCounts = useMemo(() => {
     const evMap = groupEvidsByFailure(evidencias);
@@ -676,18 +674,22 @@ function FalhasTab({
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
+  // Calcula pares base/atual uma única vez por falha e reaproveita em tudo abaixo
+  const realPairsByFalha = useMemo(() => {
+    const m = new Map<string, ComparisonPair[]>();
+    falhas.forEach((f) => { m.set(f.id, pairBaseAtual(evMap.get(f.id) || [])); });
+    return m;
+  }, [falhas, evMap]);
+
   const realPairKeys = useMemo(() => {
     const set = new Set<string>();
-    falhas.forEach((f) => {
-      const evs = evMap.get(f.id) || [];
-      pairBaseAtual(evs).forEach((p) => set.add(p.key));
-    });
+    realPairsByFalha.forEach((pairs) => pairs.forEach((p) => set.add(p.key)));
     return set;
-  }, [falhas, evMap]);
+  }, [realPairsByFalha]);
 
   const syntheticFalhas = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
-    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
+    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[];
     const byCmpFolder = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
       const path = (e.storage_path || "").replace(/\\/g, "/");
@@ -698,7 +700,7 @@ function FalhasTab({
       arr.push(e);
       byCmpFolder.set(folder, arr);
     });
-    const out: { f: Falha; evs: Evidencia[] }[] = [];
+    const out: { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
     byCmpFolder.forEach((evs, cmpFolder) => {
       if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
       const pairs = pairBaseAtual(evs);
@@ -719,21 +721,20 @@ function FalhasTab({
         impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
         created_at: "",
       } as Falha;
-      out.push({ f, evs });
+      out.push({ f, evs, pairs });
     });
     return out;
   }, [evidencias, realPairKeys]);
 
   const enriched: EnrichedItem[] = useMemo(() => {
-    const real = falhas.map((f) => {
+    const real: EnrichedItem[] = falhas.map((f) => {
       const evs = evMap.get(f.id) || [];
-      const tipo = classifyOccurrence(f, evs);
-      const pairs = pairBaseAtual(evs);
-      return { f, evs, tipo, pairs };
+      const pairs = realPairsByFalha.get(f.id) || [];
+      return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
     });
-    const synth = syntheticFalhas.map(({ f, evs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs: pairBaseAtual(evs) }));
-    return [...real, ...synth];
-  }, [falhas, evMap, syntheticFalhas]);
+    const synth: EnrichedItem[] = syntheticFalhas.map(({ f, evs, pairs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs }));
+    return real.concat(synth);
+  }, [falhas, evMap, realPairsByFalha, syntheticFalhas]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
@@ -786,8 +787,8 @@ function FalhasTab({
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  // expande tudo por padrão sempre que o conjunto de nós mudar
-  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds.join("|")]);
+  // expande tudo por padrão sempre que o conjunto de nós mudar (allIds já é memoizado por root)
+  useEffect(() => { setExpanded(new Set(allIds)); }, [allIds]);
 
   const toggle = (id: string) => setExpanded((prev) => {
     const n = new Set(prev);
@@ -1359,15 +1360,44 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     );
   }
 
-  const slow = data.filter((d) => d.status === "mais_lento");
-  const fast = data.filter((d) => d.status === "mais_rapido");
-  const equal = data.filter((d) => d.status === "igual");
-  const maxDelay = slow.reduce((a, b) => (b.delay_segundos > a.delay_segundos ? b : a), slow[0] || null as any);
-  const maxGain = fast.reduce((a, b) => (b.delay_segundos < a.delay_segundos ? b : a), fast[0] || null as any);
-  const totalAdded = slow.reduce((s, d) => s + d.delay_segundos, 0);
-  const totalSaved = fast.reduce((s, d) => s + Math.abs(d.delay_segundos), 0);
+  const stats = useMemo(() => {
+    const slow: AtrasoRodagem[] = [];
+    const fast: AtrasoRodagem[] = [];
+    const equal: AtrasoRodagem[] = [];
+    const casesSet = new Set<string>();
+    let totalAdded = 0;
+    let totalSaved = 0;
+    let maxDelay: AtrasoRodagem | null = null;
+    let maxGain: AtrasoRodagem | null = null;
+    let hasName = false;
+    for (const d of data) {
+      if (d.status === "mais_lento") {
+        slow.push(d);
+        totalAdded += d.delay_segundos;
+        if (!maxDelay || d.delay_segundos > maxDelay.delay_segundos) maxDelay = d;
+      } else if (d.status === "mais_rapido") {
+        fast.push(d);
+        totalSaved += Math.abs(d.delay_segundos);
+        if (!maxGain || d.delay_segundos < maxGain.delay_segundos) maxGain = d;
+      } else if (d.status === "igual") {
+        equal.push(d);
+      }
+      if (d.codigo_teste) casesSet.add(d.codigo_teste);
+      if (!hasName && d.nome_teste && d.nome_teste.trim()) hasName = true;
+    }
+    const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
+    const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
+    return {
+      slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved,
+      topSlow, topFast,
+      cases: Array.from(casesSet),
+      hasName,
+    };
+  }, [data]);
 
-  const cards = [
+  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
+
+  const cards = useMemo(() => ([
     { label: "Registros", value: data.length, tone: "" },
     { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
     { label: "Mais rápidos", value: fast.length, tone: "text-success" },
@@ -1376,23 +1406,23 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     maxGain && { label: "Maior ganho", value: formatDuration(Math.abs(maxGain.delay_segundos)), tone: "text-success" },
     totalAdded > 0 && { label: "Tempo adicional", value: formatDuration(totalAdded), tone: "text-destructive" },
     totalSaved > 0 && { label: "Tempo economizado", value: formatDuration(totalSaved), tone: "text-success" },
-  ].filter(Boolean) as { label: string; value: any; tone: string }[];
+  ].filter(Boolean) as { label: string; value: any; tone: string }[]), [data.length, slow.length, fast.length, equal.length, maxDelay, maxGain, totalAdded, totalSaved]);
 
-  const distData = [
+  const distData = useMemo(() => ([
     { name: "Mais lentos", value: slow.length, color: "hsl(var(--destructive))" },
     { name: "Mais rápidos", value: fast.length, color: "hsl(var(--success))" },
     { name: "Sem variação", value: equal.length, color: "hsl(var(--muted-foreground))" },
-  ].filter((d) => d.value > 0);
+  ].filter((d) => d.value > 0)), [slow.length, fast.length, equal.length]);
 
-  const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
-  const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
+  const topSlowChart = useMemo(
+    () => topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) })),
+    [topSlow],
+  );
+  const topFastChart = useMemo(
+    () => topFast.map((d) => ({ name: d.codigo_teste || d.id, value: Math.abs(d.delay_segundos), label: formatDuration(Math.abs(d.delay_segundos)) })),
+    [topFast],
+  );
 
-  const topSlowChart = topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) }));
-  const topFastChart = topFast.map((d) => ({ name: d.codigo_teste || d.id, value: Math.abs(d.delay_segundos), label: formatDuration(Math.abs(d.delay_segundos)) }));
-
-  const cases = Array.from(new Set(data.map((d) => d.codigo_teste).filter(Boolean))) as string[];
-
-  const hasName = data.some((d) => d.nome_teste && d.nome_teste.trim());
 
   const copyRow = (d: AtrasoRodagem) => {
     const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");
