@@ -335,7 +335,7 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
           ];
           return (
             <div className="space-y-3">
-              <div className="grid grid-cols-[160px_1fr] gap-x-3 gap-y-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-x-3 gap-y-2 text-sm">
                 {rows.map(([k, v], i) => (
                   <FragmentRow key={i} label={k as string} value={v} />
                 ))}
