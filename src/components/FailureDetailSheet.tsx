@@ -50,6 +50,18 @@ async function fetchTextSmart(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+const TXT_PLACEHOLDERS = [
+  "arquivo textual com evidência técnica.",
+  "arquivo txt com evidência técnica.",
+  "evidência técnica textual.",
+  "arquivo textual.",
+];
+function isTxtPlaceholder(s?: string | null): boolean {
+  if (!s) return true;
+  return TXT_PLACEHOLDERS.includes(s.trim().toLowerCase());
+}
+
+
 
 
 
