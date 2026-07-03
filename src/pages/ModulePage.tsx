@@ -1692,3 +1692,24 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     </div>
   );
 }
+
+function SortableTH<K extends string>({
+  label, k, active, dir, onClick, align = "left",
+}: { label: string; k: K; active: K; dir: "asc" | "desc"; onClick: (k: K) => void; align?: "left" | "right" }) {
+  const isActive = active === k;
+  return (
+    <TableHead className={align === "right" ? "text-right" : ""}>
+      <button
+        type="button"
+        onClick={() => onClick(k)}
+        className={`inline-flex items-center gap-1 select-none transition-colors ${align === "right" ? "flex-row-reverse" : ""} ${isActive ? "text-foreground font-semibold" : "text-muted-foreground hover:text-foreground"}`}
+      >
+        <span>{label}</span>
+        {isActive
+          ? (dir === "asc" ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+          : <ChevronsUpDown className="h-3 w-3 opacity-40" />}
+      </button>
+    </TableHead>
+  );
+}
+
