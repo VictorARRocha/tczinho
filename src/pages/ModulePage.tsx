@@ -1374,7 +1374,7 @@ function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?
               return (
                 <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
                   <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.maquina || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem) || "—"}</TableCell>
                   <TableCell className="font-mono text-xs">{r.versao_sistema || "—"}</TableCell>
                   <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
                   <TableCell>
