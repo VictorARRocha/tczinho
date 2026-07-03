@@ -46,7 +46,7 @@ function JenkinsCard({ to, icon, title, description }: {
 }) {
   return (
     <Link to={to} className="group">
-      <Card className="glass-card p-8 h-full transition-all hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5">
+      <Card className="glass-card p-6 sm:p-8 h-full transition-all hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5">
         <div className="flex flex-col items-center text-center gap-3">
           <div className="rounded-2xl bg-gradient-primary p-4 text-primary-foreground glow-primary">
             {icon}
