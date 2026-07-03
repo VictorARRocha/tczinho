@@ -50,6 +50,42 @@ async function fetchTextSmart(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+function evidenceFileName(ev: Evidencia) {
+  return ev.nome_arquivo || (ev.storage_path || "").split(/[\\/]/).filter(Boolean).pop() || "evidencia";
+}
+
+async function fetchEvidenceBlob(ev: Evidencia): Promise<Blob | null> {
+  const bucket = ev.bucket || STORAGE_BUCKET;
+  const path = ev.storage_path;
+
+  if (bucket && path) {
+    const { data } = await supabase.storage.from(bucket).download(path);
+    if (data) return data;
+  }
+
+  const url = await resolveDownloadUrl(ev, false);
+  if (!url) return null;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return await response.blob();
+  } catch {
+    return null;
+  }
+}
+
+async function fetchEvidenceText(ev: Evidencia): Promise<string | null> {
+  try {
+    const blob = await fetchEvidenceBlob(ev);
+    if (!blob) return null;
+    if (blob.size > 8 * 1024 * 1024) return null;
+    return decodeBufferSmart(await blob.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
 const TXT_PLACEHOLDERS = [
   "arquivo textual com evidência técnica.",
   "arquivo txt com evidência técnica.",
@@ -65,21 +101,29 @@ function isTxtPlaceholder(s?: string | null): boolean {
 
 
 
-async function resolveDownloadUrl(ev: Evidencia): Promise<string | null> {
+async function resolveDownloadUrl(ev: Evidencia, showError = true): Promise<string | null> {
   if (ev.public_url) return ev.public_url;
   if (ev.signed_url) return ev.signed_url;
   const bucket = ev.bucket || STORAGE_BUCKET;
   const path = ev.storage_path;
   if (!bucket || !path) return null;
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
-  if (error) { toast.error("Falha ao gerar link"); return null; }
+  if (error) { if (showError) toast.error("Falha ao gerar link"); return null; }
   return data?.signedUrl || null;
 }
 
 async function handleDownload(ev: Evidencia) {
-  const url = await resolveDownloadUrl(ev);
-  if (!url) { toast.error("Sem URL disponível"); return; }
-  window.open(url, "_blank", "noopener,noreferrer");
+  const blob = await fetchEvidenceBlob(ev);
+  if (!blob) { toast.error("Não foi possível baixar o arquivo"); return; }
+
+  const blobUrl = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = evidenceFileName(ev);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
 }
 
 function isImageEv(ev: Evidencia) {
@@ -490,7 +534,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   const directUrl = ev.public_url || ev.signed_url || null;
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
-  const [visible, setVisible] = useState(!!priority);
+  const [visible, setVisible] = useState(!!priority || isTxt);
   const [preview, setPreview] = useState(false);
   const [txtContent, setTxtContent] = useState<string | null>(isTxtPlaceholder(ev.conteudo_texto) ? null : (ev.conteudo_texto ?? null));
   const [txtStatus, setTxtStatus] = useState<"idle" | "loading" | "error">("idle");
@@ -521,15 +565,13 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
     return () => { cancel = true; };
   }, [ev.id, visible]);
 
-  // Carrega conteúdo real de TXT sob demanda
+  // Carrega conteúdo real de TXT direto do Storage, sem depender de link externo
   useEffect(() => {
-    if (!isTxt || txtContent != null || txtStatus !== "idle" || !visible) return;
+    if (!isTxt || txtContent != null || txtStatus !== "idle") return;
     let cancel = false;
     (async () => {
       setTxtStatus("loading");
-      const url = await resolveDownloadUrl(ev);
-      if (!url) { if (!cancel) setTxtStatus("error"); return; }
-      const text = await fetchTextSmart(url);
+      const text = await fetchEvidenceText(ev);
       if (cancel) return;
       if (text == null) setTxtStatus("error");
       else { setTxtContent(text); setTxtStatus("idle"); }
