@@ -342,26 +342,38 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                     : "Arquivos iguais"}
           </span>
           <div className="flex-1" />
-          <Button size="sm" variant="ghost" className="h-8" onClick={copyNames}>
-            <Copy className="h-3.5 w-3.5 mr-1" /> Copiar nomes
-          </Button>
-          {baseUrl && (
-            <a href={baseUrl} download={baseName} target="_blank" rel="noreferrer">
-              <Button size="sm" variant="ghost" className="h-8"><Download className="h-3.5 w-3.5 mr-1" />Baseline</Button>
-            </a>
+          {(baseUrl || atualUrl) && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8"
+              onClick={() => {
+                const trigger = (url: string, name: string) => {
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = name || "";
+                  a.target = "_blank";
+                  a.rel = "noreferrer";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                };
+                if (baseUrl) trigger(baseUrl, baseName);
+                if (atualUrl) setTimeout(() => trigger(atualUrl, atualName), 150);
+              }}
+            >
+              <Download className="h-3.5 w-3.5 mr-1" /> Baixar arquivos
+            </Button>
           )}
-          {atualUrl && (
-            <a href={atualUrl} download={atualName} target="_blank" rel="noreferrer">
-              <Button size="sm" variant="ghost" className="h-8"><Download className="h-3.5 w-3.5 mr-1" />Checked</Button>
-            </a>
-          )}
+
         </div>
 
 
         {/* Cabeçalho dos painéis */}
         <div className="grid grid-cols-2 border-b border-border bg-background">
-          <PaneHeader label="Baseline file" name={baseName} url={baseUrl} side="left" />
-          <PaneHeader label="Checked file" name={atualName} url={atualUrl} side="right" />
+          <PaneHeader name={baseName} side="left" />
+          <PaneHeader name={atualName} side="right" />
+
         </div>
 
         <div className="flex-1 overflow-hidden">
@@ -446,21 +458,14 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   );
 }
 
-function PaneHeader({ label, name, url, side }: { label: string; name: string; url: string | null; side: "left" | "right" }) {
+function PaneHeader({ name, side }: { name: string; side: "left" | "right" }) {
   return (
     <div className={`px-4 py-2 flex items-center gap-2 ${side === "left" ? "border-r border-border" : ""}`}>
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{label}:</span>
       <span className="text-xs font-mono truncate flex-1" title={name}>{name}</span>
-      {url && (
-        <a href={url} target="_blank" rel="noreferrer">
-          <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2">
-            <ExternalLink className="h-3 w-3 mr-1" />Abrir
-          </Button>
-        </a>
-      )}
     </div>
   );
 }
+
 
 function ImagePane({ label, url }: { label: string; url: string | null }) {
   return (
