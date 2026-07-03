@@ -458,21 +458,14 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   );
 }
 
-function PaneHeader({ label, name, url, side }: { label: string; name: string; url: string | null; side: "left" | "right" }) {
+function PaneHeader({ name, side }: { name: string; side: "left" | "right" }) {
   return (
     <div className={`px-4 py-2 flex items-center gap-2 ${side === "left" ? "border-r border-border" : ""}`}>
-      <span className="text-[10px] uppercase tracking-wider text-muted-foreground shrink-0">{label}:</span>
       <span className="text-xs font-mono truncate flex-1" title={name}>{name}</span>
-      {url && (
-        <a href={url} target="_blank" rel="noreferrer">
-          <Button size="sm" variant="ghost" className="h-6 text-[11px] px-2">
-            <ExternalLink className="h-3 w-3 mr-1" />Abrir
-          </Button>
-        </a>
-      )}
     </div>
   );
 }
+
 
 function ImagePane({ label, url }: { label: string; url: string | null }) {
   return (
