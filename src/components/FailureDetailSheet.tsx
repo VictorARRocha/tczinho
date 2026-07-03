@@ -48,6 +48,9 @@ async function fetchTextSmart(url: string): Promise<string | null> {
     if (buf.byteLength > 8 * 1024 * 1024) return null;
     return decodeBufferSmart(buf);
   } catch { return null; }
+}
+
+
 
 
 async function resolveDownloadUrl(ev: Evidencia): Promise<string | null> {
