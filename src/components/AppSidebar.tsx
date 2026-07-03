@@ -86,7 +86,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
                   <NavLink to="/jenkins">
-                    <Server />
+                    <PersonStanding />
                     <span>Jenkins</span>
                   </NavLink>
                 </SidebarMenuButton>
