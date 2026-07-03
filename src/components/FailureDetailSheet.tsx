@@ -165,16 +165,19 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
 
         )}
       >
-        {/* Drag handle */}
-        <div
-          onPointerDown={onHandleDown}
-          role="separator"
-          aria-orientation="vertical"
-          className="group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors"
-          title="Arraste para redimensionar"
-        >
-          <div className="absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/60 group-hover:bg-primary/70" />
-        </div>
+        {/* Drag handle — desktop only */}
+        {!isMobile && (
+          <div
+            onPointerDown={onHandleDown}
+            role="separator"
+            aria-orientation="vertical"
+            className="group absolute left-0 top-0 z-10 h-full w-1.5 cursor-col-resize hover:bg-primary/30 active:bg-primary/50 transition-colors"
+            title="Arraste para redimensionar"
+          >
+            <div className="absolute left-1/2 top-1/2 h-14 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-border/60 group-hover:bg-primary/70" />
+          </div>
+        )}
+
 
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
 
