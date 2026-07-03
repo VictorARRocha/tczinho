@@ -674,18 +674,22 @@ function FalhasTab({
 
   const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
 
+  // Calcula pares base/atual uma única vez por falha e reaproveita em tudo abaixo
+  const realPairsByFalha = useMemo(() => {
+    const m = new Map<string, ComparisonPair[]>();
+    falhas.forEach((f) => { m.set(f.id, pairBaseAtual(evMap.get(f.id) || [])); });
+    return m;
+  }, [falhas, evMap]);
+
   const realPairKeys = useMemo(() => {
     const set = new Set<string>();
-    falhas.forEach((f) => {
-      const evs = evMap.get(f.id) || [];
-      pairBaseAtual(evs).forEach((p) => set.add(p.key));
-    });
+    realPairsByFalha.forEach((pairs) => pairs.forEach((p) => set.add(p.key)));
     return set;
-  }, [falhas, evMap]);
+  }, [realPairsByFalha]);
 
   const syntheticFalhas = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
-    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[] }[];
+    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[];
     const byCmpFolder = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
       const path = (e.storage_path || "").replace(/\\/g, "/");
@@ -696,7 +700,7 @@ function FalhasTab({
       arr.push(e);
       byCmpFolder.set(folder, arr);
     });
-    const out: { f: Falha; evs: Evidencia[] }[] = [];
+    const out: { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
     byCmpFolder.forEach((evs, cmpFolder) => {
       if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
       const pairs = pairBaseAtual(evs);
@@ -717,21 +721,20 @@ function FalhasTab({
         impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
         created_at: "",
       } as Falha;
-      out.push({ f, evs });
+      out.push({ f, evs, pairs });
     });
     return out;
   }, [evidencias, realPairKeys]);
 
   const enriched: EnrichedItem[] = useMemo(() => {
-    const real = falhas.map((f) => {
+    const real: EnrichedItem[] = falhas.map((f) => {
       const evs = evMap.get(f.id) || [];
-      const tipo = classifyOccurrence(f, evs);
-      const pairs = pairBaseAtual(evs);
-      return { f, evs, tipo, pairs };
+      const pairs = realPairsByFalha.get(f.id) || [];
+      return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
     });
-    const synth = syntheticFalhas.map(({ f, evs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs: pairBaseAtual(evs) }));
-    return [...real, ...synth];
-  }, [falhas, evMap, syntheticFalhas]);
+    const synth: EnrichedItem[] = syntheticFalhas.map(({ f, evs, pairs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs }));
+    return real.concat(synth);
+  }, [falhas, evMap, realPairsByFalha, syntheticFalhas]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
