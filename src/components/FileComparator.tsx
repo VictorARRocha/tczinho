@@ -299,12 +299,6 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         <DialogHeader className="px-6 py-3 border-b border-border">
           <DialogTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" /> Comparação de arquivos
-            <span className="text-xs text-muted-foreground font-normal ml-1">
-              {falha?.id_caso_teste && <>· Caso #{falha.id_caso_teste}</>}
-              {falha?.caso_teste_provavel && <> · {falha.caso_teste_provavel}</>}
-              {falha?.arquivo_zip && <> · {falha.arquivo_zip}</>}
-              {ext && <> · .{ext}</>}
-            </span>
           </DialogTitle>
         </DialogHeader>
 
