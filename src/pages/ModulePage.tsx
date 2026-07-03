@@ -1343,13 +1343,12 @@ function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; on
       {open && (
         <div className="space-y-2">
           {casos.map((f) => {
-            const desc = failureDescription(f);
             const nome = f.caso_teste_provavel || f.erro_titulo || "Caso";
             const idCaso = f.id_caso_teste || "";
             return (
               <div
                 key={f.id}
-                className="rounded-lg border border-border bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
+                className="rounded-lg border border-border/60 bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
                 onClick={() => onSelect(f)}
               >
                 <div className="flex items-start gap-3">
@@ -1357,16 +1356,10 @@ function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; on
                     <div className="text-sm font-medium truncate">
                       {idCaso ? `[${idCaso}] ` : ""}{nome}
                     </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-0.5">
-                      {f.grupo && <span>{f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}</span>}
-                      {f.rotina_funcional && <span className="font-mono">{f.rotina_funcional}</span>}
-                    </div>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
-                      {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-                      {f.severidade && <SeverityBadge value={f.severidade} />}
-                    </div>
-                    {desc && (
-                      <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2">{desc}</p>
+                    {f.grupo && (
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}
+                      </div>
                     )}
                   </div>
                   <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
