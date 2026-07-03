@@ -51,11 +51,15 @@ function failureDescription(f: Falha): string {
 // Remove a extensão do nome para exibição limpa (ex: .txt não polui a lista)
 function cleanFileName(nome?: string | null, extensao?: string | null): string {
   if (!nome) return "—";
-  let ext = (extensao || "").trim().toLowerCase();
-  if (!ext) return nome;
-  if (ext.startsWith(".")) ext = ext.slice(1);
-  const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-  return nome.replace(re, "");
+  let out = nome;
+  let ext = (extensao || "").trim().toLowerCase().replace(/^\.+/, "");
+  if (ext) {
+    const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    out = out.replace(re, "");
+  }
+  // Remove sufixos _Antigo / _Atual / _Base / _Gerado / _Novo / _Original / _Referencia / _Esperado ...
+  out = out.replace(/[_\-\. ]+(antigo|atual|base|gerado|gerada|novo|nova|original|referencia|referência|esperado|esperada|padrao|padrão|anterior|previo|prévio|antes|depois|current|new)$/i, "");
+  return out;
 }
 
 export default function ModulePage() {
@@ -865,11 +869,11 @@ function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
 }
 
 function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
+  const totalDif = counts.diferenca + counts.quebra_diferenca;
   return (
     <div className="flex gap-1 flex-wrap">
       {counts.quebra > 0 && <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 text-[10px] px-1.5 py-0">{counts.quebra} quebra</Badge>}
-      {counts.diferenca > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{counts.diferenca} dif.</Badge>}
-      {counts.quebra_diferenca > 0 && <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px] px-1.5 py-0">{counts.quebra_diferenca} misto</Badge>}
+      {totalDif > 0 && <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 text-[10px] px-1.5 py-0">{totalDif} dif.</Badge>}
     </div>
   );
 }
