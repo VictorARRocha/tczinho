@@ -867,7 +867,7 @@ function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
   if (tipo === "quebra")
     return <Badge variant="outline" className={`${base} bg-rose-500/10 text-rose-300 border-rose-500/30`}>Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className={`${base} bg-amber-500/10 text-amber-300 border-amber-500/30`}>Diferença</Badge>;
+    return <Badge variant="outline" className={`${base} bg-amber-900/25 text-amber-200/90 border-amber-700/40`}>Diferença</Badge>;
   return <Badge variant="outline" className={`${base} bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30`}>Quebra + Diferença</Badge>;
 }
 
