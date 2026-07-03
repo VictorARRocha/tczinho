@@ -876,8 +876,9 @@ function FalhasTab({
         <Card className="p-2 md:p-3 bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
           <div className="space-y-0.5">
             {rootChildren.map((c) => (
-              <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
+              <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSmartOpen={smartOpen} onSelect={onSelect} onCompare={onCompare} />
             ))}
+
             {orphans.length > 0 && (
               <OrphanGroup items={orphans} expanded={expanded} onToggle={toggle} onSelect={onSelect} onCompare={onCompare} />
             )}
