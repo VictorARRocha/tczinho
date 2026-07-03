@@ -828,12 +828,6 @@ function FalhasTab({
         <div className="flex items-center gap-2 flex-wrap">
           <Search className="h-4 w-4 text-muted-foreground" />
           <Input placeholder="Buscar por ID, nome, descrição, arquivo ou extensão..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background flex-1 min-w-[220px]" />
-          {allExts.length > 0 && (
-            <select value={extFilter} onChange={(e) => setExtFilter(e.target.value)} className="h-9 rounded-md border border-border bg-background px-2 text-xs">
-              <option value="">Extensão: todas</option>
-              {allExts.map((e) => <option key={e} value={e}>.{e}</option>)}
-            </select>
-          )}
           <div className="ml-auto flex gap-1">
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
             <Button size="sm" variant="outline" className="h-8 text-xs" onClick={collapseAll}>Recolher tudo</Button>
