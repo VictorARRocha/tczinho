@@ -1397,6 +1397,32 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
 
   const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, hasName } = stats;
 
+  const cards = useMemo(() => ([
+    { label: "Registros", value: data.length, tone: "" },
+    { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
+    { label: "Mais rápidos", value: fast.length, tone: "text-success" },
+    { label: "Sem variação", value: equal.length, tone: "text-muted-foreground" },
+    maxDelay && { label: "Maior atraso", value: formatDuration(maxDelay.delay_segundos), tone: "text-destructive" },
+    maxGain && { label: "Maior ganho", value: formatDuration(Math.abs(maxGain.delay_segundos)), tone: "text-success" },
+    totalAdded > 0 && { label: "Tempo adicional", value: formatDuration(totalAdded), tone: "text-destructive" },
+    totalSaved > 0 && { label: "Tempo economizado", value: formatDuration(totalSaved), tone: "text-success" },
+  ].filter(Boolean) as { label: string; value: any; tone: string }[]), [data.length, slow.length, fast.length, equal.length, maxDelay, maxGain, totalAdded, totalSaved]);
+
+  const distData = useMemo(() => ([
+    { name: "Mais lentos", value: slow.length, color: "hsl(var(--destructive))" },
+    { name: "Mais rápidos", value: fast.length, color: "hsl(var(--success))" },
+    { name: "Sem variação", value: equal.length, color: "hsl(var(--muted-foreground))" },
+  ].filter((d) => d.value > 0)), [slow.length, fast.length, equal.length]);
+
+  const topSlowChart = useMemo(
+    () => topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) })),
+    [topSlow],
+  );
+  const topFastChart = useMemo(
+    () => topFast.map((d) => ({ name: d.codigo_teste || d.id, value: Math.abs(d.delay_segundos), label: formatDuration(Math.abs(d.delay_segundos)) })),
+    [topFast],
+  );
+
 
   const copyRow = (d: AtrasoRodagem) => {
     const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");
