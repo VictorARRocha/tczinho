@@ -21,7 +21,8 @@ function getModuleIcon(nome: string): LucideIcon {
   if (n.includes("notificac")) return Bell;
   if (n.includes("imposto")) return Landmark;
   if (n.includes("temporizador")) return Timer;
-  if (n.includes("bi") || n.includes("geral")) return BarChart3;
+  if (n.includes("geral")) return Database;
+  if (n.includes("bi")) return BarChart3;
   if (n.includes("push")) return Send;
   return Package;
 }
