@@ -943,8 +943,12 @@ function LeafItemCard({
 
   return (
     <div
-      className="ml-1 my-1 border-l-2 border-primary/40 bg-secondary/20 rounded-r-md"
+      className="ml-1 my-1 border-l-2 border-primary/40 bg-secondary/20 rounded-r-md hover:bg-secondary/40 transition-colors cursor-pointer"
       style={{ marginLeft: indent }}
+      onClick={() => onSelect(f)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
     >
       <div className="p-3 space-y-2">
         <div className="flex items-start gap-2 flex-wrap">
@@ -958,30 +962,24 @@ function LeafItemCard({
 
         {isDiff && pairs.length > 0 && (
           <div className="space-y-1.5">
-            {pairs.map((p) => (
-              <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
-                {(() => {
-                  const ext = (p.extensao || "").trim().toLowerCase().replace(/^\.+/, "");
-                  return ext && ext !== "txt" ? (
-                    <Badge variant="outline" className="text-[10px] font-mono">.{ext}</Badge>
-                  ) : null;
-                })()}
-                <div className="flex-1 min-w-0">
-                  <div className="font-mono truncate text-muted-foreground" title={p.base?.nome_arquivo || ""}>
-                    {cleanFileName(p.base?.nome_arquivo, p.extensao)}
-                  </div>
-                  <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
-                    {cleanFileName(p.atual?.nome_arquivo, p.extensao)}
-                  </div>
-                  {p.auto && <div className="text-[10px] text-muted-foreground italic">par identificado automaticamente</div>}
+            {pairs.map((p) => {
+              const ext = (p.extensao || "").trim().toLowerCase().replace(/^\.+/, "");
+              const displayName = cleanFileName(p.base?.nome_arquivo, p.extensao) || cleanFileName(p.atual?.nome_arquivo, p.extensao);
+              return (
+                <div key={p.key} className="flex items-center gap-2 flex-wrap text-xs bg-background/60 rounded-md px-2.5 py-1.5 border border-border/60">
+                  {ext && ext !== "txt" && <Badge variant="outline" className="text-[10px] font-mono">.{ext}</Badge>}
+                  <div className="flex-1 min-w-0 font-mono truncate" title={displayName}>{displayName}</div>
+                  <Button
+                    size="sm"
+                    variant="default"
+                    className="h-7 text-xs"
+                    onClick={(e) => { e.stopPropagation(); onCompare(p, f); }}
+                  >
+                    Ver diferenças
+                  </Button>
                 </div>
-                <div className="flex gap-1 flex-wrap">
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.base!)}>Baixar</Button>
-                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleEvidenceDownload(p.atual!)}>Baixar</Button>
-                  <Button size="sm" variant="default" className="h-7 text-xs" onClick={() => onCompare(p, f)}>Ver diferenças</Button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {isDiff && pairs.length === 0 && (
@@ -989,8 +987,14 @@ function LeafItemCard({
         )}
 
         <div className="flex gap-1.5">
-          {isQuebra && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => onSelect(f)}>Ver erro</Button>}
-          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onSelect(f)}>Detalhe</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            onClick={(e) => { e.stopPropagation(); onSelect(f); }}
+          >
+            Detalhes
+          </Button>
         </div>
       </div>
     </div>
