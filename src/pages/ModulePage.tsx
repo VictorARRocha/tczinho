@@ -291,7 +291,10 @@ function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { modulo:
                         <button key={r.id} onClick={() => { onPickRun(r.id); setOpen(false); }} className={`w-full text-left px-3 py-2.5 hover:bg-secondary/60 transition-smooth border-b border-border/50 ${active ? "bg-primary/5" : ""}`}>
                           <div className="flex items-center gap-2">
                             {active && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                            <span className="text-sm font-medium truncate flex-1">{formatDateTime(r.data_analise)}</span>
+                            <span className="text-sm font-medium truncate flex-1">
+                              {formatDateTime(r.data_analise)}
+                              {r.maquina && <span className="text-muted-foreground font-normal"> — {r.maquina}</span>}
+                            </span>
                             <Badge variant="outline" className={`${h.className} text-[10px] h-5`}>{h.label}</Badge>
                           </div>
                           <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 ml-5">
