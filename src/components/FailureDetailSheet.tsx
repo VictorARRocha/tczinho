@@ -404,13 +404,8 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             </Section>
           )}
 
-          {otherEvidences.length > 0 && (
-            <Section title={`Outras evidências (${otherEvidences.length})`}>
-              <div className="space-y-3">
-                {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
-              </div>
-            </Section>
-          )}
+
+
 
           {numberedPrints.length > 0 && (
             <Collapsible>
