@@ -51,11 +51,15 @@ function failureDescription(f: Falha): string {
 // Remove a extensão do nome para exibição limpa (ex: .txt não polui a lista)
 function cleanFileName(nome?: string | null, extensao?: string | null): string {
   if (!nome) return "—";
-  let ext = (extensao || "").trim().toLowerCase();
-  if (!ext) return nome;
-  if (ext.startsWith(".")) ext = ext.slice(1);
-  const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
-  return nome.replace(re, "");
+  let out = nome;
+  let ext = (extensao || "").trim().toLowerCase().replace(/^\.+/, "");
+  if (ext) {
+    const re = new RegExp(`\\.${ext.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+    out = out.replace(re, "");
+  }
+  // Remove sufixos _Antigo / _Atual / _Base / _Gerado / _Novo / _Original / _Referencia / _Esperado ...
+  out = out.replace(/[_\-\. ]+(antigo|atual|base|gerado|gerada|novo|nova|original|referencia|referência|esperado|esperada|padrao|padrão|anterior|previo|prévio|antes|depois|current|new)$/i, "");
+  return out;
 }
 
 export default function ModulePage() {
