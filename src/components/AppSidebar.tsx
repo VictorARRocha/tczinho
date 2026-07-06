@@ -3,8 +3,11 @@ import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
   PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding,
+  ShieldCheck, LogOut,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 function getModuleIcon(nome: string): LucideIcon {
   const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -50,10 +53,17 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const { profile, isAdmin, hasPermission, signOut } = useAuth();
 
   useEffect(() => {
     fetchModules().then(setModulos).catch(() => {});
   }, []);
+
+  const canDashboard = hasPermission("view_dashboard");
+  const canJenkins = hasPermission("view_jenkins");
+  const canCreateRun = hasPermission("create_jenkins_run");
+  const canRerun = hasPermission("create_rerun");
+  const canAdmin = isAdmin || hasPermission("manage_users") || hasPermission("manage_permissions") || hasPermission("admin_all");
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -75,45 +85,71 @@ export function AppSidebar() {
           <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"}>
-                  <NavLink to="/">
-                    <LayoutDashboard />
-                    <span>Visão geral</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
-                  <NavLink to="/jenkins">
-                    <PersonStanding />
-                    <span>Jenkins</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {pathname.startsWith("/jenkins") && !collapsed && (
+              {canDashboard && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/"}>
+                    <NavLink to="/">
+                      <LayoutDashboard />
+                      <span>Visão geral</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canJenkins && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
+                    <NavLink to="/jenkins">
+                      <PersonStanding />
+                      <span>Jenkins</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canJenkins && pathname.startsWith("/jenkins") && !collapsed && (
                 <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
-                      <NavLink to="/jenkins/rodagem-completa">
-                        <PlayCircle />
-                        <span>Rodagem completa</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
-                      <NavLink to="/jenkins/reexecutar">
-                        <RefreshCcw />
-                        <span>Reexecutar rodagens</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {canCreateRun && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
+                        <NavLink to="/jenkins/rodagem-completa">
+                          <PlayCircle />
+                          <span>Rodagem completa</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {canRerun && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
+                        <NavLink to="/jenkins/reexecutar">
+                          <RefreshCcw />
+                          <span>Reexecutar rodagens</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
                 </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {canAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/usuarios")}>
+                    <NavLink to="/admin/usuarios">
+                      <ShieldCheck />
+                      <span>Usuários</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Módulos</SidebarGroupLabel>
@@ -138,15 +174,27 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
-        {!collapsed && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-pulse-glow rounded-full bg-success" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            Conectado ao Supabase
+      <SidebarFooter className="border-t border-sidebar-border px-4 py-3 gap-2">
+        {!collapsed && profile && (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold shrink-0">
+              {profile.full_name.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0 leading-tight">
+              <div className="text-xs font-medium truncate">{profile.full_name}</div>
+              <div className="text-[10px] text-muted-foreground font-mono truncate">
+                @{profile.username} · {profile.role}
+              </div>
+            </div>
+            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={signOut} title="Sair">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
           </div>
+        )}
+        {collapsed && profile && (
+          <Button size="icon" variant="ghost" onClick={signOut} title="Sair" className="mx-auto">
+            <LogOut className="h-4 w-4" />
+          </Button>
         )}
       </SidebarFooter>
     </Sidebar>
