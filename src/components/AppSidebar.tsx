@@ -174,15 +174,27 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
-        {!collapsed && (
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-pulse-glow rounded-full bg-success" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            Conectado ao Supabase
+      <SidebarFooter className="border-t border-sidebar-border px-4 py-3 gap-2">
+        {!collapsed && profile && (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/15 text-primary text-xs font-semibold shrink-0">
+              {profile.full_name.slice(0, 1).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0 leading-tight">
+              <div className="text-xs font-medium truncate">{profile.full_name}</div>
+              <div className="text-[10px] text-muted-foreground font-mono truncate">
+                @{profile.username} · {profile.role}
+              </div>
+            </div>
+            <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={signOut} title="Sair">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
           </div>
+        )}
+        {collapsed && profile && (
+          <Button size="icon" variant="ghost" onClick={signOut} title="Sair" className="mx-auto">
+            <LogOut className="h-4 w-4" />
+          </Button>
         )}
       </SidebarFooter>
     </Sidebar>
