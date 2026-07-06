@@ -85,45 +85,71 @@ export function AppSidebar() {
           <SidebarGroupLabel>Plataforma</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/"}>
-                  <NavLink to="/">
-                    <LayoutDashboard />
-                    <span>Visão geral</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
-                  <NavLink to="/jenkins">
-                    <PersonStanding />
-                    <span>Jenkins</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {pathname.startsWith("/jenkins") && !collapsed && (
+              {canDashboard && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/"}>
+                    <NavLink to="/">
+                      <LayoutDashboard />
+                      <span>Visão geral</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canJenkins && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
+                    <NavLink to="/jenkins">
+                      <PersonStanding />
+                      <span>Jenkins</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canJenkins && pathname.startsWith("/jenkins") && !collapsed && (
                 <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
-                      <NavLink to="/jenkins/rodagem-completa">
-                        <PlayCircle />
-                        <span>Rodagem completa</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
-                      <NavLink to="/jenkins/reexecutar">
-                        <RefreshCcw />
-                        <span>Reexecutar rodagens</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {canCreateRun && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
+                        <NavLink to="/jenkins/rodagem-completa">
+                          <PlayCircle />
+                          <span>Rodagem completa</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {canRerun && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
+                        <NavLink to="/jenkins/reexecutar">
+                          <RefreshCcw />
+                          <span>Reexecutar rodagens</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
                 </>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {canAdmin && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/admin/usuarios")}>
+                    <NavLink to="/admin/usuarios">
+                      <ShieldCheck />
+                      <span>Usuários</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
 
         <SidebarGroup>
           <SidebarGroupLabel>Módulos</SidebarGroupLabel>
