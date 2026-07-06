@@ -53,10 +53,17 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const { profile, isAdmin, hasPermission, signOut } = useAuth();
 
   useEffect(() => {
     fetchModules().then(setModulos).catch(() => {});
   }, []);
+
+  const canDashboard = hasPermission("view_dashboard");
+  const canJenkins = hasPermission("view_jenkins");
+  const canCreateRun = hasPermission("create_jenkins_run");
+  const canRerun = hasPermission("create_rerun");
+  const canAdmin = isAdmin || hasPermission("manage_users") || hasPermission("manage_permissions") || hasPermission("admin_all");
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
