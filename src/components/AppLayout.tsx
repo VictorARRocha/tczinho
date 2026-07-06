@@ -1,6 +1,7 @@
 import { Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
+import { ThemeToggle } from "./ThemeToggle";
 
 export function AppLayout() {
   return (
@@ -20,6 +21,7 @@ export function AppLayout() {
                 <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
                 Realtime ativo
               </div>
+              <ThemeToggle />
             </div>
           </header>
           <main className="flex-1 min-w-0">
