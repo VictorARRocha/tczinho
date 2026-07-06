@@ -3,7 +3,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import type { Permission } from "@/lib/permissions";
 
-export const USERNAME_DOMAIN = "agenttc.local";
+export const USERNAME_DOMAIN = "agenttc.dev";
 export const usernameToEmail = (u: string) => `${u.trim().toLowerCase()}@${USERNAME_DOMAIN}`;
 
 export interface UserProfile {
