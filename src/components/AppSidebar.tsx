@@ -3,8 +3,11 @@ import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
   PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding,
+  ShieldCheck, LogOut,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
 
 function getModuleIcon(nome: string): LucideIcon {
   const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
