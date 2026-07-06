@@ -6,24 +6,26 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { PageLoading } from "@/components/PageLoading";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-// Carregamento eager apenas para a Home (a maior parte dos usuários entra por ela)
 import Index from "./pages/Index";
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Pending from "./pages/Pending";
+import AccessDenied from "./pages/AccessDenied";
 
-// Demais rotas carregadas sob demanda (code-splitting) — bundle inicial menor
 const ModulePage = lazy(() => import("./pages/ModulePage"));
-
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
+const AdminUsers = lazy(() => import("./pages/AdminUsers"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// React Query com cache seguro: evita refetches agressivos ao trocar de aba/foco
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,        // 30s sem refetch automático
-      gcTime: 5 * 60_000,       // 5min em cache
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -41,8 +43,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route element={<AppLayout />}>
+          <Route path="/login" element={<Login />} />
+          <Route path="/cadastro" element={<Register />} />
+          <Route path="/register" element={<Navigate to="/cadastro" replace />} />
+          <Route path="/pendente" element={<Pending />} />
+
+          <Route
+            element={
+              <ProtectedRoute>
+                <AppLayout />
+              </ProtectedRoute>
+            }
+          >
             <Route path="/" element={<Index />} />
+            <Route path="/acesso-negado" element={<AccessDenied />} />
             <Route
               path="/modulo/:slug"
               element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
@@ -61,6 +75,14 @@ const App = () => (
               element={withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
             />
             <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
+            <Route
+              path="/admin/usuarios"
+              element={
+                <ProtectedRoute permission={["manage_users", "manage_permissions", "admin_all"]}>
+                  {withSuspense(<AdminUsers />, "Carregando administração...", "skeleton-table")}
+                </ProtectedRoute>
+              }
+            />
           </Route>
           <Route path="*" element={withSuspense(<NotFound />)} />
         </Routes>
