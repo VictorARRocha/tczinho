@@ -82,7 +82,8 @@ export const ApiQaDataSource: QaDataSource = {
     req<AtrasoRodagem[]>(`/runs/${encodeURIComponent(runId)}/performance`).catch(() => { notImplemented("fetchPerformanceByRun"); return []; }),
 
   async listStorageFilesByRun(_runId, _slug, _pasta) {
-    notImplemented("listStorageFilesByRun");
+    // No provider REST local, as evidencias ja chegam por /runs/:id/evidences.
+    // A listagem direta de Storage fica vazia para evitar duplicidade no merge.
     return [];
   },
 

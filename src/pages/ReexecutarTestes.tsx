@@ -45,7 +45,7 @@ import {
   type RodagemListItem,
   type CasoReexecutavel,
   type RerunRequest,
-} from "@/services/qa";
+} from "@/services/data";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   solicitado: { label: "Solicitado", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },

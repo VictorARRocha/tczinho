@@ -8,7 +8,7 @@ import {
   fetchTestcaseHierarchy,
   extractVmName,
   type TestcaseHierarchyNode,
-} from "@/services/qa";
+} from "@/services/data";
 
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";

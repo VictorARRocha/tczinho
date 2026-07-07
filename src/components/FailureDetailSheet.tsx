@@ -3,7 +3,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { Falha, Evidencia } from "@/types/db";
-import { fetchEvidenceByFailure } from "@/services/qa";
+import { fetchEvidenceByFailure } from "@/services/data";
 import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";

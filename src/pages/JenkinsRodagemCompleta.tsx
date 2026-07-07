@@ -13,7 +13,7 @@ import {
 import { PlayCircle, ChevronLeft, Copy, Server } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr,
-} from "@/services/qa";
+} from "@/services/data";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
