@@ -19,6 +19,7 @@ export interface DataConfig {
 export function getDataConfig(): DataConfig {
   const raw = (import.meta.env.VITE_DATA_PROVIDER as string | undefined)?.toLowerCase();
   const provider: DataProvider = raw === "api" ? "api" : "supabase";
-  const apiBaseUrl = (import.meta.env.VITE_AGENT_TC_API_URL as string | undefined) ?? "http://192.168.9.201:8000";
+  const apiBaseUrl =
+    (import.meta.env.VITE_AGENT_TC_API_URL as string | undefined) ?? "https://agent-tc-api.onrender.com";
   return { provider, apiBaseUrl };
 }
