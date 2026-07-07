@@ -12,7 +12,7 @@
 export type DataProvider = "supabase" | "api";
 
 export interface DataConfig {
-  provider: DataProvider;
+  provider: api;
   apiBaseUrl: string;
 }
 
