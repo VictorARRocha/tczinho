@@ -28,6 +28,54 @@ create table if not exists public.agent_tc_app_users (
   updated_at timestamptz not null default now()
 );
 
+-- Compatibilidade com instalações anteriores: CREATE TABLE IF NOT EXISTS
+-- não adiciona colunas novas quando a tabela já existe.
+alter table public.agent_tc_app_users add column if not exists username text;
+alter table public.agent_tc_app_users add column if not exists first_name text;
+alter table public.agent_tc_app_users add column if not exists last_name text;
+alter table public.agent_tc_app_users add column if not exists email text;
+alter table public.agent_tc_app_users add column if not exists role text not null default 'user';
+alter table public.agent_tc_app_users add column if not exists status text not null default 'pending';
+alter table public.agent_tc_app_users add column if not exists approved_at timestamptz;
+alter table public.agent_tc_app_users add column if not exists approved_by uuid;
+alter table public.agent_tc_app_users add column if not exists rejected_at timestamptz;
+alter table public.agent_tc_app_users add column if not exists rejected_by uuid;
+alter table public.agent_tc_app_users add column if not exists rejection_reason text;
+alter table public.agent_tc_app_users add column if not exists disabled_at timestamptz;
+alter table public.agent_tc_app_users add column if not exists disabled_by uuid;
+alter table public.agent_tc_app_users add column if not exists created_at timestamptz not null default now();
+alter table public.agent_tc_app_users add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_app_users_role_check'
+      and conrelid = 'public.agent_tc_app_users'::regclass
+  ) then
+    alter table public.agent_tc_app_users
+      add constraint agent_tc_app_users_role_check check (role in ('user','admin'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_app_users_status_check'
+      and conrelid = 'public.agent_tc_app_users'::regclass
+  ) then
+    alter table public.agent_tc_app_users
+      add constraint agent_tc_app_users_status_check check (status in ('pending','approved','rejected','disabled'));
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_app_users_username_key'
+      and conrelid = 'public.agent_tc_app_users'::regclass
+  ) then
+    alter table public.agent_tc_app_users
+      add constraint agent_tc_app_users_username_key unique (username);
+  end if;
+end $$;
+
 create index if not exists agent_tc_app_users_status_idx on public.agent_tc_app_users(status);
 create index if not exists agent_tc_app_users_role_idx   on public.agent_tc_app_users(role);
 
