@@ -2,9 +2,10 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding, ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 function getModuleIcon(nome: string): LucideIcon {
   const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -50,10 +51,14 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const { isAdmin, hasPermission, canAccessModule } = useAuth();
 
   useEffect(() => {
     fetchModules().then(setModulos).catch(() => {});
   }, []);
+
+  const canJenkins = hasPermission("jenkins.view");
+  const visibleModulos = modulos.filter((m) => canAccessModule(m.slug));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -83,60 +88,79 @@ export function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
-                  <NavLink to="/jenkins">
-                    <PersonStanding />
-                    <span>Jenkins</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              {pathname.startsWith("/jenkins") && !collapsed && (
+              {canJenkins && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
+                    <NavLink to="/jenkins">
+                      <PersonStanding />
+                      <span>Jenkins</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {canJenkins && pathname.startsWith("/jenkins") && !collapsed && (
                 <>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
-                      <NavLink to="/jenkins/rodagem-completa">
-                        <PlayCircle />
-                        <span>Rodagem completa</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
-                      <NavLink to="/jenkins/reexecutar">
-                        <RefreshCcw />
-                        <span>Reexecutar rodagens</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
+                  {hasPermission("jenkins.run") && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
+                        <NavLink to="/jenkins/rodagem-completa">
+                          <PlayCircle />
+                          <span>Rodagem completa</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
+                  {hasPermission("jenkins.run") && (
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
+                        <NavLink to="/jenkins/reexecutar">
+                          <RefreshCcw />
+                          <span>Reexecutar rodagens</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )}
                 </>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={pathname.startsWith("/admin")}>
+                    <NavLink to="/admin/usuarios">
+                      <ShieldCheck />
+                      <span>Admin</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
               )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-        <SidebarGroup>
-          <SidebarGroupLabel>Módulos</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {modulos.map((m) => {
-                const url = `/modulo/${m.slug}`;
-                const Icon = getModuleIcon(m.nome);
-                return (
-                  <SidebarMenuItem key={m.id}>
-                    <SidebarMenuButton asChild isActive={pathname.startsWith(url)}>
-                      <NavLink to={url}>
-                        <Icon />
-                        <span>{m.nome}</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visibleModulos.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Módulos</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {visibleModulos.map((m) => {
+                  const url = `/modulo/${m.slug}`;
+                  const Icon = getModuleIcon(m.nome);
+                  return (
+                    <SidebarMenuItem key={m.id}>
+                      <SidebarMenuButton asChild isActive={pathname.startsWith(url)}>
+                        <NavLink to={url}>
+                          <Icon />
+                          <span>{m.nome}</span>
+                        </NavLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
+
 
       <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
         {!collapsed && (
