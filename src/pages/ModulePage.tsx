@@ -87,16 +87,10 @@ function withCaseMetadata(f: Falha, hierMap: Map<string, TestcaseHierarchyNode>)
   };
 }
 
-// Descrição do caso de teste (não confundir com mensagem de erro)
+// Descrição do caso de teste (vinda direto da API já corrigida)
 function failureDescription(f: Falha): string {
   const description = cleanCaseText(f.descricao_caso);
-  if (
-    description &&
-    !sameCaseText(description, f.erro_principal) &&
-    !sameCaseText(description, f.mensagem_principal)
-  ) {
-    return description;
-  }
+  if (description) return description;
 
   const order = [f.caso_teste_provavel, f.rotina_funcional];
   for (const v of order) {
@@ -105,6 +99,7 @@ function failureDescription(f: Falha): string {
   }
   return "";
 }
+
 
 // Remove a extensão do nome para exibição limpa (ex: .txt não polui a lista)
 function cleanFileName(nome?: string | null, extensao?: string | null): string {
