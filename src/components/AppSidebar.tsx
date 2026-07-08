@@ -42,7 +42,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { useEffect, useState } from "react";
-import { fetchModules } from "@/services/qa";
+import { fetchModules } from "@/services/data";
 import type { Modulo } from "@/types/db";
 
 export function AppSidebar() {

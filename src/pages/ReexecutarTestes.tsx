@@ -45,7 +45,7 @@ import {
   type RodagemListItem,
   type CasoReexecutavel,
   type RerunRequest,
-} from "@/services/qa";
+} from "@/services/data";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   solicitado: { label: "Solicitado", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },
@@ -175,13 +175,13 @@ export default function ReexecutarTestes() {
     setSubmitting(true);
     try {
       await createRerunRequest({
-        fk_rodagem: selectedRun.id_rodagem,
         vm_name: vmName,
         versao,
         casos_teste: casosTesteString,
+        paralelo: "",
+        ct_desmarcar: "[0.3]",
         data_hora: configJsonPreview.data_hora,
-        tipo_solicitacao: "reexecucao",
-        modo_configuracao: "casos_quebrados",
+        branch: "",
       });
       toast.success("Solicitação enviada", {
         description: "O JenkinsBridge local irá disparar o Jenkins.",

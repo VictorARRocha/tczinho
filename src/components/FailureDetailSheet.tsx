@@ -3,7 +3,7 @@ import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import type { Falha, Evidencia } from "@/types/db";
-import { fetchEvidenceByFailure } from "@/services/qa";
+import { fetchEvidenceByFailure } from "@/services/data";
 import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
-  AlertCircle, GitCompare, X, ChevronDown, ChevronRight,
+  GitCompare, X, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -260,10 +260,18 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
   useEffect(() => {
+    // Ao trocar de falha, limpar evidências anteriores para evitar reaproveitar
+    // imagens/estado do caso anterior enquanto as novas carregam.
+    setEvidencias([]);
+    setComparePair(null);
     if (!falha) return;
     if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
     if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
-    fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
+    let cancelled = false;
+    fetchEvidenceByFailure(falha.id)
+      .then((list) => { if (!cancelled) setEvidencias(list); })
+      .catch(() => { if (!cancelled) setEvidencias([]); });
+    return () => { cancelled = true; };
   }, [falha?.id, evidsProp]);
 
   const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
@@ -329,53 +337,13 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
 
           {errorImage && (
-            <EvidenceItem ev={errorImage} priority />
+            <EvidenceItem key={`${falha.id}-err-${errorImage.id}`} ev={errorImage} priority />
           )}
 
           {otherEvidences.length > 0 && (
             <div className="space-y-3">
-              {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              {otherEvidences.map((e) => <EvidenceItem key={`${falha.id}-oth-${e.id}`} ev={e} />)}
             </div>
-          )}
-
-
-          {(falha.tipo_tecnico || falha.formulario_ou_tela || falha.componente ||
-            falha.fato_observado || falha.hipotese_principal || falha.analise_tecnica ||
-            falha.analise_funcional || falha.impacto_possivel || falha.trecho_relevante ||
-            falha.call_stack_resumido || falha.primeira_acao_recomendada ||
-            (Array.isArray(falha.tags) && falha.tags.length > 0)) && (
-            <section className="space-y-3">
-              <Grid>
-                <Field label="Tipo técnico" value={falha.tipo_tecnico} />
-                <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
-                <Field label="Componente" value={falha.componente} />
-                <Field label="Fato observado" value={falha.fato_observado} full />
-                <Field label="Hipótese principal" value={falha.hipotese_principal} full />
-                <Field label="Análise técnica" value={falha.analise_tecnica} full />
-                <Field label="Análise funcional" value={falha.analise_funcional} full />
-                <Field label="Impacto possível" value={falha.impacto_possivel} full />
-              </Grid>
-              {falha.trecho_relevante && <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />}
-              {falha.call_stack_resumido && <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />}
-              {falha.primeira_acao_recomendada && (
-                <Card className="p-4 border-primary/40 bg-primary/5">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-primary font-semibold mb-1">Primeira ação recomendada</p>
-                      <p className="text-sm">{falha.primeira_acao_recomendada}</p>
-                    </div>
-                  </div>
-                </Card>
-              )}
-              {Array.isArray(falha.tags) && falha.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {falha.tags.map((t: string, i: number) => (
-                    <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{t}</span>
-                  ))}
-                </div>
-              )}
-            </section>
           )}
 
 
@@ -421,7 +389,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
-                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} hideCaption />)}
+                {numberedPrints.map((e) => <EvidenceItem key={`${falha.id}-num-${e.id}`} ev={e} hideCaption />)}
               </CollapsibleContent>
             </Collapsible>
           )}
@@ -445,34 +413,6 @@ function Section({ title, children }: { title: string; children: any }) {
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
-  );
-}
-
-function Grid({ children }: { children: any }) {
-  return <div className="grid grid-cols-2 gap-x-5 gap-y-3.5">{children}</div>;
-}
-
-function Field({ label, value, mono, full }: { label: string; value: any; mono?: boolean; full?: boolean }) {
-  if (!value) return null;
-  return (
-    <div className={full ? "col-span-2" : ""}>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
-      <div className={`text-sm text-foreground/90 leading-relaxed ${mono ? "font-mono break-all" : ""}`}>{value}</div>
-    </div>
-  );
-}
-
-function CodeBlock({ title, content }: { title: string; content: string }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
-        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
-          <Copy className="h-3 w-3 mr-1" /> Copiar
-        </Button>
-      </div>
-      <pre className="font-mono text-xs bg-background border border-border rounded-lg p-3 overflow-x-auto max-h-64 text-foreground/80">{content}</pre>
-    </div>
   );
 }
 

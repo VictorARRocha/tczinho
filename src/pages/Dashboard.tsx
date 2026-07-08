@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/qa";
+import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/data";
 import type { Modulo, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";

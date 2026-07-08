@@ -13,7 +13,7 @@ import {
 import { PlayCircle, ChevronLeft, Copy, Server } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr,
-} from "@/services/qa";
+} from "@/services/data";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
@@ -95,7 +95,6 @@ export default function JenkinsRodagemCompleta() {
     setSubmitting(true);
     try {
       await createRerunRequest({
-        fk_rodagem: null,
         vm_name: sVm,
         versao: sVersao.trim(),
         casos_teste: sModuloObj.codigo,
@@ -103,10 +102,6 @@ export default function JenkinsRodagemCompleta() {
         ct_desmarcar: "[0.3]",
         data_hora: sDataHora,
         branch: "",
-        tipo_solicitacao: "rodagem_completa",
-        modo_configuracao: "simplificada",
-        modulo_nome: sModuloObj.nome,
-        modulo_codigo: sModuloObj.codigo,
       });
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
       setSVersao("");
@@ -127,7 +122,6 @@ export default function JenkinsRodagemCompleta() {
     setSubmitting(true);
     try {
       await createRerunRequest({
-        fk_rodagem: null,
         vm_name: cVm,
         versao: cVersao.trim(),
         casos_teste: cCasos.trim(),
@@ -135,10 +129,6 @@ export default function JenkinsRodagemCompleta() {
         ct_desmarcar: cCtDesmarcar.trim(),
         data_hora: cDataHora.trim(),
         branch: cBranch,
-        tipo_solicitacao: "rodagem_completa",
-        modo_configuracao: "configurada",
-        modulo_nome: null,
-        modulo_codigo: null,
       });
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
     } catch (e: any) {
