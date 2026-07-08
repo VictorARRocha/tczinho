@@ -37,6 +37,15 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status";
 
+function getUserMetadata(user: User) {
+  return {
+    username: (user.user_metadata?.username as string | undefined)?.trim() || user.email?.split("@")[0] || user.id,
+    first_name: (user.user_metadata?.first_name as string | undefined) ?? null,
+    last_name: (user.user_metadata?.last_name as string | undefined) ?? null,
+    email: user.email ?? null,
+  };
+}
+
 export function usernameToEmail(username: string) {
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
   return `${norm}@agent-tc.local`;
@@ -49,7 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [modules, setModules] = useState<Set<string>>(new Set());
 
-  const loadProfile = useCallback(async (uid: string) => {
+  const loadProfile = useCallback(async (userOrUid: User | string) => {
+    const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
     const fetchProfile = async (column: "id" | "auth_user_id") => {
       const { data, error } = await supabase
         .from("agent_tc_app_users")
@@ -65,10 +75,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return (data as AppUserProfile | null) ?? null;
     };
 
+    const ensureProfile = async () => {
+      if (typeof userOrUid === "string") return null;
+
+      const meta = getUserMetadata(userOrUid);
+      const { data, error } = await supabase
+        .from("agent_tc_app_users")
+        .upsert(
+          {
+            id: uid,
+            auth_user_id: uid,
+            username: meta.username,
+            first_name: meta.first_name,
+            last_name: meta.last_name,
+            email: meta.email,
+          },
+          { onConflict: "id", ignoreDuplicates: true },
+        )
+        .select(PROFILE_SELECT)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("[auth] Não foi possível criar/vincular perfil automaticamente:", error.message);
+        return null;
+      }
+
+      return (data as AppUserProfile | null) ?? null;
+    };
+
     // Suporta os dois modelos que já apareceram no banco:
     // 1) agent_tc_app_users.id === auth.users.id
     // 2) agent_tc_app_users.auth_user_id === auth.users.id e id é o ID interno do perfil
-    const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id"));
+    const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id")) ?? (await ensureProfile());
     setProfile((p as AppUserProfile) ?? null);
     if (!p?.id) {
       setPermissions(new Set());
@@ -92,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(sess);
       if (sess?.user) {
         // defer para evitar chamadas dentro do callback
-        setTimeout(() => loadProfile(sess.user.id).finally(() => setLoading(false)), 0);
+        setTimeout(() => loadProfile(sess.user).finally(() => setLoading(false)), 0);
       } else {
         setProfile(null);
         setPermissions(new Set());
@@ -106,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!mounted) return;
       setSession(data.session);
       if (data.session?.user) {
-        loadProfile(data.session.user.id).finally(() => setLoading(false));
+        loadProfile(data.session.user).finally(() => setLoading(false));
       } else {
         setLoading(false);
       }
