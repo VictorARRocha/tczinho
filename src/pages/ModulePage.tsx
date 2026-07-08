@@ -1019,7 +1019,7 @@ function LeafItemCard({
         )}
 
         {/* Descrição */}
-        {isQuebra && desc && (
+        {desc && (
           <p className="text-[13px] text-foreground/75 leading-relaxed line-clamp-3">{desc}</p>
         )}
 
