@@ -337,12 +337,12 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
 
           {errorImage && (
-            <EvidenceItem ev={errorImage} priority />
+            <EvidenceItem key={`${falha.id}-err-${errorImage.id}`} ev={errorImage} priority />
           )}
 
           {otherEvidences.length > 0 && (
             <div className="space-y-3">
-              {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              {otherEvidences.map((e) => <EvidenceItem key={`${falha.id}-oth-${e.id}`} ev={e} />)}
             </div>
           )}
 
