@@ -13,6 +13,7 @@ export interface AppUserProfile {
   email: string | null;
   role: AppUserRole;
   status: AppUserStatus;
+  rejection_reason?: string | null;
 }
 
 interface AuthContextValue {
@@ -34,6 +35,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status,rejection_reason";
+
 export function usernameToEmail(username: string) {
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
   return `${norm}@agent-tc.local`;
@@ -47,12 +50,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<Set<string>>(new Set());
 
   const loadProfile = useCallback(async (uid: string) => {
-    // No schema atual, agent_tc_app_users.id === auth.users.id (PK é FK para auth.users)
-    const { data: p } = await supabase
-      .from("agent_tc_app_users")
-      .select("id,username,first_name,last_name,email,role,status")
-      .eq("id", uid)
-      .maybeSingle();
+    const fetchProfile = async (column: "id" | "auth_user_id") => {
+      const { data, error } = await supabase
+        .from("agent_tc_app_users")
+        .select(PROFILE_SELECT)
+        .eq(column, uid)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[auth] Falha ao buscar perfil por ${column}:`, error.message);
+        return null;
+      }
+
+      return (data as AppUserProfile | null) ?? null;
+    };
+
+    // Suporta os dois modelos que já apareceram no banco:
+    // 1) agent_tc_app_users.id === auth.users.id
+    // 2) agent_tc_app_users.auth_user_id === auth.users.id e id é o ID interno do perfil
+    const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id"));
     setProfile((p as AppUserProfile) ?? null);
     if (!p?.id) {
       setPermissions(new Set());
@@ -102,19 +118,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado
+  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado.
+  // Sem filtro rígido porque alguns bancos usam id=auth.uid(), outros auth_user_id=auth.uid().
   useEffect(() => {
     const uid = session?.user?.id;
     if (!uid) return;
+    const profileId = profile?.id;
+    const isOwnProfileRow = (row: any) => row?.id === uid || row?.auth_user_id === uid || (!!profileId && row?.id === profileId);
+    const isOwnPermissionRow = (row: any) => row?.user_id === uid || (!!profileId && row?.user_id === profileId);
     const reload = () => loadProfile(uid);
     const channel = supabase
-      .channel(`self-profile-${uid}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users", filter: `id=eq.${uid}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions", filter: `user_id=eq.${uid}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .channel(`self-profile-${uid}-${profileId ?? "pending"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
+        if (isOwnProfileRow(payload.new) || isOwnProfileRow(payload.old)) reload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
+        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
+        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [session?.user?.id, loadProfile]);
+  }, [session?.user?.id, profile?.id, loadProfile]);
 
   const signIn: AuthContextValue["signIn"] = async (username, password) => {
     const email = usernameToEmail(username);

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -5,7 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Clock, LogOut, XCircle, Ban } from "lucide-react";
 
 export default function AguardandoAprovacao() {
-  const { profile, signOut, session } = useAuth();
+  const { profile, signOut, session, refreshProfile } = useAuth();
+
+  useEffect(() => {
+    if (!session || profile?.status === "approved") return;
+
+    refreshProfile();
+    const interval = window.setInterval(refreshProfile, 5000);
+    window.addEventListener("focus", refreshProfile);
+
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshProfile);
+    };
+  }, [session, profile?.status, refreshProfile]);
 
   if (session && profile?.status === "approved") {
     return <Navigate to="/" replace />;
@@ -14,7 +28,7 @@ export default function AguardandoAprovacao() {
   const status = profile?.status ?? "pending";
   const view =
     status === "rejected"
-      ? { icon: XCircle, title: "Cadastro rejeitado", desc: profile?.["rejection_reason" as never] ?? "Seu cadastro foi rejeitado. Fale com um administrador." }
+      ? { icon: XCircle, title: "Cadastro rejeitado", desc: profile?.rejection_reason ?? "Seu cadastro foi rejeitado. Fale com um administrador." }
       : status === "disabled"
       ? { icon: Ban, title: "Conta desativada", desc: "Sua conta foi desativada. Fale com um administrador." }
       : { icon: Clock, title: "Cadastro pendente de aprovação", desc: "Um administrador precisa aprovar seu acesso. Volte em instantes." };
