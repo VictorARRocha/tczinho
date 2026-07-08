@@ -48,9 +48,14 @@ export default function AguardandoAprovacao() {
             </div>
           )}
           {session ? (
-            <Button variant="outline" className="w-full" onClick={() => signOut()}>
-              <LogOut className="h-4 w-4 mr-2" /> Sair
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1" onClick={() => refreshProfile()}>
+                <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
+              </Button>
+              <Button variant="outline" className="flex-1" onClick={() => signOut()}>
+                <LogOut className="h-4 w-4 mr-2" /> Sair
+              </Button>
+            </div>
           ) : (
             <Button asChild className="w-full"><Link to="/login">Ir para login</Link></Button>
           )}
