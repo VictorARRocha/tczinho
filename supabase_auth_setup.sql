@@ -174,6 +174,11 @@ grant select, insert, update, delete on public.agent_tc_user_permissions to auth
 grant all on public.agent_tc_user_permissions to service_role;
 create index if not exists agent_tc_user_permissions_user_idx on public.agent_tc_user_permissions(user_id);
 
+-- garante todas as colunas em instalações antigas
+alter table public.agent_tc_user_permissions add column if not exists user_id uuid;
+alter table public.agent_tc_user_permissions add column if not exists granted_by uuid;
+alter table public.agent_tc_user_permissions add column if not exists granted_at timestamptz not null default now();
+
 -- Migração idempotente: garante coluna permission_code + unique(user_id, permission_code)
 do $$
 begin
