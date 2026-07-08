@@ -47,12 +47,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<Set<string>>(new Set());
 
   const loadProfile = useCallback(async (uid: string) => {
-    const [{ data: p }, { data: perms }, { data: mods }] = await Promise.all([
-      supabase.from("agent_tc_app_users").select("id,username,first_name,last_name,email,role,status").eq("id", uid).maybeSingle(),
-      supabase.from("agent_tc_user_permissions").select("permission_code").eq("user_id", uid),
-      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").eq("user_id", uid),
-    ]);
+    const { data: p } = await supabase
+      .from("agent_tc_app_users")
+      .select("id,username,first_name,last_name,email,role,status")
+      .eq("auth_user_id", uid)
+      .maybeSingle();
     setProfile((p as AppUserProfile) ?? null);
+    if (!p?.id) {
+      setPermissions(new Set());
+      setModules(new Set());
+      return;
+    }
+    const [{ data: perms }, { data: mods }] = await Promise.all([
+      supabase.from("agent_tc_user_permissions").select("permission_code").eq("user_id", p.id),
+      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").eq("user_id", p.id),
+    ]);
     setPermissions(new Set((perms ?? []).map((r: any) => r.permission_code)));
     setModules(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
   }, []);
