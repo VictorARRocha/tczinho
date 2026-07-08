@@ -143,6 +143,50 @@ alter table public.agent_tc_permission_catalog add column if not exists categori
 alter table public.agent_tc_permission_catalog add column if not exists descricao text;
 alter table public.agent_tc_permission_catalog add column if not exists created_at timestamptz not null default now();
 
+-- Garante que instalações antigas onde a coluna code já existia, mas sem
+-- UNIQUE/PK, também aceitem FK e ON CONFLICT (code).
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'agent_tc_permission_catalog'
+      and column_name = 'code'
+  ) then
+    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='slug') then
+      execute 'update public.agent_tc_permission_catalog set code = slug where code is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='key') then
+      execute 'update public.agent_tc_permission_catalog set code = key where code is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='permission_code') then
+      execute 'update public.agent_tc_permission_catalog set code = permission_code where code is null';
+    end if;
+
+    delete from public.agent_tc_permission_catalog where code is null;
+    delete from public.agent_tc_permission_catalog a
+      using public.agent_tc_permission_catalog b
+      where a.ctid < b.ctid
+        and a.code = b.code;
+
+    begin
+      alter table public.agent_tc_permission_catalog alter column code set not null;
+    exception when others then null;
+    end;
+
+    if not exists (
+      select 1 from pg_constraint c
+      where c.conrelid = 'public.agent_tc_permission_catalog'::regclass
+        and c.contype in ('p','u')
+        and pg_get_constraintdef(c.oid) in ('PRIMARY KEY (code)', 'UNIQUE (code)')
+    ) then
+      begin
+        alter table public.agent_tc_permission_catalog
+          add constraint agent_tc_permission_catalog_code_unique unique (code);
+      exception when duplicate_table or duplicate_object then null;
+      end;
+    end if;
+  end if;
+end$$;
+
 insert into public.agent_tc_permission_catalog (code, label, categoria) values
   ('dashboard.view',           'Ver dashboard',          'plataforma'),
   ('modules.view',             'Ver módulos',            'plataforma'),
@@ -175,11 +219,12 @@ grant all on public.agent_tc_user_permissions to service_role;
 create index if not exists agent_tc_user_permissions_user_idx on public.agent_tc_user_permissions(user_id);
 
 -- garante todas as colunas em instalações antigas
+alter table public.agent_tc_user_permissions add column if not exists id uuid default gen_random_uuid();
 alter table public.agent_tc_user_permissions add column if not exists user_id uuid;
 alter table public.agent_tc_user_permissions add column if not exists granted_by uuid;
 alter table public.agent_tc_user_permissions add column if not exists granted_at timestamptz not null default now();
 
--- Migração idempotente: garante coluna permission_code + unique(user_id, permission_code)
+-- Migração idempotente: garante coluna permission_code, FKs e unique(user_id, permission_code)
 do $$
 begin
   if not exists (
@@ -189,21 +234,74 @@ begin
       and column_name = 'permission_code'
   ) then
     alter table public.agent_tc_user_permissions add column permission_code text;
-    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='permission') then
-      execute 'update public.agent_tc_user_permissions set permission_code = permission where permission_code is null';
-    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='code') then
-      execute 'update public.agent_tc_user_permissions set permission_code = code where permission_code is null';
-    end if;
-    -- remove órfãos que ficaram sem código para permitir o NOT NULL
-    delete from public.agent_tc_user_permissions where permission_code is null;
-    alter table public.agent_tc_user_permissions alter column permission_code set not null;
+  end if;
+
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='permission') then
+    execute 'update public.agent_tc_user_permissions set permission_code = permission where permission_code is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='code') then
+    execute 'update public.agent_tc_user_permissions set permission_code = code where permission_code is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='slug') then
+    execute 'update public.agent_tc_user_permissions set permission_code = slug where permission_code is null';
+  end if;
+
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='app_user_id') then
+    execute 'update public.agent_tc_user_permissions p set user_id = p.app_user_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='target_user_id') then
+    execute 'update public.agent_tc_user_permissions p set user_id = p.target_user_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='profile_id') then
+    execute 'update public.agent_tc_user_permissions p set user_id = p.profile_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='auth_user_id') then
+    execute 'update public.agent_tc_user_permissions p set user_id = u.id from public.agent_tc_app_users u where p.user_id is null and (u.id = p.auth_user_id or nullif(to_jsonb(u)->>''auth_user_id'', '''')::uuid = p.auth_user_id)';
+  end if;
+
+  delete from public.agent_tc_user_permissions
+  where user_id is null
+     or permission_code is null;
+
+  delete from public.agent_tc_user_permissions a
+    using public.agent_tc_user_permissions b
+    where a.ctid < b.ctid
+      and a.user_id = b.user_id
+      and a.permission_code = b.permission_code;
+
+  alter table public.agent_tc_user_permissions alter column user_id set not null;
+  alter table public.agent_tc_user_permissions alter column permission_code set not null;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_user_permissions_user_id_fkey'
+      and conrelid = 'public.agent_tc_user_permissions'::regclass
+  ) then
+    begin
+      alter table public.agent_tc_user_permissions
+        add constraint agent_tc_user_permissions_user_id_fkey
+        foreign key (user_id) references public.agent_tc_app_users(id) on delete cascade not valid;
+    exception when duplicate_table or duplicate_object then null;
+    end;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_user_permissions_permission_code_fkey'
+      and conrelid = 'public.agent_tc_user_permissions'::regclass
+  ) then
+    begin
+      alter table public.agent_tc_user_permissions
+        add constraint agent_tc_user_permissions_permission_code_fkey
+        foreign key (permission_code) references public.agent_tc_permission_catalog(code) on delete cascade not valid;
+    exception when duplicate_table or duplicate_object then null;
+    end;
   end if;
 
   -- garante a constraint única (necessária para ON CONFLICT das RPCs)
   if not exists (
-    select 1 from pg_constraint
-    where conname = 'agent_tc_user_permissions_user_id_permission_code_key'
-       or conname = 'agent_tc_user_permissions_user_perm_unique'
+    select 1 from pg_constraint c
+    where c.conrelid = 'public.agent_tc_user_permissions'::regclass
+      and c.contype in ('p','u')
+      and (
+        pg_get_constraintdef(c.oid) like 'UNIQUE (user_id, permission_code)%'
+        or pg_get_constraintdef(c.oid) like 'PRIMARY KEY (user_id, permission_code)%'
+      )
   ) then
     begin
       alter table public.agent_tc_user_permissions
@@ -229,10 +327,11 @@ grant all on public.agent_tc_user_module_permissions to service_role;
 create index if not exists agent_tc_user_module_permissions_user_idx on public.agent_tc_user_module_permissions(user_id);
 
 alter table public.agent_tc_user_module_permissions add column if not exists user_id uuid;
+alter table public.agent_tc_user_module_permissions add column if not exists id uuid default gen_random_uuid();
 alter table public.agent_tc_user_module_permissions add column if not exists granted_by uuid;
 alter table public.agent_tc_user_module_permissions add column if not exists granted_at timestamptz not null default now();
 
--- Migração idempotente: garante coluna modulo_slug + unique(user_id, modulo_slug)
+-- Migração idempotente: garante coluna modulo_slug, FK e unique(user_id, modulo_slug)
 do $$
 begin
   if not exists (
@@ -240,21 +339,62 @@ begin
     where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='modulo_slug'
   ) then
     alter table public.agent_tc_user_module_permissions add column modulo_slug text;
-    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='module_slug') then
-      execute 'update public.agent_tc_user_module_permissions set modulo_slug = module_slug where modulo_slug is null';
-    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='slug') then
-      execute 'update public.agent_tc_user_module_permissions set modulo_slug = slug where modulo_slug is null';
-    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='modulo') then
-      execute 'update public.agent_tc_user_module_permissions set modulo_slug = modulo where modulo_slug is null';
-    end if;
-    delete from public.agent_tc_user_module_permissions where modulo_slug is null;
-    alter table public.agent_tc_user_module_permissions alter column modulo_slug set not null;
   end if;
+
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='module_slug') then
+    execute 'update public.agent_tc_user_module_permissions set modulo_slug = module_slug where modulo_slug is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='slug') then
+    execute 'update public.agent_tc_user_module_permissions set modulo_slug = slug where modulo_slug is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='modulo') then
+    execute 'update public.agent_tc_user_module_permissions set modulo_slug = modulo where modulo_slug is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='module') then
+    execute 'update public.agent_tc_user_module_permissions set modulo_slug = module where modulo_slug is null';
+  end if;
+
+  if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='app_user_id') then
+    execute 'update public.agent_tc_user_module_permissions p set user_id = p.app_user_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='target_user_id') then
+    execute 'update public.agent_tc_user_module_permissions p set user_id = p.target_user_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='profile_id') then
+    execute 'update public.agent_tc_user_module_permissions p set user_id = p.profile_id where p.user_id is null';
+  elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='auth_user_id') then
+    execute 'update public.agent_tc_user_module_permissions p set user_id = u.id from public.agent_tc_app_users u where p.user_id is null and (u.id = p.auth_user_id or nullif(to_jsonb(u)->>''auth_user_id'', '''')::uuid = p.auth_user_id)';
+  end if;
+
+  delete from public.agent_tc_user_module_permissions
+  where user_id is null
+     or modulo_slug is null;
+
+  delete from public.agent_tc_user_module_permissions a
+    using public.agent_tc_user_module_permissions b
+    where a.ctid < b.ctid
+      and a.user_id = b.user_id
+      and a.modulo_slug = b.modulo_slug;
+
+  alter table public.agent_tc_user_module_permissions alter column user_id set not null;
+  alter table public.agent_tc_user_module_permissions alter column modulo_slug set not null;
 
   if not exists (
     select 1 from pg_constraint
-    where conname = 'agent_tc_user_module_permissions_user_id_modulo_slug_key'
-       or conname = 'agent_tc_user_module_permissions_user_mod_unique'
+    where conname = 'agent_tc_user_module_permissions_user_id_fkey'
+      and conrelid = 'public.agent_tc_user_module_permissions'::regclass
+  ) then
+    begin
+      alter table public.agent_tc_user_module_permissions
+        add constraint agent_tc_user_module_permissions_user_id_fkey
+        foreign key (user_id) references public.agent_tc_app_users(id) on delete cascade not valid;
+    exception when duplicate_table or duplicate_object then null;
+    end;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint c
+    where c.conrelid = 'public.agent_tc_user_module_permissions'::regclass
+      and c.contype in ('p','u')
+      and (
+        pg_get_constraintdef(c.oid) like 'UNIQUE (user_id, modulo_slug)%'
+        or pg_get_constraintdef(c.oid) like 'PRIMARY KEY (user_id, modulo_slug)%'
+      )
   ) then
     begin
       alter table public.agent_tc_user_module_permissions
