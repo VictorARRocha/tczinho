@@ -986,7 +986,7 @@ function LeafItemCard({
   const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
   const indent = depth * 16 + 20;
   const classificacaoKey = (f.classificacao || "").toLowerCase().replace(/\s+/g, "_").replace(/\//g, "_");
-  const showClassification = !!f.classificacao && !["test_break", "file_difference", "test_break_file_difference", "break", "difference"].includes(classificacaoKey);
+  const showClassification = !!f.classificacao && !["test_break", "file_difference", "test_break_file_difference", "break", "difference", "report_difference", "report_diff"].includes(classificacaoKey);
 
   const accent =
     tipo === "quebra" ? "border-rose-500/40"
@@ -1019,7 +1019,7 @@ function LeafItemCard({
         )}
 
         {/* Descrição */}
-        {isQuebra && desc && (
+        {desc && (
           <p className="text-[13px] text-foreground/75 leading-relaxed line-clamp-3">{desc}</p>
         )}
 
