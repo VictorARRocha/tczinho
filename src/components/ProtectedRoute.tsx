@@ -15,7 +15,10 @@ export function ProtectedRoute({ children, requirePermission, requireAdmin }: Pr
   if (loading) return <PageLoading message="Carregando sessão..." />;
   if (!session) return <Navigate to="/login" state={{ from: location }} replace />;
 
-  if (!profile) return <PageLoading message="Carregando perfil..." />;
+  // Sessão existe mas o perfil não pôde ser carregado (RLS bloqueando ou linha inexistente)
+  // Evita loading infinito redirecionando para a tela de aguardando aprovação.
+  if (!profile) return <Navigate to="/aguardando-aprovacao" replace />;
+
 
   if (profile.status !== "approved") {
     return <Navigate to="/aguardando-aprovacao" replace />;
