@@ -102,6 +102,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
+  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) return;
+    const reload = () => loadProfile(uid);
+    const channel = supabase
+      .channel(`self-profile-${uid}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users", filter: `id=eq.${uid}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.user?.id, loadProfile]);
+
   const signIn: AuthContextValue["signIn"] = async (username, password) => {
     const email = usernameToEmail(username);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
