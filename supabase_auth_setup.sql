@@ -11,6 +11,7 @@ create extension if not exists "pgcrypto";
 -- ---------------------------------------------------------------------
 create table if not exists public.agent_tc_app_users (
   id uuid primary key references auth.users(id) on delete cascade,
+  auth_user_id uuid references auth.users(id) on delete cascade,
   username text unique not null,
   first_name text,
   last_name  text,
@@ -31,6 +32,7 @@ create table if not exists public.agent_tc_app_users (
 -- Compatibilidade com instalações anteriores: CREATE TABLE IF NOT EXISTS
 -- não adiciona colunas novas quando a tabela já existe.
 alter table public.agent_tc_app_users add column if not exists username text;
+alter table public.agent_tc_app_users add column if not exists auth_user_id uuid;
 alter table public.agent_tc_app_users add column if not exists first_name text;
 alter table public.agent_tc_app_users add column if not exists last_name text;
 alter table public.agent_tc_app_users add column if not exists email text;
@@ -45,6 +47,27 @@ alter table public.agent_tc_app_users add column if not exists disabled_at times
 alter table public.agent_tc_app_users add column if not exists disabled_by uuid;
 alter table public.agent_tc_app_users add column if not exists created_at timestamptz not null default now();
 alter table public.agent_tc_app_users add column if not exists updated_at timestamptz not null default now();
+
+-- Compatibilidade: em algumas instalações antigas, id é o ID interno do perfil
+-- e auth_user_id é quem aponta para auth.users(id). Em instalações novas, id pode
+-- ser o próprio auth.users(id). Mantemos auth_user_id preenchido quando possível.
+update public.agent_tc_app_users u
+   set auth_user_id = u.id
+ where u.auth_user_id is null
+   and exists (select 1 from auth.users au where au.id = u.id);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_app_users_auth_user_id_fkey'
+      and conrelid = 'public.agent_tc_app_users'::regclass
+  ) then
+    alter table public.agent_tc_app_users
+      add constraint agent_tc_app_users_auth_user_id_fkey
+      foreign key (auth_user_id) references auth.users(id) on delete cascade not valid;
+  end if;
+end $$;
 
 do $$
 begin
@@ -78,6 +101,7 @@ end $$;
 
 create index if not exists agent_tc_app_users_status_idx on public.agent_tc_app_users(status);
 create index if not exists agent_tc_app_users_role_idx   on public.agent_tc_app_users(role);
+create index if not exists agent_tc_app_users_auth_user_id_idx on public.agent_tc_app_users(auth_user_id);
 
 -- ---------------------------------------------------------------------
 -- 2) Catálogo de permissões
@@ -148,8 +172,23 @@ create table if not exists public.agent_tc_admin_audit_log (
 create index if not exists agent_tc_admin_audit_log_created_idx on public.agent_tc_admin_audit_log(created_at desc);
 
 -- ---------------------------------------------------------------------
--- 6) Função helper: is_admin (SECURITY DEFINER, evita recursão em RLS)
+-- 6) Funções helper (SECURITY DEFINER, evita recursão em RLS)
 -- ---------------------------------------------------------------------
+create or replace function public.agent_tc_current_app_user_id(_auth_user_id uuid)
+returns uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select u.id
+  from public.agent_tc_app_users u
+  where u.id = _auth_user_id
+     or nullif(to_jsonb(u)->>'auth_user_id', '')::uuid = _auth_user_id
+  order by case when u.id = _auth_user_id then 0 else 1 end
+  limit 1;
+$$;
+
 create or replace function public.agent_tc_is_admin(_user_id uuid)
 returns boolean
 language sql
@@ -158,10 +197,15 @@ security definer
 set search_path = public
 as $$
   select exists (
-    select 1 from public.agent_tc_app_users
-    where id = _user_id and role = 'admin' and status = 'approved'
+    select 1 from public.agent_tc_app_users u
+    where (u.id = _user_id or nullif(to_jsonb(u)->>'auth_user_id', '')::uuid = _user_id)
+      and u.role = 'admin'
+      and u.status = 'approved'
   );
 $$;
+
+grant execute on function public.agent_tc_current_app_user_id(uuid) to authenticated, service_role;
+grant execute on function public.agent_tc_is_admin(uuid) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- 7) Trigger para criar perfil automaticamente após signUp
@@ -173,8 +217,9 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.agent_tc_app_users (id, username, first_name, last_name, email, status, role)
+  insert into public.agent_tc_app_users (id, auth_user_id, username, first_name, last_name, email, status, role)
   values (
+    new.id,
     new.id,
     coalesce(new.raw_user_meta_data->>'username', split_part(new.email,'@',1)),
     new.raw_user_meta_data->>'first_name',
@@ -183,7 +228,10 @@ begin
     'pending',
     'user'
   )
-  on conflict (id) do nothing;
+  on conflict (id) do update
+    set auth_user_id = coalesce(public.agent_tc_app_users.auth_user_id, excluded.auth_user_id),
+        email = coalesce(public.agent_tc_app_users.email, excluded.email),
+        updated_at = now();
   return new;
 end;
 $$;
@@ -203,21 +251,38 @@ alter table public.agent_tc_user_module_permissions enable row level security;
 alter table public.agent_tc_admin_audit_log        enable row level security;
 
 grant select on public.agent_tc_permission_catalog to anon, authenticated;
-grant select on public.agent_tc_app_users to authenticated;
-grant select on public.agent_tc_user_permissions to authenticated;
-grant select on public.agent_tc_user_module_permissions to authenticated;
+grant select, insert, update on public.agent_tc_app_users to authenticated;
+grant select, insert, update, delete on public.agent_tc_user_permissions to authenticated;
+grant select, insert, update, delete on public.agent_tc_user_module_permissions to authenticated;
 grant select, insert on public.agent_tc_admin_audit_log to authenticated;
-grant update on public.agent_tc_app_users to authenticated;
-grant insert, delete on public.agent_tc_user_permissions to authenticated;
-grant insert, delete on public.agent_tc_user_module_permissions to authenticated;
+grant all on public.agent_tc_app_users to service_role;
+grant all on public.agent_tc_permission_catalog to service_role;
+grant all on public.agent_tc_user_permissions to service_role;
+grant all on public.agent_tc_user_module_permissions to service_role;
+grant all on public.agent_tc_admin_audit_log to service_role;
 
 -- app_users: cada um vê seu perfil; admin vê tudo; admin atualiza tudo
 drop policy if exists "app_users self read"       on public.agent_tc_app_users;
+drop policy if exists "app_users self insert"     on public.agent_tc_app_users;
 drop policy if exists "app_users admin read all"  on public.agent_tc_app_users;
 drop policy if exists "app_users admin update"    on public.agent_tc_app_users;
 create policy "app_users self read"
   on public.agent_tc_app_users for select to authenticated
-  using (id = auth.uid() or public.agent_tc_is_admin(auth.uid()));
+  using (
+    id = auth.uid()
+    or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
+    or public.agent_tc_is_admin(auth.uid())
+  );
+create policy "app_users self insert"
+  on public.agent_tc_app_users for insert to authenticated
+  with check (
+    (
+      id = auth.uid()
+      or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
+    )
+    and role = 'user'
+    and status = 'pending'
+  );
 create policy "app_users admin update"
   on public.agent_tc_app_users for update to authenticated
   using (public.agent_tc_is_admin(auth.uid()))
@@ -234,7 +299,11 @@ drop policy if exists "user_perm self read"    on public.agent_tc_user_permissio
 drop policy if exists "user_perm admin write"  on public.agent_tc_user_permissions;
 create policy "user_perm self read"
   on public.agent_tc_user_permissions for select to authenticated
-  using (user_id = auth.uid() or public.agent_tc_is_admin(auth.uid()));
+  using (
+    user_id = auth.uid()
+    or user_id = public.agent_tc_current_app_user_id(auth.uid())
+    or public.agent_tc_is_admin(auth.uid())
+  );
 create policy "user_perm admin write"
   on public.agent_tc_user_permissions for all to authenticated
   using (public.agent_tc_is_admin(auth.uid()))
@@ -245,7 +314,11 @@ drop policy if exists "user_mod_perm self read"   on public.agent_tc_user_module
 drop policy if exists "user_mod_perm admin write" on public.agent_tc_user_module_permissions;
 create policy "user_mod_perm self read"
   on public.agent_tc_user_module_permissions for select to authenticated
-  using (user_id = auth.uid() or public.agent_tc_is_admin(auth.uid()));
+  using (
+    user_id = auth.uid()
+    or user_id = public.agent_tc_current_app_user_id(auth.uid())
+    or public.agent_tc_is_admin(auth.uid())
+  );
 create policy "user_mod_perm admin write"
   on public.agent_tc_user_module_permissions for all to authenticated
   using (public.agent_tc_is_admin(auth.uid()))
@@ -262,10 +335,49 @@ create policy "audit admin insert"
   with check (public.agent_tc_is_admin(auth.uid()));
 
 -- ---------------------------------------------------------------------
--- 9) Promover o PRIMEIRO admin manualmente:
+-- 9) Realtime para aprovação/permissões em tempo real
+-- ---------------------------------------------------------------------
+alter table public.agent_tc_app_users replica identity full;
+alter table public.agent_tc_user_permissions replica identity full;
+alter table public.agent_tc_user_module_permissions replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_app_users'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_app_users;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_user_permissions'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_user_permissions;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_user_module_permissions'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_user_module_permissions;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 10) Promover o PRIMEIRO admin manualmente:
 --    (rode depois de cadastrar seu usuário)
 --
 -- update public.agent_tc_app_users
 --    set role = 'admin', status = 'approved', approved_at = now()
---  where username = 'SEU_USERNAME';
+--  where username = 'SEU_USERNAME'
+--     or id = 'UUID_DO_AUTH_USERS'
+--     or auth_user_id = 'UUID_DO_AUTH_USERS';
 -- ---------------------------------------------------------------------

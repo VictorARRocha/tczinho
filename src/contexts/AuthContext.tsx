@@ -13,6 +13,7 @@ export interface AppUserProfile {
   email: string | null;
   role: AppUserRole;
   status: AppUserStatus;
+  rejection_reason?: string | null;
 }
 
 interface AuthContextValue {
@@ -34,6 +35,17 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status";
+
+function getUserMetadata(user: User) {
+  return {
+    username: (user.user_metadata?.username as string | undefined)?.trim() || user.email?.split("@")[0] || user.id,
+    first_name: (user.user_metadata?.first_name as string | undefined) ?? null,
+    last_name: (user.user_metadata?.last_name as string | undefined) ?? null,
+    email: user.email ?? null,
+  };
+}
+
 export function usernameToEmail(username: string) {
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
   return `${norm}@agent-tc.local`;
@@ -46,13 +58,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [modules, setModules] = useState<Set<string>>(new Set());
 
-  const loadProfile = useCallback(async (uid: string) => {
-    // No schema atual, agent_tc_app_users.id === auth.users.id (PK é FK para auth.users)
-    const { data: p } = await supabase
-      .from("agent_tc_app_users")
-      .select("id,username,first_name,last_name,email,role,status")
-      .eq("id", uid)
-      .maybeSingle();
+  const loadProfile = useCallback(async (userOrUid: User | string) => {
+    const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
+    const fetchProfile = async (column: "id" | "auth_user_id") => {
+      const { data, error } = await supabase
+        .from("agent_tc_app_users")
+        .select(PROFILE_SELECT)
+        .eq(column, uid)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[auth] Falha ao buscar perfil por ${column}:`, error.message);
+        return null;
+      }
+
+      return (data as AppUserProfile | null) ?? null;
+    };
+
+    const ensureProfile = async () => {
+      if (typeof userOrUid === "string") return null;
+
+      const meta = getUserMetadata(userOrUid);
+      const baseProfile = {
+        id: uid,
+        username: meta.username,
+        first_name: meta.first_name,
+        last_name: meta.last_name,
+        email: meta.email,
+      };
+      const upsertProfile = (row: typeof baseProfile & { auth_user_id?: string }) =>
+        supabase
+          .from("agent_tc_app_users")
+          .upsert(row, { onConflict: "id", ignoreDuplicates: true })
+          .select(PROFILE_SELECT)
+          .maybeSingle();
+
+      let { data, error } = await upsertProfile({ ...baseProfile, auth_user_id: uid });
+
+      if (error?.message?.toLowerCase().includes("auth_user_id")) {
+        ({ data, error } = await upsertProfile(baseProfile));
+      }
+
+      if (error) {
+        console.warn("[auth] Não foi possível criar/vincular perfil automaticamente:", error.message);
+        return null;
+      }
+
+      return (data as AppUserProfile | null) ?? null;
+    };
+
+    // Suporta os dois modelos que já apareceram no banco:
+    // 1) agent_tc_app_users.id === auth.users.id
+    // 2) agent_tc_app_users.auth_user_id === auth.users.id e id é o ID interno do perfil
+    const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id")) ?? (await ensureProfile());
     setProfile((p as AppUserProfile) ?? null);
     if (!p?.id) {
       setPermissions(new Set());
@@ -70,28 +128,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1) listener (evita deadlock)
+    // O INITIAL_SESSION do Supabase hidrata a sessão; manter apenas um caminho evita race condition.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       if (!mounted) return;
       setSession(sess);
       if (sess?.user) {
         // defer para evitar chamadas dentro do callback
-        setTimeout(() => loadProfile(sess.user.id).finally(() => setLoading(false)), 0);
+        setTimeout(() => loadProfile(sess.user).finally(() => setLoading(false)), 0);
       } else {
         setProfile(null);
         setPermissions(new Set());
         setModules(new Set());
-        setLoading(false);
-      }
-    });
-
-    // 2) hidrata sessão existente
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.user) {
-        loadProfile(data.session.user.id).finally(() => setLoading(false));
-      } else {
         setLoading(false);
       }
     });
@@ -102,19 +149,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado
+  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado.
+  // Sem filtro rígido porque alguns bancos usam id=auth.uid(), outros auth_user_id=auth.uid().
   useEffect(() => {
     const uid = session?.user?.id;
     if (!uid) return;
+    const profileId = profile?.id;
+    const isOwnProfileRow = (row: any) => row?.id === uid || row?.auth_user_id === uid || (!!profileId && row?.id === profileId);
+    const isOwnPermissionRow = (row: any) => row?.user_id === uid || (!!profileId && row?.user_id === profileId);
     const reload = () => loadProfile(uid);
     const channel = supabase
-      .channel(`self-profile-${uid}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users", filter: `id=eq.${uid}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions", filter: `user_id=eq.${uid}` }, reload)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .channel(`self-profile-${uid}-${profileId ?? "pending"}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
+        if (isOwnProfileRow(payload.new) || isOwnProfileRow(payload.old)) reload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
+        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
+        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
+      })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [session?.user?.id, loadProfile]);
+  }, [session?.user?.id, profile?.id, loadProfile]);
 
   const signIn: AuthContextValue["signIn"] = async (username, password) => {
     const email = usernameToEmail(username);
