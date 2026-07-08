@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,6 +6,10 @@ import { Clock, LogOut, XCircle, Ban } from "lucide-react";
 
 export default function AguardandoAprovacao() {
   const { profile, signOut, session } = useAuth();
+
+  if (session && profile?.status === "approved") {
+    return <Navigate to="/" replace />;
+  }
 
   const status = profile?.status ?? "pending";
   const view =
