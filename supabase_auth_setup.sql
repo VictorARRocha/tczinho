@@ -276,8 +276,12 @@ create policy "app_users self read"
 create policy "app_users self insert"
   on public.agent_tc_app_users for insert to authenticated
   with check (
-    id = auth.uid()
-    or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
+    (
+      id = auth.uid()
+      or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
+    )
+    and role = 'user'
+    and status = 'pending'
   );
 create policy "app_users admin update"
   on public.agent_tc_app_users for update to authenticated
