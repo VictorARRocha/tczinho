@@ -12,7 +12,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
-  AlertCircle, GitCompare, X, ChevronDown, ChevronRight,
+  GitCompare, X, ChevronDown, ChevronRight,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -347,46 +347,6 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
 
 
-          {(falha.tipo_tecnico || falha.formulario_ou_tela || falha.componente ||
-            falha.fato_observado || falha.hipotese_principal || falha.analise_tecnica ||
-            falha.analise_funcional || falha.impacto_possivel || falha.trecho_relevante ||
-            falha.call_stack_resumido || falha.primeira_acao_recomendada ||
-            (Array.isArray(falha.tags) && falha.tags.length > 0)) && (
-            <section className="space-y-3">
-              <Grid>
-                <Field label="Tipo técnico" value={falha.tipo_tecnico} />
-                <Field label="Formulário/Tela" value={falha.formulario_ou_tela} />
-                <Field label="Componente" value={falha.componente} />
-                <Field label="Fato observado" value={falha.fato_observado} full />
-                <Field label="Hipótese principal" value={falha.hipotese_principal} full />
-                <Field label="Análise técnica" value={falha.analise_tecnica} full />
-                <Field label="Análise funcional" value={falha.analise_funcional} full />
-                <Field label="Impacto possível" value={falha.impacto_possivel} full />
-              </Grid>
-              {falha.trecho_relevante && <CodeBlock title="Trecho relevante" content={falha.trecho_relevante} />}
-              {falha.call_stack_resumido && <CodeBlock title="Call stack resumido" content={falha.call_stack_resumido} />}
-              {falha.primeira_acao_recomendada && (
-                <Card className="p-4 border-primary/40 bg-primary/5">
-                  <div className="flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-primary font-semibold mb-1">Primeira ação recomendada</p>
-                      <p className="text-sm">{falha.primeira_acao_recomendada}</p>
-                    </div>
-                  </div>
-                </Card>
-              )}
-              {Array.isArray(falha.tags) && falha.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {falha.tags.map((t: string, i: number) => (
-                    <span key={i} className="text-[11px] px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">{t}</span>
-                  ))}
-                </div>
-              )}
-            </section>
-          )}
-
-
           {realPairs.length > 0 && (
             <Section title={`Comparações (${realPairs.length})`}>
               <div className="space-y-2">
@@ -453,34 +413,6 @@ function Section({ title, children }: { title: string; children: any }) {
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
-  );
-}
-
-function Grid({ children }: { children: any }) {
-  return <div className="grid grid-cols-2 gap-x-5 gap-y-3.5">{children}</div>;
-}
-
-function Field({ label, value, mono, full }: { label: string; value: any; mono?: boolean; full?: boolean }) {
-  if (!value) return null;
-  return (
-    <div className={full ? "col-span-2" : ""}>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
-      <div className={`text-sm text-foreground/90 leading-relaxed ${mono ? "font-mono break-all" : ""}`}>{value}</div>
-    </div>
-  );
-}
-
-function CodeBlock({ title, content }: { title: string; content: string }) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1.5">
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{title}</span>
-        <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
-          <Copy className="h-3 w-3 mr-1" /> Copiar
-        </Button>
-      </div>
-      <pre className="font-mono text-xs bg-background border border-border rounded-lg p-3 overflow-x-auto max-h-64 text-foreground/80">{content}</pre>
-    </div>
   );
 }
 

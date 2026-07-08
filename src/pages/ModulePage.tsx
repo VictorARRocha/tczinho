@@ -381,12 +381,6 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
   ].filter((d) => d.value > 0), [rodagem.total_alta, rodagem.total_media, rodagem.total_baixa]);
 
-  const rotinaData = useMemo(() => {
-    const m = new Map<string, number>();
-    falhas.forEach((f) => { if (f.rotina_funcional) m.set(f.rotina_funcional, (m.get(f.rotina_funcional) || 0) + 1); });
-    return Array.from(m.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5);
-  }, [falhas]);
-
   const cards = useMemo(() => ([
     { label: "Casos rodados", value: rodagem.total_analisados, tone: "text-primary", force: true },
     { label: "Falhas", value: rodagem.total_falhas, force: true },
@@ -501,19 +495,6 @@ function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance
         </div>
       )}
 
-      {rotinaData.length > 0 && (
-        <Card className="glass-card p-6">
-          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Falhas por rotina funcional</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={rotinaData} layout="vertical" margin={{ left: 20 }}>
-              <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} allowDecimals={false} />
-              <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={11} width={100} />
-              <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-              <Bar dataKey="value" fill="hsl(var(--functional))" radius={[0, 6, 6, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </Card>
-      )}
     </div>
   );
 }
@@ -1003,10 +984,9 @@ function LeafItemCard({
   const desc = failureDescription(f);
   const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
   const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
-  const titulo = f.caso_teste_provavel || f.erro_titulo || f.arquivo_zip || "Caso";
-  const script = f.rotina_funcional || f.componente || f.formulario_ou_tela;
-  const idCaso = f.id_caso_teste;
   const indent = depth * 16 + 20;
+  const classificacaoKey = (f.classificacao || "").toLowerCase().replace(/\s+/g, "_").replace(/\//g, "_");
+  const showClassification = !!f.classificacao && !["test_break", "file_difference", "test_break_file_difference", "break", "difference"].includes(classificacaoKey);
 
   const accent =
     tipo === "quebra" ? "border-rose-500/40"
@@ -1025,26 +1005,16 @@ function LeafItemCard({
       <div className="px-4 py-3 space-y-2.5">
         {/* Cabeçalho: ID + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
-          {idCaso && (
-            <span className="font-mono text-[11px] font-semibold text-foreground bg-muted border border-border rounded-md px-2 py-0.5 shrink-0 tabular-nums">
-              #{idCaso}
-            </span>
-          )}
           <div className="flex-1 min-w-0" />
           <TipoBadge tipo={tipo} />
         </div>
 
 
         {/* Metadata secundária */}
-        {(script || f.severidade || f.classificacao) && (
+        {(f.severidade || showClassification) && (
           <div className="flex items-center gap-2 flex-wrap">
             {f.severidade && <SeverityBadge value={f.severidade} />}
-            {f.classificacao && <ClassificationBadge value={f.classificacao} />}
-            {script && (
-              <span className="text-[11px] text-muted-foreground">
-                <span className="opacity-80">Script:</span> <span className="font-mono text-foreground/80">{script}</span>
-              </span>
-            )}
+            {showClassification && <ClassificationBadge value={f.classificacao} />}
           </div>
         )}
 

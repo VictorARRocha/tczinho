@@ -29,7 +29,6 @@ export type RealtimeTable =
   | "rerun_requests";
 
 export interface CreateRerunPayload {
-  fk_rodagem?: string | null;
   vm_name: string;
   versao: string;
   casos_teste: string;
@@ -37,11 +36,6 @@ export interface CreateRerunPayload {
   ct_desmarcar?: string;
   data_hora?: string;
   branch?: string;
-  tipo_solicitacao?: "rodagem_completa" | "reexecucao" | string;
-  modo_configuracao?: "simplificada" | "configurada" | "casos_quebrados" | string;
-  modulo_nome?: string | null;
-  modulo_codigo?: string | null;
-  solicitado_por?: string | null;
 }
 
 export interface QaDataSource {

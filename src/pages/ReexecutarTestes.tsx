@@ -175,13 +175,13 @@ export default function ReexecutarTestes() {
     setSubmitting(true);
     try {
       await createRerunRequest({
-        fk_rodagem: selectedRun.id_rodagem,
         vm_name: vmName,
         versao,
         casos_teste: casosTesteString,
+        paralelo: "",
+        ct_desmarcar: "[0.3]",
         data_hora: configJsonPreview.data_hora,
-        tipo_solicitacao: "reexecucao",
-        modo_configuracao: "casos_quebrados",
+        branch: "",
       });
       toast.success("Solicitação enviada", {
         description: "O JenkinsBridge local irá disparar o Jenkins.",
