@@ -1,11 +1,19 @@
+import { useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Clock, LogOut, XCircle, Ban } from "lucide-react";
+import { Clock, LogOut, XCircle, Ban, RefreshCw } from "lucide-react";
 
 export default function AguardandoAprovacao() {
-  const { profile, signOut, session } = useAuth();
+  const { profile, signOut, session, refreshProfile } = useAuth();
+
+  // Auto-refresh perfil a cada 10s enquanto pendente (admin pode aprovar a qualquer momento)
+  useEffect(() => {
+    if (!session) return;
+    const id = setInterval(() => { refreshProfile(); }, 10000);
+    return () => clearInterval(id);
+  }, [session, refreshProfile]);
 
   if (session && profile?.status === "approved") {
     return <Navigate to="/" replace />;
