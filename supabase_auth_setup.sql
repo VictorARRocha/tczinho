@@ -251,7 +251,7 @@ alter table public.agent_tc_user_module_permissions enable row level security;
 alter table public.agent_tc_admin_audit_log        enable row level security;
 
 grant select on public.agent_tc_permission_catalog to anon, authenticated;
-grant select, update on public.agent_tc_app_users to authenticated;
+grant select, insert, update on public.agent_tc_app_users to authenticated;
 grant select, insert, update, delete on public.agent_tc_user_permissions to authenticated;
 grant select, insert, update, delete on public.agent_tc_user_module_permissions to authenticated;
 grant select, insert on public.agent_tc_admin_audit_log to authenticated;
@@ -263,6 +263,7 @@ grant all on public.agent_tc_admin_audit_log to service_role;
 
 -- app_users: cada um vê seu perfil; admin vê tudo; admin atualiza tudo
 drop policy if exists "app_users self read"       on public.agent_tc_app_users;
+drop policy if exists "app_users self insert"     on public.agent_tc_app_users;
 drop policy if exists "app_users admin read all"  on public.agent_tc_app_users;
 drop policy if exists "app_users admin update"    on public.agent_tc_app_users;
 create policy "app_users self read"
@@ -271,6 +272,12 @@ create policy "app_users self read"
     id = auth.uid()
     or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
     or public.agent_tc_is_admin(auth.uid())
+  );
+create policy "app_users self insert"
+  on public.agent_tc_app_users for insert to authenticated
+  with check (
+    id = auth.uid()
+    or nullif(to_jsonb(agent_tc_app_users)->>'auth_user_id', '')::uuid = auth.uid()
   );
 create policy "app_users admin update"
   on public.agent_tc_app_users for update to authenticated
