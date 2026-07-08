@@ -260,10 +260,18 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
   useEffect(() => {
+    // Ao trocar de falha, limpar evidências anteriores para evitar reaproveitar
+    // imagens/estado do caso anterior enquanto as novas carregam.
+    setEvidencias([]);
+    setComparePair(null);
     if (!falha) return;
     if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
     if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
-    fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
+    let cancelled = false;
+    fetchEvidenceByFailure(falha.id)
+      .then((list) => { if (!cancelled) setEvidencias(list); })
+      .catch(() => { if (!cancelled) setEvidencias([]); });
+    return () => { cancelled = true; };
   }, [falha?.id, evidsProp]);
 
   const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
@@ -329,12 +337,12 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
 
           {errorImage && (
-            <EvidenceItem ev={errorImage} priority />
+            <EvidenceItem key={`${falha.id}-err-${errorImage.id}`} ev={errorImage} priority />
           )}
 
           {otherEvidences.length > 0 && (
             <div className="space-y-3">
-              {otherEvidences.map((e) => <EvidenceItem key={e.id} ev={e} />)}
+              {otherEvidences.map((e) => <EvidenceItem key={`${falha.id}-oth-${e.id}`} ev={e} />)}
             </div>
           )}
 
@@ -421,7 +429,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
-                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} hideCaption />)}
+                {numberedPrints.map((e) => <EvidenceItem key={`${falha.id}-num-${e.id}`} ev={e} hideCaption />)}
               </CollapsibleContent>
             </Collapsible>
           )}
