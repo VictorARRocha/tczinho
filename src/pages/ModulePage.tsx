@@ -43,9 +43,9 @@ async function handleEvidenceDownload(ev: Evidencia) {
   window.open(data.signedUrl, "_blank", "noopener,noreferrer");
 }
 
-// Descrição clara do problema da falha — usa o melhor texto disponível
+// Descrição do caso de teste (não confundir com mensagem de erro)
 function failureDescription(f: Falha): string {
-  const order = [f.erro_principal, f.mensagem_principal, f.erro_titulo, f.trecho_relevante, f.hipotese_principal, f.primeira_acao_recomendada, f.descricao_caso, f.caso_teste_provavel];
+  const order = [f.descricao_caso, f.caso_teste_provavel, f.rotina_funcional];
   for (const v of order) {
     if (v && String(v).trim() && String(v).trim() !== "—") return String(v).trim();
   }
