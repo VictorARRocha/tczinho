@@ -35,7 +35,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status,rejection_reason";
+const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status";
 
 export function usernameToEmail(username: string) {
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
