@@ -35,7 +35,7 @@ export default function Cadastro() {
       return;
     }
     setSubmitting(true);
-    const { error } = await signUp(parsed.data);
+    const { error } = await signUp(parsed.data as { username: string; first_name: string; last_name: string; password: string });
     setSubmitting(false);
     if (error) setErr(error);
     else nav("/aguardando-aprovacao", { replace: true });
