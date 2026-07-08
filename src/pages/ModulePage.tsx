@@ -732,9 +732,9 @@ function FalhasTab({
     return set;
   }, [realPairsByFalha]);
 
-  const syntheticFalhas = useMemo(() => {
+  // Agrupa evidências órfãs por pasta /comparacao e monta pares base/atual
+  const orphanCmpFolders = useMemo(() => {
     const orphan = evidencias.filter((e) => !e.falha_id);
-    if (orphan.length === 0) return [] as { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[];
     const byCmpFolder = new Map<string, Evidencia[]>();
     orphan.forEach((e) => {
       const path = (e.storage_path || "").replace(/\\/g, "/");
@@ -745,42 +745,72 @@ function FalhasTab({
       arr.push(e);
       byCmpFolder.set(folder, arr);
     });
-    const out: { f: Falha; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
+    const out: { cmpFolder: string; caseName: string; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
     byCmpFolder.forEach((evs, cmpFolder) => {
       if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
       const pairs = pairBaseAtual(evs);
       if (!pairs.length) return;
       const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
       const caseName = caseFolder.split("/").pop() || caseFolder;
-      const id = `storage:${caseFolder}`;
-      const f = {
-        id, rodagem_id: evs[0]?.rodagem_id || "", modulo_slug: evs[0]?.modulo_slug || "",
-        ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
-        caso_identificado: false, id_caso_teste: caseName,
-        caso_teste_provavel: `Comparação: ${caseName}`,
-        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: caseFolder, confianca_associacao: null,
-        erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
-        call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
-        classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
-        cor: null, fato_observado: null, hipotese_principal: null, analise_tecnica: null, analise_funcional: null,
-        impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
-        created_at: "",
-      } as Falha;
-      out.push({ f, evs, pairs });
+      out.push({ cmpFolder, caseName, evs, pairs });
     });
     return out;
   }, [evidencias, realPairKeys]);
 
   const enriched: EnrichedItem[] = useMemo(() => {
+    // Índice de pastas /comparacao órfãs por id_caso_teste (ex.: "9.1.1.1.1")
+    const orphanByCase = new Map<string, { evs: Evidencia[]; pairs: ComparisonPair[]; cmpFolder: string }>();
+    orphanCmpFolders.forEach((o) => {
+      if (!orphanByCase.has(o.caseName)) orphanByCase.set(o.caseName, o);
+    });
+    const consumed = new Set<string>();
+
     const real: EnrichedItem[] = falhas.map((f) => {
       const enrichedFalha = withCaseMetadata(f, hierMap);
-      const evs = evMap.get(f.id) || [];
-      const pairs = realPairsByFalha.get(f.id) || [];
+      let evs = evMap.get(f.id) || [];
+      let pairs = realPairsByFalha.get(f.id) || [];
+
+      // Se a falha real não tem pares vinculados mas existe uma pasta
+      // /comparacao órfã com o mesmo id_caso_teste, anexa esses pares.
+      if (pairs.length === 0 && f.id_caso_teste) {
+        const key = String(f.id_caso_teste).trim();
+        const match = orphanByCase.get(key);
+        if (match) {
+          evs = evs.concat(match.evs);
+          pairs = match.pairs;
+          consumed.add(match.cmpFolder);
+        }
+      }
+
       return { f: enrichedFalha, evs, tipo: classifyOccurrence(f, evs), pairs };
     });
-    const synth: EnrichedItem[] = syntheticFalhas.map(({ f, evs, pairs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs }));
+
+    // Só sintetiza falhas fantasma para pastas órfãs que não foram
+    // anexadas a nenhuma falha real acima.
+    const synth: EnrichedItem[] = orphanCmpFolders
+      .filter((o) => !consumed.has(o.cmpFolder))
+      .map(({ cmpFolder, caseName, evs, pairs }) => {
+        const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
+        const id = `storage:${caseFolder}`;
+        const f = {
+          id, rodagem_id: evs[0]?.rodagem_id || "", modulo_slug: evs[0]?.modulo_slug || "",
+          ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
+          caso_identificado: false, id_caso_teste: caseName,
+          caso_teste_provavel: `Comparação: ${caseName}`,
+          grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: caseFolder, confianca_associacao: null,
+          erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
+          call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
+          classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
+          cor: null, fato_observado: null, hipotese_principal: null, analise_tecnica: null, analise_funcional: null,
+          impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
+          created_at: "",
+        } as Falha;
+        return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
+      });
+
     return real.concat(synth);
-  }, [falhas, evMap, realPairsByFalha, syntheticFalhas, hierMap]);
+  }, [falhas, evMap, realPairsByFalha, orphanCmpFolders, hierMap]);
+
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
