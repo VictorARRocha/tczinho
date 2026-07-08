@@ -47,10 +47,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<Set<string>>(new Set());
 
   const loadProfile = useCallback(async (uid: string) => {
+    // No schema atual, agent_tc_app_users.id === auth.users.id (PK é FK para auth.users)
     const { data: p } = await supabase
       .from("agent_tc_app_users")
       .select("id,username,first_name,last_name,email,role,status")
-      .eq("auth_user_id", uid)
+      .eq("id", uid)
       .maybeSingle();
     setProfile((p as AppUserProfile) ?? null);
     if (!p?.id) {
@@ -100,6 +101,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sub.subscription.unsubscribe();
     };
   }, [loadProfile]);
+
+  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado
+  useEffect(() => {
+    const uid = session?.user?.id;
+    if (!uid) return;
+    const reload = () => loadProfile(uid);
+    const channel = supabase
+      .channel(`self-profile-${uid}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users", filter: `id=eq.${uid}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions", filter: `user_id=eq.${uid}` }, reload)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.user?.id, loadProfile]);
 
   const signIn: AuthContextValue["signIn"] = async (username, password) => {
     const email = usernameToEmail(username);

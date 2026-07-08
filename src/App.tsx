@@ -62,7 +62,11 @@ const App = () => (
               <Route path="/acesso-negado" element={<AcessoNegado />} />
               <Route
                 path="/modulo/:slug"
-                element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
+                element={
+                  <ProtectedRoute requireModuleFromParam>
+                    {withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
+                  </ProtectedRoute>
+                }
               />
               <Route path="/importar" element={<Navigate to="/" replace />} />
               <Route
