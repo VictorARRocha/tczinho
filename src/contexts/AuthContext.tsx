@@ -128,7 +128,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    // 1) listener (evita deadlock)
+    // O INITIAL_SESSION do Supabase hidrata a sessão; manter apenas um caminho evita race condition.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       if (!mounted) return;
       setSession(sess);
@@ -139,17 +139,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setPermissions(new Set());
         setModules(new Set());
-        setLoading(false);
-      }
-    });
-
-    // 2) hidrata sessão existente
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-      setSession(data.session);
-      if (data.session?.user) {
-        loadProfile(data.session.user).finally(() => setLoading(false));
-      } else {
         setLoading(false);
       }
     });

@@ -335,7 +335,44 @@ create policy "audit admin insert"
   with check (public.agent_tc_is_admin(auth.uid()));
 
 -- ---------------------------------------------------------------------
--- 9) Promover o PRIMEIRO admin manualmente:
+-- 9) Realtime para aprovação/permissões em tempo real
+-- ---------------------------------------------------------------------
+alter table public.agent_tc_app_users replica identity full;
+alter table public.agent_tc_user_permissions replica identity full;
+alter table public.agent_tc_user_module_permissions replica identity full;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_app_users'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_app_users;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_user_permissions'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_user_permissions;
+  end if;
+
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'agent_tc_user_module_permissions'
+  ) then
+    alter publication supabase_realtime add table public.agent_tc_user_module_permissions;
+  end if;
+end $$;
+
+-- ---------------------------------------------------------------------
+-- 10) Promover o PRIMEIRO admin manualmente:
 --    (rode depois de cadastrar seu usuário)
 --
 -- update public.agent_tc_app_users
