@@ -149,7 +149,7 @@ grant select, insert, update, delete on public.agent_tc_user_permissions to auth
 grant all on public.agent_tc_user_permissions to service_role;
 create index if not exists agent_tc_user_permissions_user_idx on public.agent_tc_user_permissions(user_id);
 
--- Migração idempotente: se a tabela existia com outro nome de coluna, adiciona permission_code
+-- Migração idempotente: garante coluna permission_code + unique(user_id, permission_code)
 do $$
 begin
   if not exists (
@@ -159,17 +159,26 @@ begin
       and column_name = 'permission_code'
   ) then
     alter table public.agent_tc_user_permissions add column permission_code text;
-    -- tenta copiar de colunas legadas comuns
     if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='permission') then
       execute 'update public.agent_tc_user_permissions set permission_code = permission where permission_code is null';
     elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_permissions' and column_name='code') then
       execute 'update public.agent_tc_user_permissions set permission_code = code where permission_code is null';
     end if;
+    -- remove órfãos que ficaram sem código para permitir o NOT NULL
+    delete from public.agent_tc_user_permissions where permission_code is null;
     alter table public.agent_tc_user_permissions alter column permission_code set not null;
+  end if;
+
+  -- garante a constraint única (necessária para ON CONFLICT das RPCs)
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_user_permissions_user_id_permission_code_key'
+       or conname = 'agent_tc_user_permissions_user_perm_unique'
+  ) then
     begin
       alter table public.agent_tc_user_permissions
         add constraint agent_tc_user_permissions_user_perm_unique unique (user_id, permission_code);
-    exception when duplicate_table or duplicate_object then null;
+    exception when duplicate_table or duplicate_object or unique_violation then null;
     end;
   end if;
 end$$;
