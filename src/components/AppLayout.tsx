@@ -1,9 +1,14 @@
-import { Outlet } from "react-router-dom";
+import { Outlet, Link } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { useAuth } from "@/contexts/AuthContext";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { LogOut, User as UserIcon, ShieldCheck } from "lucide-react";
 
 export function AppLayout() {
+  const { profile, isAdmin, signOut } = useAuth();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -22,6 +27,31 @@ export function AppLayout() {
                 Realtime ativo
               </div>
               <ThemeToggle />
+              {profile && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2">
+                      <UserIcon className="h-3.5 w-3.5" />
+                      <span className="font-mono text-xs">{profile.username}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>
+                      <div className="text-xs font-normal text-muted-foreground">Conectado como</div>
+                      <div className="font-mono text-sm">{profile.username}</div>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {isAdmin && (
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin/usuarios"><ShieldCheck className="h-4 w-4 mr-2" />Gerenciar usuários</Link>
+                      </DropdownMenuItem>
+                    )}
+                    <DropdownMenuItem onClick={() => signOut()}>
+                      <LogOut className="h-4 w-4 mr-2" /> Sair
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           </header>
           <main className="flex-1 min-w-0">
