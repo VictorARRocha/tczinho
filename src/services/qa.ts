@@ -98,7 +98,7 @@ function normRodagem(row: any, modulo_slug = ""): Rodagem {
     diagnostico_detalhado: null,
     conclusao_geral: null,
     total_compactados: 0,
-    total_analisados: 0,
+    total_analisados: row?.total_executed ?? row?.total_analisados ?? row?.total_casos ?? 0,
     total_falhas: row?.total_falhas ?? 0,
     total_automacao: 0,
     total_massa_dados: 0,
