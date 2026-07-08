@@ -1,12 +1,13 @@
 import { useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { PageLoading } from "@/components/PageLoading";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Clock, LogOut, XCircle, Ban, RefreshCw } from "lucide-react";
 
 export default function AguardandoAprovacao() {
-  const { profile, signOut, session, refreshProfile } = useAuth();
+  const { loading, profile, signOut, session, refreshProfile } = useAuth();
 
   useEffect(() => {
     if (!session || profile?.status === "approved") return;
@@ -20,6 +21,8 @@ export default function AguardandoAprovacao() {
       window.removeEventListener("focus", refreshProfile);
     };
   }, [session, profile?.status, refreshProfile]);
+
+  if (loading) return <PageLoading message="Verificando aprovação..." />;
 
   if (session && profile?.status === "approved") {
     return <Navigate to="/" replace />;
