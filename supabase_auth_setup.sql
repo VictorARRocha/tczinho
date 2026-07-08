@@ -118,6 +118,31 @@ create table if not exists public.agent_tc_permission_catalog (
 grant select on public.agent_tc_permission_catalog to anon, authenticated;
 grant all on public.agent_tc_permission_catalog to service_role;
 
+-- Migração idempotente: garante colunas em instalações antigas
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='code') then
+    alter table public.agent_tc_permission_catalog add column code text;
+    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='slug') then
+      execute 'update public.agent_tc_permission_catalog set code = slug where code is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='key') then
+      execute 'update public.agent_tc_permission_catalog set code = key where code is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_permission_catalog' and column_name='permission_code') then
+      execute 'update public.agent_tc_permission_catalog set code = permission_code where code is null';
+    end if;
+    delete from public.agent_tc_permission_catalog where code is null;
+    begin
+      alter table public.agent_tc_permission_catalog add constraint agent_tc_permission_catalog_pkey primary key (code);
+    exception when invalid_table_definition or duplicate_table or duplicate_object then null;
+    end;
+  end if;
+end$$;
+
+alter table public.agent_tc_permission_catalog add column if not exists label text;
+alter table public.agent_tc_permission_catalog add column if not exists categoria text;
+alter table public.agent_tc_permission_catalog add column if not exists descricao text;
+alter table public.agent_tc_permission_catalog add column if not exists created_at timestamptz not null default now();
+
 insert into public.agent_tc_permission_catalog (code, label, categoria) values
   ('dashboard.view',           'Ver dashboard',          'plataforma'),
   ('modules.view',             'Ver módulos',            'plataforma'),
