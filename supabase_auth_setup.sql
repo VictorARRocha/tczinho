@@ -174,6 +174,11 @@ grant select, insert, update, delete on public.agent_tc_user_permissions to auth
 grant all on public.agent_tc_user_permissions to service_role;
 create index if not exists agent_tc_user_permissions_user_idx on public.agent_tc_user_permissions(user_id);
 
+-- garante todas as colunas em instalações antigas
+alter table public.agent_tc_user_permissions add column if not exists user_id uuid;
+alter table public.agent_tc_user_permissions add column if not exists granted_by uuid;
+alter table public.agent_tc_user_permissions add column if not exists granted_at timestamptz not null default now();
+
 -- Migração idempotente: garante coluna permission_code + unique(user_id, permission_code)
 do $$
 begin
@@ -222,6 +227,10 @@ create table if not exists public.agent_tc_user_module_permissions (
 grant select, insert, update, delete on public.agent_tc_user_module_permissions to authenticated;
 grant all on public.agent_tc_user_module_permissions to service_role;
 create index if not exists agent_tc_user_module_permissions_user_idx on public.agent_tc_user_module_permissions(user_id);
+
+alter table public.agent_tc_user_module_permissions add column if not exists user_id uuid;
+alter table public.agent_tc_user_module_permissions add column if not exists granted_by uuid;
+alter table public.agent_tc_user_module_permissions add column if not exists granted_at timestamptz not null default now();
 
 -- Migração idempotente: garante coluna modulo_slug + unique(user_id, modulo_slug)
 do $$
@@ -274,6 +283,14 @@ create table if not exists public.agent_tc_admin_audit_log (
 grant select, insert on public.agent_tc_admin_audit_log to authenticated;
 grant all on public.agent_tc_admin_audit_log to service_role;
 create index if not exists agent_tc_admin_audit_log_created_idx on public.agent_tc_admin_audit_log(created_at desc);
+
+alter table public.agent_tc_admin_audit_log add column if not exists actor_id uuid;
+alter table public.agent_tc_admin_audit_log add column if not exists actor_username text;
+alter table public.agent_tc_admin_audit_log add column if not exists target_id uuid;
+alter table public.agent_tc_admin_audit_log add column if not exists target_username text;
+alter table public.agent_tc_admin_audit_log add column if not exists action text;
+alter table public.agent_tc_admin_audit_log add column if not exists details jsonb;
+alter table public.agent_tc_admin_audit_log add column if not exists created_at timestamptz not null default now();
 
 -- ---------------------------------------------------------------------
 -- 6) Funções helper (SECURITY DEFINER, evita recursão em RLS)
@@ -579,3 +596,6 @@ end $$;
 --     or id = 'UUID_DO_AUTH_USERS'
 --     or auth_user_id = 'UUID_DO_AUTH_USERS';
 -- ---------------------------------------------------------------------
+
+-- Recarrega o schema cache do PostgREST no final de tudo
+notify pgrst, 'reload schema';
