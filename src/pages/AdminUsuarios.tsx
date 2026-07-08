@@ -68,6 +68,19 @@ export default function AdminUsuarios() {
     supabase.from("agent_tc_permission_catalog").select("code,label,categoria").order("categoria").then(({ data }) => {
       setCatalog((data ?? []) as PermRow[]);
     });
+
+    // Realtime: novos cadastros, aprovações, mudanças de role → recarrega a lista
+    const channel = supabase
+      .channel("admin-users-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
+        if (payload.eventType === "INSERT") {
+          const uname = (payload.new as any)?.username;
+          toast({ title: "Novo cadastro", description: uname ? `Usuário ${uname} aguarda aprovação.` : "Um novo usuário aguarda aprovação." });
+        }
+        load();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [load]);
 
   async function audit(action: string, target: AppUserRow, details?: any) {
