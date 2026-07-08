@@ -22,12 +22,8 @@ interface AuthContextValue {
   session: Session | null;
   user: User | null;
   profile: AppUserProfile | null;
-  permissions: Set<string>;
-  modules: Set<string>;
   isAdmin: boolean;
   isApproved: boolean;
-  hasPermission: (code: string) => boolean;
-  canAccessModule: (slug: string) => boolean;
   signIn: (username: string, password: string) => Promise<{ error: string | null }>;
   signUp: (data: { username: string; first_name: string; last_name: string; password: string }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
@@ -57,8 +53,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<AppUserProfile | null>(null);
-  const [permissions, setPermissions] = useState<Set<string>>(new Set());
-  const [modules, setModules] = useState<Set<string>>(new Set());
 
   const loadProfile = useCallback(async (userOrUid: User | string) => {
     const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
@@ -118,41 +112,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return (data as AppUserProfile | null) ?? null;
     };
 
-    // Suporta os dois modelos que já apareceram no banco:
-    // 1) agent_tc_app_users.id === auth.users.id
-    // 2) agent_tc_app_users.auth_user_id === auth.users.id e id é o ID interno do perfil
     const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id")) ?? (await ensureProfile());
     setProfile((p as AppUserProfile) ?? null);
-    if (!p?.id) {
-      setPermissions(new Set());
-      setModules(new Set());
-      return;
-    }
-    const permissionUserIds = Array.from(new Set([p.id, uid].filter(Boolean)));
-    const [{ data: perms, error: permsError }, { data: mods, error: modsError }] = await Promise.all([
-      supabase.from("agent_tc_user_permissions").select("permission_code").in("user_id", permissionUserIds),
-      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").in("user_id", permissionUserIds),
-    ]);
-    if (permsError) console.warn("[auth] Falha ao buscar permissões funcionais:", permsError.message);
-    if (modsError) console.warn("[auth] Falha ao buscar permissões de módulos:", modsError.message);
-    setPermissions(new Set((perms ?? []).map((r: any) => r.permission_code)));
-    setModules(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
   }, []);
 
   useEffect(() => {
     let mounted = true;
 
-    // O INITIAL_SESSION do Supabase hidrata a sessão; manter apenas um caminho evita race condition.
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
       if (!mounted) return;
       setSession(sess);
       if (sess?.user) {
-        // defer para evitar chamadas dentro do callback
         setTimeout(() => loadProfile(sess.user).finally(() => setLoading(false)), 0);
       } else {
         setProfile(null);
-        setPermissions(new Set());
-        setModules(new Set());
         setLoading(false);
       }
     });
@@ -163,25 +136,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [loadProfile]);
 
-  // Realtime: reagir a mudanças no próprio perfil e permissões do usuário logado.
-  // Sem filtro rígido porque alguns bancos usam id=auth.uid(), outros auth_user_id=auth.uid().
+  // Realtime: reagir a mudanças no próprio perfil do usuário logado.
   useEffect(() => {
     const uid = session?.user?.id;
     if (!uid) return;
     const profileId = profile?.id;
     const isOwnProfileRow = (row: any) => row?.id === uid || row?.auth_user_id === uid || (!!profileId && row?.id === profileId);
-    const isOwnPermissionRow = (row: any) => row?.user_id === uid || (!!profileId && row?.user_id === profileId);
     const reload = () => loadProfile(uid);
     const channel = supabase
       .channel(`self-profile-${uid}-${profileId ?? "pending"}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
         if (isOwnProfileRow(payload.new) || isOwnProfileRow(payload.old)) reload();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
-        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
-        if (isOwnPermissionRow(payload.new) || isOwnPermissionRow(payload.old)) reload();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -222,18 +187,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       profile,
-      permissions,
-      modules,
       isAdmin,
       isApproved,
-      hasPermission: (code) => isAdmin || permissions.has(code),
-      canAccessModule: (slug) => isAdmin || modules.has(slug),
       signIn,
       signUp,
       signOut,
       refreshProfile,
     };
-  }, [loading, session, profile, permissions, modules, refreshProfile]);
+  }, [loading, session, profile, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

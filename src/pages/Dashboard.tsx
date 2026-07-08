@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/data";
 import type { Modulo, Rodagem } from "@/types/db";
@@ -7,7 +7,6 @@ import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } f
 import { formatRelative } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/contexts/AuthContext";
 
 interface ModuleData {
   modulo: Modulo;
@@ -17,14 +16,12 @@ interface ModuleData {
 export default function Dashboard() {
   const [data, setData] = useState<ModuleData[]>([]);
   const [loading, setLoading] = useState(true);
-  const { canAccessModule } = useAuth();
 
   const load = async () => {
     try {
       const modulos = await fetchModules();
-      const visible = modulos.filter((m) => canAccessModule(m.slug));
       const results = await Promise.all(
-        visible.map(async (m) => ({ modulo: m, rodagem: await fetchLatestRunByModule(m.slug).catch(() => null) })),
+        modulos.map(async (m) => ({ modulo: m, rodagem: await fetchLatestRunByModule(m.slug).catch(() => null) })),
       );
       setData(results);
     } catch (e: any) {
@@ -34,7 +31,6 @@ export default function Dashboard() {
     }
   };
 
-  const { modules, permissions } = useAuth();
   useEffect(() => {
     load();
     const off = subscribeToTable("rodagens", (p) => {
@@ -45,8 +41,8 @@ export default function Dashboard() {
       load();
     });
     return off;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modules, permissions]);
+  }, []);
+
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">

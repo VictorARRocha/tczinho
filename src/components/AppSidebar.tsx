@@ -51,14 +51,14 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const [modulos, setModulos] = useState<Modulo[]>([]);
-  const { isAdmin, hasPermission, canAccessModule } = useAuth();
+  const { isAdmin } = useAuth();
 
   useEffect(() => {
     fetchModules().then(setModulos).catch(() => {});
   }, []);
 
-  const canJenkins = hasPermission("jenkins.view");
-  const visibleModulos = modulos.filter((m) => canAccessModule(m.slug));
+  const visibleModulos = modulos;
+
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
@@ -88,40 +88,35 @@ export function AppSidebar() {
                   </NavLink>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              {canJenkins && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
-                    <NavLink to="/jenkins">
-                      <PersonStanding />
-                      <span>Jenkins</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
-              {canJenkins && pathname.startsWith("/jenkins") && !collapsed && (
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
+                  <NavLink to="/jenkins">
+                    <PersonStanding />
+                    <span>Jenkins</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              {pathname.startsWith("/jenkins") && !collapsed && (
                 <>
-                  {hasPermission("jenkins.run") && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
-                        <NavLink to="/jenkins/rodagem-completa">
-                          <PlayCircle />
-                          <span>Rodagem completa</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
-                  {hasPermission("jenkins.run") && (
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
-                        <NavLink to="/jenkins/reexecutar">
-                          <RefreshCcw />
-                          <span>Reexecutar rodagens</span>
-                        </NavLink>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  )}
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/rodagem-completa"} className="pl-8">
+                      <NavLink to="/jenkins/rodagem-completa">
+                        <PlayCircle />
+                        <span>Rodagem completa</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/reexecutar"} className="pl-8">
+                      <NavLink to="/jenkins/reexecutar">
+                        <RefreshCcw />
+                        <span>Reexecutar rodagens</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
                 </>
               )}
+
               {isAdmin && (
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={pathname.startsWith("/admin")}>
