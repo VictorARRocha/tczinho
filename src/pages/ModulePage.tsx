@@ -1003,8 +1003,13 @@ function LeafItemCard({
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
     >
       <div className="px-4 py-3 space-y-2.5">
-        {/* Cabeçalho: ID + Status */}
+        {/* Cabeçalho: Código + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
+          {f.id_caso_teste && (
+            <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
+              #{f.id_caso_teste}
+            </Badge>
+          )}
           <div className="flex-1 min-w-0" />
           <TipoBadge tipo={tipo} />
         </div>
