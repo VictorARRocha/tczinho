@@ -79,21 +79,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (typeof userOrUid === "string") return null;
 
       const meta = getUserMetadata(userOrUid);
-      const { data, error } = await supabase
-        .from("agent_tc_app_users")
-        .upsert(
-          {
-            id: uid,
-            auth_user_id: uid,
-            username: meta.username,
-            first_name: meta.first_name,
-            last_name: meta.last_name,
-            email: meta.email,
-          },
-          { onConflict: "id", ignoreDuplicates: true },
-        )
-        .select(PROFILE_SELECT)
-        .maybeSingle();
+      const baseProfile = {
+        id: uid,
+        username: meta.username,
+        first_name: meta.first_name,
+        last_name: meta.last_name,
+        email: meta.email,
+      };
+      const upsertProfile = (row: typeof baseProfile & { auth_user_id?: string }) =>
+        supabase
+          .from("agent_tc_app_users")
+          .upsert(row, { onConflict: "id", ignoreDuplicates: true })
+          .select(PROFILE_SELECT)
+          .maybeSingle();
+
+      let { data, error } = await upsertProfile({ ...baseProfile, auth_user_id: uid });
+
+      if (error?.message?.toLowerCase().includes("auth_user_id")) {
+        ({ data, error } = await upsertProfile(baseProfile));
+      }
 
       if (error) {
         console.warn("[auth] Não foi possível criar/vincular perfil automaticamente:", error.message);
