@@ -51,10 +51,14 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
   const [modulos, setModulos] = useState<Modulo[]>([]);
+  const { isAdmin, hasPermission, canAccessModule } = useAuth();
 
   useEffect(() => {
     fetchModules().then(setModulos).catch(() => {});
   }, []);
+
+  const canJenkins = hasPermission("jenkins.view");
+  const visibleModulos = modulos.filter((m) => canAccessModule(m.slug));
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
