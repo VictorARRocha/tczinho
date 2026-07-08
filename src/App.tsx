@@ -62,38 +62,23 @@ const App = () => (
               <Route path="/acesso-negado" element={<AcessoNegado />} />
               <Route
                 path="/modulo/:slug"
-                element={
-                  <ProtectedRoute requireModuleFromParam>
-                    {withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
-                  </ProtectedRoute>
-                }
+                element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
               />
               <Route path="/importar" element={<Navigate to="/" replace />} />
               <Route
                 path="/jenkins"
-                element={
-                  <ProtectedRoute requirePermission="jenkins.view">
-                    {withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
-                  </ProtectedRoute>
-                }
+                element={withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
               />
               <Route
                 path="/jenkins/rodagem-completa"
-                element={
-                  <ProtectedRoute requirePermissions={["jenkins.view", "jenkins.run"]}>
-                    {withSuspense(<JenkinsRodagemCompleta />, "Preparando rodagem...")}
-                  </ProtectedRoute>
-                }
+                element={withSuspense(<JenkinsRodagemCompleta />, "Preparando rodagem...")}
               />
               <Route
                 path="/jenkins/reexecutar"
-                element={
-                  <ProtectedRoute requirePermissions={["jenkins.view", "jenkins.run"]}>
-                    {withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
-                  </ProtectedRoute>
-                }
+                element={withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
               />
               <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
+
               <Route
                 path="/admin/usuarios"
                 element={

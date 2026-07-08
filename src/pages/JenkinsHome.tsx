@@ -2,12 +2,8 @@ import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { PlayCircle, RefreshCcw, ChevronRight, Server } from "lucide-react";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
-import { useAuth } from "@/contexts/AuthContext";
 
 export default function JenkinsHome() {
-  const { hasPermission } = useAuth();
-  const canRunJenkins = hasPermission("jenkins.run");
-
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
       <div className="mb-6 sm:mb-8">
@@ -24,27 +20,26 @@ export default function JenkinsHome() {
         </p>
       </div>
 
-      {canRunJenkins && (
-        <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 mb-8 sm:mb-10">
-          <JenkinsCard
-            to="/jenkins/rodagem-completa"
-            icon={<PlayCircle className="h-8 w-8" />}
-            title="Rodagem completa"
-            description="Iniciar uma nova rodagem completa ou por módulo no Jenkins."
-          />
-          <JenkinsCard
-            to="/jenkins/reexecutar"
-            icon={<RefreshCcw className="h-8 w-8" />}
-            title="Reexecutar rodagens"
-            description="Selecionar casos quebrados de uma rodagem já analisada e enviar novamente ao Jenkins."
-          />
-        </div>
-      )}
+      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 mb-8 sm:mb-10">
+        <JenkinsCard
+          to="/jenkins/rodagem-completa"
+          icon={<PlayCircle className="h-8 w-8" />}
+          title="Rodagem completa"
+          description="Iniciar uma nova rodagem completa ou por módulo no Jenkins."
+        />
+        <JenkinsCard
+          to="/jenkins/reexecutar"
+          icon={<RefreshCcw className="h-8 w-8" />}
+          title="Reexecutar rodagens"
+          description="Selecionar casos quebrados de uma rodagem já analisada e enviar novamente ao Jenkins."
+        />
+      </div>
 
       <JenkinsHistory />
     </div>
   );
 }
+
 
 
 function JenkinsCard({ to, icon, title, description }: {
