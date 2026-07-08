@@ -1,19 +1,11 @@
-import { useEffect } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Clock, LogOut, XCircle, Ban, RefreshCw } from "lucide-react";
+import { Clock, LogOut, XCircle, Ban } from "lucide-react";
 
 export default function AguardandoAprovacao() {
-  const { profile, signOut, session, refreshProfile } = useAuth();
-
-  // Auto-refresh perfil a cada 10s enquanto pendente (admin pode aprovar a qualquer momento)
-  useEffect(() => {
-    if (!session) return;
-    const id = setInterval(() => { refreshProfile(); }, 10000);
-    return () => clearInterval(id);
-  }, [session, refreshProfile]);
+  const { profile, signOut, session } = useAuth();
 
   if (session && profile?.status === "approved") {
     return <Navigate to="/" replace />;
@@ -48,14 +40,9 @@ export default function AguardandoAprovacao() {
             </div>
           )}
           {session ? (
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => refreshProfile()}>
-                <RefreshCw className="h-4 w-4 mr-2" /> Atualizar
-              </Button>
-              <Button variant="outline" className="flex-1" onClick={() => signOut()}>
-                <LogOut className="h-4 w-4 mr-2" /> Sair
-              </Button>
-            </div>
+            <Button variant="outline" className="w-full" onClick={() => signOut()}>
+              <LogOut className="h-4 w-4 mr-2" /> Sair
+            </Button>
           ) : (
             <Button asChild className="w-full"><Link to="/login">Ir para login</Link></Button>
           )}
