@@ -6,24 +6,27 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { PageLoading } from "@/components/PageLoading";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-// Carregamento eager apenas para a Home (a maior parte dos usuários entra por ela)
 import Index from "./pages/Index";
+import Login from "./pages/Login";
+import Cadastro from "./pages/Cadastro";
+import AguardandoAprovacao from "./pages/AguardandoAprovacao";
+import AcessoNegado from "./pages/AcessoNegado";
 
-// Demais rotas carregadas sob demanda (code-splitting) — bundle inicial menor
 const ModulePage = lazy(() => import("./pages/ModulePage"));
-
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
+const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-// React Query com cache seguro: evita refetches agressivos ao trocar de aba/foco
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,        // 30s sem refetch automático
-      gcTime: 5 * 60_000,       // 5min em cache
+      staleTime: 30_000,
+      gcTime: 5 * 60_000,
       refetchOnWindowFocus: false,
       retry: 1,
     },
@@ -40,30 +43,65 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route element={<AppLayout />}>
-            <Route path="/" element={<Index />} />
+        <AuthProvider>
+          <Routes>
+            {/* públicas */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/cadastro" element={<Cadastro />} />
+            <Route path="/aguardando-aprovacao" element={<AguardandoAprovacao />} />
+
+            {/* protegidas */}
             <Route
-              path="/modulo/:slug"
-              element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
-            />
-            <Route path="/importar" element={<Navigate to="/" replace />} />
-            <Route
-              path="/jenkins"
-              element={withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
-            />
-            <Route
-              path="/jenkins/rodagem-completa"
-              element={withSuspense(<JenkinsRodagemCompleta />, "Preparando rodagem...")}
-            />
-            <Route
-              path="/jenkins/reexecutar"
-              element={withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
-            />
-            <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
-          </Route>
-          <Route path="*" element={withSuspense(<NotFound />)} />
-        </Routes>
+              element={
+                <ProtectedRoute>
+                  <AppLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<Index />} />
+              <Route path="/acesso-negado" element={<AcessoNegado />} />
+              <Route
+                path="/modulo/:slug"
+                element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
+              />
+              <Route path="/importar" element={<Navigate to="/" replace />} />
+              <Route
+                path="/jenkins"
+                element={
+                  <ProtectedRoute requirePermission="jenkins.view">
+                    {withSuspense(<JenkinsHome />, "Carregando Jenkins...", "skeleton-cards")}
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jenkins/rodagem-completa"
+                element={
+                  <ProtectedRoute requirePermission="jenkins.run">
+                    {withSuspense(<JenkinsRodagemCompleta />, "Preparando rodagem...")}
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jenkins/reexecutar"
+                element={
+                  <ProtectedRoute requirePermission="jenkins.run">
+                    {withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
+                  </ProtectedRoute>
+                }
+              />
+              <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
+              <Route
+                path="/admin/usuarios"
+                element={
+                  <ProtectedRoute requireAdmin>
+                    {withSuspense(<AdminUsuarios />, "Carregando admin...", "skeleton-cards")}
+                  </ProtectedRoute>
+                }
+              />
+            </Route>
+            <Route path="*" element={withSuspense(<NotFound />)} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
