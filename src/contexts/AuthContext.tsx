@@ -47,11 +47,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [modules, setModules] = useState<Set<string>>(new Set());
 
   const loadProfile = useCallback(async (uid: string) => {
-    const { data: p } = await supabase
+    const { data: p, error } = await supabase
       .from("agent_tc_app_users")
       .select("id,username,first_name,last_name,email,role,status")
-      .eq("auth_user_id", uid)
+      .eq("id", uid)
       .maybeSingle();
+    if (error) console.error("[Auth] loadProfile error:", error);
     setProfile((p as AppUserProfile) ?? null);
     if (!p?.id) {
       setPermissions(new Set());
