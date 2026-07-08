@@ -16,12 +16,7 @@ import type { QaDataSource } from "./types";
 
 function pickProvider(): QaDataSource {
   const { provider } = getDataConfig();
-  if (provider === "api") {
-    console.info("[data] provider = api");
-    return ApiQaDataSource;
-  }
-  console.info("[data] provider = supabase");
-  return SupabaseQaDataSource;
+  return provider === "api" ? ApiQaDataSource : SupabaseQaDataSource;
 }
 
 export const qaData: QaDataSource = pickProvider();
