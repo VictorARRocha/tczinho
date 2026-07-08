@@ -596,3 +596,6 @@ end $$;
 --     or id = 'UUID_DO_AUTH_USERS'
 --     or auth_user_id = 'UUID_DO_AUTH_USERS';
 -- ---------------------------------------------------------------------
+
+-- Recarrega o schema cache do PostgREST no final de tudo
+notify pgrst, 'reload schema';
