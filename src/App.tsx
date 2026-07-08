@@ -80,7 +80,7 @@ const App = () => (
               <Route
                 path="/jenkins/rodagem-completa"
                 element={
-                  <ProtectedRoute requirePermission="jenkins.run">
+                  <ProtectedRoute requirePermissions={["jenkins.view", "jenkins.run"]}>
                     {withSuspense(<JenkinsRodagemCompleta />, "Preparando rodagem...")}
                   </ProtectedRoute>
                 }
@@ -88,7 +88,7 @@ const App = () => (
               <Route
                 path="/jenkins/reexecutar"
                 element={
-                  <ProtectedRoute requirePermission="jenkins.run">
+                  <ProtectedRoute requirePermissions={["jenkins.view", "jenkins.run"]}>
                     {withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
                   </ProtectedRoute>
                 }

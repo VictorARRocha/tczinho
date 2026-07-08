@@ -28,6 +28,8 @@ create table if not exists public.agent_tc_app_users (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+grant select, insert, update on public.agent_tc_app_users to authenticated;
+grant all on public.agent_tc_app_users to service_role;
 
 -- Compatibilidade com instalações anteriores: CREATE TABLE IF NOT EXISTS
 -- não adiciona colunas novas quando a tabela já existe.
@@ -113,6 +115,8 @@ create table if not exists public.agent_tc_permission_catalog (
   descricao text,
   created_at timestamptz not null default now()
 );
+grant select on public.agent_tc_permission_catalog to anon, authenticated;
+grant all on public.agent_tc_permission_catalog to service_role;
 
 insert into public.agent_tc_permission_catalog (code, label, categoria) values
   ('dashboard.view',           'Ver dashboard',          'plataforma'),
@@ -123,7 +127,7 @@ insert into public.agent_tc_permission_catalog (code, label, categoria) values
   ('performance.view',         'Ver performance',        'plataforma'),
   ('history.view',             'Ver histórico',          'plataforma'),
   ('evidence.view',            'Ver evidências',         'plataforma'),
-  ('jenkins.view',             'Ver Jenkins',            'jenkins'),
+  ('jenkins.view',             'Acessar Jenkins',        'jenkins'),
   ('jenkins.run',              'Disparar Jenkins',       'jenkins'),
   ('admin.view',               'Ver admin',              'admin'),
   ('admin.users.manage',       'Gerenciar usuários',     'admin'),
@@ -141,6 +145,8 @@ create table if not exists public.agent_tc_user_permissions (
   granted_at timestamptz not null default now(),
   unique (user_id, permission_code)
 );
+grant select, insert, update, delete on public.agent_tc_user_permissions to authenticated;
+grant all on public.agent_tc_user_permissions to service_role;
 create index if not exists agent_tc_user_permissions_user_idx on public.agent_tc_user_permissions(user_id);
 
 -- ---------------------------------------------------------------------
@@ -154,6 +160,8 @@ create table if not exists public.agent_tc_user_module_permissions (
   granted_at timestamptz not null default now(),
   unique (user_id, modulo_slug)
 );
+grant select, insert, update, delete on public.agent_tc_user_module_permissions to authenticated;
+grant all on public.agent_tc_user_module_permissions to service_role;
 create index if not exists agent_tc_user_module_permissions_user_idx on public.agent_tc_user_module_permissions(user_id);
 
 -- ---------------------------------------------------------------------
@@ -169,6 +177,8 @@ create table if not exists public.agent_tc_admin_audit_log (
   details jsonb,
   created_at timestamptz not null default now()
 );
+grant select, insert on public.agent_tc_admin_audit_log to authenticated;
+grant all on public.agent_tc_admin_audit_log to service_role;
 create index if not exists agent_tc_admin_audit_log_created_idx on public.agent_tc_admin_audit_log(created_at desc);
 
 -- ---------------------------------------------------------------------
@@ -204,8 +214,102 @@ as $$
   );
 $$;
 
+create or replace function public.agent_tc_set_user_permission(
+  _target_user_id uuid,
+  _permission_code text,
+  _enabled boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_target_app_user_id uuid;
+  v_actor_app_user_id uuid;
+begin
+  if not public.agent_tc_is_admin(auth.uid()) then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  v_target_app_user_id := public.agent_tc_current_app_user_id(_target_user_id);
+  if v_target_app_user_id is null then
+    select id into v_target_app_user_id
+    from public.agent_tc_app_users
+    where id = _target_user_id
+    limit 1;
+  end if;
+
+  if v_target_app_user_id is null then
+    raise exception 'target user not found' using errcode = 'P0002';
+  end if;
+
+  v_actor_app_user_id := public.agent_tc_current_app_user_id(auth.uid());
+
+  if _enabled then
+    insert into public.agent_tc_user_permissions (user_id, permission_code, granted_by)
+    values (v_target_app_user_id, _permission_code, v_actor_app_user_id)
+    on conflict (user_id, permission_code) do update
+      set granted_by = excluded.granted_by,
+          granted_at = now();
+  else
+    delete from public.agent_tc_user_permissions
+    where user_id = v_target_app_user_id
+      and permission_code = _permission_code;
+  end if;
+end;
+$$;
+
+create or replace function public.agent_tc_set_user_module_permission(
+  _target_user_id uuid,
+  _modulo_slug text,
+  _enabled boolean
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_target_app_user_id uuid;
+  v_actor_app_user_id uuid;
+begin
+  if not public.agent_tc_is_admin(auth.uid()) then
+    raise exception 'not authorized' using errcode = '42501';
+  end if;
+
+  v_target_app_user_id := public.agent_tc_current_app_user_id(_target_user_id);
+  if v_target_app_user_id is null then
+    select id into v_target_app_user_id
+    from public.agent_tc_app_users
+    where id = _target_user_id
+    limit 1;
+  end if;
+
+  if v_target_app_user_id is null then
+    raise exception 'target user not found' using errcode = 'P0002';
+  end if;
+
+  v_actor_app_user_id := public.agent_tc_current_app_user_id(auth.uid());
+
+  if _enabled then
+    insert into public.agent_tc_user_module_permissions (user_id, modulo_slug, granted_by)
+    values (v_target_app_user_id, _modulo_slug, v_actor_app_user_id)
+    on conflict (user_id, modulo_slug) do update
+      set granted_by = excluded.granted_by,
+          granted_at = now();
+  else
+    delete from public.agent_tc_user_module_permissions
+    where user_id = v_target_app_user_id
+      and modulo_slug = _modulo_slug;
+  end if;
+end;
+$$;
+
 grant execute on function public.agent_tc_current_app_user_id(uuid) to authenticated, service_role;
 grant execute on function public.agent_tc_is_admin(uuid) to authenticated, service_role;
+grant execute on function public.agent_tc_set_user_permission(uuid, text, boolean) to authenticated, service_role;
+grant execute on function public.agent_tc_set_user_module_permission(uuid, text, boolean) to authenticated, service_role;
 
 -- ---------------------------------------------------------------------
 -- 7) Trigger para criar perfil automaticamente após signUp

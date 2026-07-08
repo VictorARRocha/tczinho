@@ -7,6 +7,7 @@ export type AppUserRole = "user" | "admin";
 
 export interface AppUserProfile {
   id: string;
+  auth_user_id?: string | null;
   username: string;
   first_name: string | null;
   last_name: string | null;
@@ -35,7 +36,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status";
+const PROFILE_SELECT = "id,auth_user_id,username,first_name,last_name,email,role,status,rejection_reason";
+const PROFILE_SELECT_LEGACY = "id,username,first_name,last_name,email,role,status,rejection_reason";
 
 function getUserMetadata(user: User) {
   return {
@@ -61,11 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (userOrUid: User | string) => {
     const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
     const fetchProfile = async (column: "id" | "auth_user_id") => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("agent_tc_app_users")
         .select(PROFILE_SELECT)
         .eq(column, uid)
         .maybeSingle();
+
+      if (error && error.message.toLowerCase().includes("auth_user_id")) {
+        if (column === "auth_user_id") return null;
+        ({ data, error } = await supabase
+          .from("agent_tc_app_users")
+          .select(PROFILE_SELECT_LEGACY)
+          .eq(column, uid)
+          .maybeSingle());
+      }
 
       if (error) {
         console.warn(`[auth] Falha ao buscar perfil por ${column}:`, error.message);
@@ -117,10 +128,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setModules(new Set());
       return;
     }
-    const [{ data: perms }, { data: mods }] = await Promise.all([
-      supabase.from("agent_tc_user_permissions").select("permission_code").eq("user_id", p.id),
-      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").eq("user_id", p.id),
+    const permissionUserIds = Array.from(new Set([p.id, uid].filter(Boolean)));
+    const [{ data: perms, error: permsError }, { data: mods, error: modsError }] = await Promise.all([
+      supabase.from("agent_tc_user_permissions").select("permission_code").in("user_id", permissionUserIds),
+      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").in("user_id", permissionUserIds),
     ]);
+    if (permsError) console.warn("[auth] Falha ao buscar permissões funcionais:", permsError.message);
+    if (modsError) console.warn("[auth] Falha ao buscar permissões de módulos:", modsError.message);
     setPermissions(new Set((perms ?? []).map((r: any) => r.permission_code)));
     setModules(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
   }, []);
