@@ -184,11 +184,20 @@ function normalizeRerunRequest(row: ApiRow): RerunRequest {
   };
 }
 
+function normalizeRun<T extends Partial<Rodagem> & Record<string, any>>(row: T | null): T | null {
+  if (!row) return row;
+  const executed = (row as any).total_executed ?? (row as any).total_analisados ?? (row as any).total_casos;
+  if (executed != null) (row as any).total_analisados = Number(executed) || 0;
+  return row;
+}
+
 export const ApiQaDataSource: QaDataSource = {
   fetchModules: () => req<Modulo[]>("/modules").catch(() => { notImplemented("fetchModules"); return []; }),
 
   fetchRunsByModule: (slug) =>
-    req<Rodagem[]>(`/modules/${encodeURIComponent(slug)}/runs`).catch(() => { notImplemented("fetchRunsByModule"); return []; }),
+    req<Rodagem[]>(`/modules/${encodeURIComponent(slug)}/runs`)
+      .then((list) => (list || []).map((r) => normalizeRun(r) as Rodagem))
+      .catch(() => { notImplemented("fetchRunsByModule"); return []; }),
 
   async fetchLatestRunByModule(slug) {
     const list = await this.fetchRunsByModule(slug);
@@ -196,7 +205,9 @@ export const ApiQaDataSource: QaDataSource = {
   },
 
   fetchRunById: (id) =>
-    req<Rodagem | null>(`/runs/${encodeURIComponent(id)}`).catch(() => { notImplemented("fetchRunById"); return null; }),
+    req<Rodagem | null>(`/runs/${encodeURIComponent(id)}`)
+      .then((r) => normalizeRun(r))
+      .catch(() => { notImplemented("fetchRunById"); return null; }),
 
   fetchAllRuns: () => req<RodagemListItem[]>(`/runs`).catch(() => { notImplemented("fetchAllRuns"); return []; }),
 
