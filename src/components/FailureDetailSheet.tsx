@@ -260,10 +260,18 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
   useEffect(() => {
+    // Ao trocar de falha, limpar evidências anteriores para evitar reaproveitar
+    // imagens/estado do caso anterior enquanto as novas carregam.
+    setEvidencias([]);
+    setComparePair(null);
     if (!falha) return;
     if (evidsProp && evidsProp.length > 0) { setEvidencias(evidsProp); return; }
     if (falha.id?.startsWith("storage:")) { setEvidencias([]); return; }
-    fetchEvidenceByFailure(falha.id).then(setEvidencias).catch(() => setEvidencias([]));
+    let cancelled = false;
+    fetchEvidenceByFailure(falha.id)
+      .then((list) => { if (!cancelled) setEvidencias(list); })
+      .catch(() => { if (!cancelled) setEvidencias([]); });
+    return () => { cancelled = true; };
   }, [falha?.id, evidsProp]);
 
   const pairs = useMemo(() => pairBaseAtual(evidencias), [evidencias]);
