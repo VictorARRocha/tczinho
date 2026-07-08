@@ -228,6 +228,10 @@ grant select, insert, update, delete on public.agent_tc_user_module_permissions 
 grant all on public.agent_tc_user_module_permissions to service_role;
 create index if not exists agent_tc_user_module_permissions_user_idx on public.agent_tc_user_module_permissions(user_id);
 
+alter table public.agent_tc_user_module_permissions add column if not exists user_id uuid;
+alter table public.agent_tc_user_module_permissions add column if not exists granted_by uuid;
+alter table public.agent_tc_user_module_permissions add column if not exists granted_at timestamptz not null default now();
+
 -- Migração idempotente: garante coluna modulo_slug + unique(user_id, modulo_slug)
 do $$
 begin
