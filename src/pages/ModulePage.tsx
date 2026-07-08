@@ -778,13 +778,14 @@ function FalhasTab({
 
   const enriched: EnrichedItem[] = useMemo(() => {
     const real: EnrichedItem[] = falhas.map((f) => {
+      const enrichedFalha = withCaseMetadata(f, hierMap);
       const evs = evMap.get(f.id) || [];
       const pairs = realPairsByFalha.get(f.id) || [];
-      return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
+      return { f: enrichedFalha, evs, tipo: classifyOccurrence(f, evs), pairs };
     });
     const synth: EnrichedItem[] = syntheticFalhas.map(({ f, evs, pairs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs }));
     return real.concat(synth);
-  }, [falhas, evMap, realPairsByFalha, syntheticFalhas]);
+  }, [falhas, evMap, realPairsByFalha, syntheticFalhas, hierMap]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
