@@ -5,12 +5,13 @@ import { PageLoading } from "@/components/PageLoading";
 interface Props {
   children: React.ReactNode;
   requirePermission?: string;
+  requirePermissions?: string[];
   requireAdmin?: boolean;
   /** Se true, valida canAccessModule(slug) contra o parâmetro :slug da rota. */
   requireModuleFromParam?: boolean;
 }
 
-export function ProtectedRoute({ children, requirePermission, requireAdmin, requireModuleFromParam }: Props) {
+export function ProtectedRoute({ children, requirePermission, requirePermissions, requireAdmin, requireModuleFromParam }: Props) {
   const { loading, session, profile, isAdmin, hasPermission, canAccessModule } = useAuth();
   const location = useLocation();
   const params = useParams();
@@ -31,6 +32,10 @@ export function ProtectedRoute({ children, requirePermission, requireAdmin, requ
   }
 
   if (requirePermission && !hasPermission(requirePermission)) {
+    return <Navigate to="/acesso-negado" replace />;
+  }
+
+  if (requirePermissions?.some((permission) => !hasPermission(permission))) {
     return <Navigate to="/acesso-negado" replace />;
   }
 

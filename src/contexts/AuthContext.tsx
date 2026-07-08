@@ -7,6 +7,7 @@ export type AppUserRole = "user" | "admin";
 
 export interface AppUserProfile {
   id: string;
+  auth_user_id?: string | null;
   username: string;
   first_name: string | null;
   last_name: string | null;
@@ -35,7 +36,7 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PROFILE_SELECT = "id,username,first_name,last_name,email,role,status";
+const PROFILE_SELECT = "id,auth_user_id,username,first_name,last_name,email,role,status,rejection_reason";
 
 function getUserMetadata(user: User) {
   return {
@@ -117,10 +118,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setModules(new Set());
       return;
     }
-    const [{ data: perms }, { data: mods }] = await Promise.all([
-      supabase.from("agent_tc_user_permissions").select("permission_code").eq("user_id", p.id),
-      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").eq("user_id", p.id),
+    const permissionUserIds = Array.from(new Set([p.id, uid].filter(Boolean)));
+    const [{ data: perms, error: permsError }, { data: mods, error: modsError }] = await Promise.all([
+      supabase.from("agent_tc_user_permissions").select("permission_code").in("user_id", permissionUserIds),
+      supabase.from("agent_tc_user_module_permissions").select("modulo_slug").in("user_id", permissionUserIds),
     ]);
+    if (permsError) console.warn("[auth] Falha ao buscar permissões funcionais:", permsError.message);
+    if (modsError) console.warn("[auth] Falha ao buscar permissões de módulos:", modsError.message);
     setPermissions(new Set((perms ?? []).map((r: any) => r.permission_code)));
     setModules(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
   }, []);
