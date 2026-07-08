@@ -284,6 +284,14 @@ grant select, insert on public.agent_tc_admin_audit_log to authenticated;
 grant all on public.agent_tc_admin_audit_log to service_role;
 create index if not exists agent_tc_admin_audit_log_created_idx on public.agent_tc_admin_audit_log(created_at desc);
 
+alter table public.agent_tc_admin_audit_log add column if not exists actor_id uuid;
+alter table public.agent_tc_admin_audit_log add column if not exists actor_username text;
+alter table public.agent_tc_admin_audit_log add column if not exists target_id uuid;
+alter table public.agent_tc_admin_audit_log add column if not exists target_username text;
+alter table public.agent_tc_admin_audit_log add column if not exists action text;
+alter table public.agent_tc_admin_audit_log add column if not exists details jsonb;
+alter table public.agent_tc_admin_audit_log add column if not exists created_at timestamptz not null default now();
+
 -- ---------------------------------------------------------------------
 -- 6) Funções helper (SECURITY DEFINER, evita recursão em RLS)
 -- ---------------------------------------------------------------------
