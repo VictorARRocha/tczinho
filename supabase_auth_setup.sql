@@ -223,6 +223,41 @@ grant select, insert, update, delete on public.agent_tc_user_module_permissions 
 grant all on public.agent_tc_user_module_permissions to service_role;
 create index if not exists agent_tc_user_module_permissions_user_idx on public.agent_tc_user_module_permissions(user_id);
 
+-- Migração idempotente: garante coluna modulo_slug + unique(user_id, modulo_slug)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='modulo_slug'
+  ) then
+    alter table public.agent_tc_user_module_permissions add column modulo_slug text;
+    if exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='module_slug') then
+      execute 'update public.agent_tc_user_module_permissions set modulo_slug = module_slug where modulo_slug is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='slug') then
+      execute 'update public.agent_tc_user_module_permissions set modulo_slug = slug where modulo_slug is null';
+    elsif exists (select 1 from information_schema.columns where table_schema='public' and table_name='agent_tc_user_module_permissions' and column_name='modulo') then
+      execute 'update public.agent_tc_user_module_permissions set modulo_slug = modulo where modulo_slug is null';
+    end if;
+    delete from public.agent_tc_user_module_permissions where modulo_slug is null;
+    alter table public.agent_tc_user_module_permissions alter column modulo_slug set not null;
+  end if;
+
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'agent_tc_user_module_permissions_user_id_modulo_slug_key'
+       or conname = 'agent_tc_user_module_permissions_user_mod_unique'
+  ) then
+    begin
+      alter table public.agent_tc_user_module_permissions
+        add constraint agent_tc_user_module_permissions_user_mod_unique unique (user_id, modulo_slug);
+    exception when duplicate_table or duplicate_object or unique_violation then null;
+    end;
+  end if;
+end$$;
+
+-- Força PostgREST a recarregar o schema cache (evita "column not in schema cache")
+notify pgrst, 'reload schema';
+
 -- ---------------------------------------------------------------------
 -- 5) Auditoria admin
 -- ---------------------------------------------------------------------
