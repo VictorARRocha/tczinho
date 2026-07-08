@@ -43,11 +43,65 @@ async function handleEvidenceDownload(ev: Evidencia) {
   window.open(data.signedUrl, "_blank", "noopener,noreferrer");
 }
 
+const CASE_NOT_FOUND_RE = /n[aã]o\s+encontrado(?:\s+no\s+.*\.mds)?/i;
+
+function cleanCaseText(value?: string | null): string {
+  const text = String(value || "").trim();
+  if (!text || text === "—" || CASE_NOT_FOUND_RE.test(text)) return "";
+  return text;
+}
+
+function sameCaseText(a?: string | null, b?: string | null): boolean {
+  const left = String(a || "").trim().toLowerCase();
+  const right = String(b || "").trim().toLowerCase();
+  return !!left && left === right;
+}
+
+function extractProcedureCode(value?: string | null): string {
+  const match = String(value || "").match(/(?:^|_)(\d{4,})$/);
+  return match?.[1] || "";
+}
+
+function getHierarchyCase(f: Falha, hierMap: Map<string, TestcaseHierarchyNode>) {
+  const caseId = extractCaseIdParts(f.id_caso_teste)?.join(".") || "";
+  const hier = caseId ? hierMap.get(caseId) : undefined;
+  const name = cleanCaseText(hier?.node_name);
+  const code = extractProcedureCode(hier?.procedure_name);
+  return { name, code };
+}
+
+function caseDescriptionFromParts(name: string, code: string): string {
+  if (name && code) return `#${code} - ${name}`;
+  return name || (code ? `#${code}` : "");
+}
+
+function withCaseMetadata(f: Falha, hierMap: Map<string, TestcaseHierarchyNode>): Falha {
+  const { name, code } = getHierarchyCase(f, hierMap);
+  const description = caseDescriptionFromParts(name, code);
+  if (!name && !description) return f;
+  return {
+    ...f,
+    caso_teste_provavel: name || cleanCaseText(f.caso_teste_provavel) || f.caso_teste_provavel,
+    rotina_funcional: name || cleanCaseText(f.rotina_funcional) || f.rotina_funcional,
+    descricao_caso: description || f.descricao_caso,
+  };
+}
+
 // Descrição do caso de teste (não confundir com mensagem de erro)
 function failureDescription(f: Falha): string {
-  const order = [f.descricao_caso, f.caso_teste_provavel, f.rotina_funcional];
+  const description = cleanCaseText(f.descricao_caso);
+  if (
+    description &&
+    !sameCaseText(description, f.erro_principal) &&
+    !sameCaseText(description, f.mensagem_principal)
+  ) {
+    return description;
+  }
+
+  const order = [f.caso_teste_provavel, f.rotina_funcional];
   for (const v of order) {
-    if (v && String(v).trim() && String(v).trim() !== "—") return String(v).trim();
+    const text = cleanCaseText(v);
+    if (text) return text;
   }
   return "";
 }
@@ -724,13 +778,14 @@ function FalhasTab({
 
   const enriched: EnrichedItem[] = useMemo(() => {
     const real: EnrichedItem[] = falhas.map((f) => {
+      const enrichedFalha = withCaseMetadata(f, hierMap);
       const evs = evMap.get(f.id) || [];
       const pairs = realPairsByFalha.get(f.id) || [];
-      return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
+      return { f: enrichedFalha, evs, tipo: classifyOccurrence(f, evs), pairs };
     });
     const synth: EnrichedItem[] = syntheticFalhas.map(({ f, evs, pairs }) => ({ f, evs, tipo: classifyOccurrence(f, evs), pairs }));
     return real.concat(synth);
-  }, [falhas, evMap, realPairsByFalha, syntheticFalhas]);
+  }, [falhas, evMap, realPairsByFalha, syntheticFalhas, hierMap]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
