@@ -320,9 +320,9 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             {falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}
           </SheetTitle>
 
-          {(falha.erro_principal || falha.mensagem_principal) && (
+          {falha.descricao_caso && (
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-              {falha.erro_principal || falha.mensagem_principal}
+              {falha.descricao_caso}
             </p>
           )}
         </div>
