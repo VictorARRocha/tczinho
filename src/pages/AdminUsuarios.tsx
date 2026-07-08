@@ -77,16 +77,20 @@ export default function AdminUsuarios() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    let { data, error } = await supabase
+    const primary = await supabase
       .from("agent_tc_app_users")
       .select("id,auth_user_id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
       .order("created_at", { ascending: false });
+    let data = primary.data as any[] | null;
+    let error = primary.error;
 
     if (error && error.message.toLowerCase().includes("auth_user_id")) {
-      ({ data, error } = await supabase
+      const legacy = await supabase
         .from("agent_tc_app_users")
         .select("id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
-        .order("created_at", { ascending: false }));
+        .order("created_at", { ascending: false });
+      data = legacy.data as any[] | null;
+      error = legacy.error;
     }
 
     if (error) toast({ title: "Erro ao carregar usuários", description: error.message, variant: "destructive" });
@@ -117,22 +121,6 @@ export default function AdminUsuarios() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load]);
-
-  useEffect(() => {
-    if (!permFor) return;
-    const channel = supabase
-      .channel(`admin-user-permissions-${permFor.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
-        const ids = permissionUserIds(permFor);
-        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
-        const ids = permissionUserIds(permFor);
-        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [permFor, loadPermissionsFor]);
 
   async function audit(action: string, target: AppUserRow, details?: any) {
     try {
@@ -204,6 +192,22 @@ export default function AdminUsuarios() {
     setUserMods(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
     setLoadingPerms(false);
   }, []);
+
+  useEffect(() => {
+    if (!permFor) return;
+    const channel = supabase
+      .channel(`admin-user-permissions-${permFor.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
+        const ids = permissionUserIds(permFor);
+        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
+        const ids = permissionUserIds(permFor);
+        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [permFor, loadPermissionsFor]);
 
   async function openPerm(u: AppUserRow) {
     setPermFor(u);
