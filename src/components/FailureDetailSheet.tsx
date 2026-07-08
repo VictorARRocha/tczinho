@@ -429,7 +429,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-3 data-[state=closed]:hidden">
-                {numberedPrints.map((e) => <EvidenceItem key={e.id} ev={e} hideCaption />)}
+                {numberedPrints.map((e) => <EvidenceItem key={`${falha.id}-num-${e.id}`} ev={e} hideCaption />)}
               </CollapsibleContent>
             </Collapsible>
           )}
