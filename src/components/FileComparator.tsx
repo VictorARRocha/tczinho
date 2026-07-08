@@ -132,13 +132,6 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
       const [bu, au] = await Promise.all([resolveUrl(pair.base), resolveUrl(pair.atual)]);
       if (cancel) return;
       setBaseUrl(bu); setAtualUrl(au);
-      console.log("[comparator]", {
-        baseName: pair.base?.nome_arquivo,
-        atualName: pair.atual?.nome_arquivo,
-        ext,
-        isText, isImg, isPdf, isCsv,
-        baseHasUrl: !!bu, atualHasUrl: !!au,
-      });
       if (isText || isCsv) {
         setLoadingStage("Preparando diferenças...");
         const [b, a] = await Promise.all([
@@ -151,7 +144,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         else if (pair.base && b.text === null && !b.tooLarge) setBaseError("Não foi possível carregar o arquivo Baseline.");
         if (pair.atual && !au) setAtualError("URL do arquivo Checked indisponível.");
         else if (pair.atual && a.text === null && !a.tooLarge) setAtualError("Não foi possível carregar o arquivo Checked.");
-        console.log("[comparator] loaded", { baseLen: b.text?.length ?? null, atualLen: a.text?.length ?? null });
+        
         setBaseText(b.text); setAtualText(a.text);
       }
       setLoading(false);
@@ -224,7 +217,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         const changes = editor.getLineChanges?.() || [];
         setMonacoChanges(changes);
         setMonacoIndex(changes.length > 0 ? 0 : -1);
-        console.log("[comparator] monaco diff", { totalDiffs: changes.length });
+        
       } catch (e) {
         console.error("[comparator] getLineChanges", e);
         setMonacoChanges([]);
