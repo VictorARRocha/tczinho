@@ -77,10 +77,18 @@ export default function AdminUsuarios() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("agent_tc_app_users")
       .select("id,auth_user_id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
       .order("created_at", { ascending: false });
+
+    if (error && error.message.toLowerCase().includes("auth_user_id")) {
+      ({ data, error } = await supabase
+        .from("agent_tc_app_users")
+        .select("id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
+        .order("created_at", { ascending: false }));
+    }
+
     if (error) toast({ title: "Erro ao carregar usuários", description: error.message, variant: "destructive" });
     setUsers((data ?? []) as AppUserRow[]);
     setLoading(false);
@@ -109,6 +117,22 @@ export default function AdminUsuarios() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load]);
+
+  useEffect(() => {
+    if (!permFor) return;
+    const channel = supabase
+      .channel(`admin-user-permissions-${permFor.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_permissions" }, (payload) => {
+        const ids = permissionUserIds(permFor);
+        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_user_module_permissions" }, (payload) => {
+        const ids = permissionUserIds(permFor);
+        if (ids.includes((payload.new as any)?.user_id) || ids.includes((payload.old as any)?.user_id)) loadPermissionsFor(permFor);
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [permFor, loadPermissionsFor]);
 
   async function audit(action: string, target: AppUserRow, details?: any) {
     try {
@@ -165,10 +189,17 @@ export default function AdminUsuarios() {
   const loadPermissionsFor = useCallback(async (u: AppUserRow) => {
     setLoadingPerms(true);
     const ids = permissionUserIds(u);
-    const [{ data: perms }, { data: mods }] = await Promise.all([
+    const [{ data: perms, error: permsError }, { data: mods, error: modsError }] = await Promise.all([
       supabase.from("agent_tc_user_permissions").select("permission_code").in("user_id", ids),
       supabase.from("agent_tc_user_module_permissions").select("modulo_slug").in("user_id", ids),
     ]);
+    if (permsError || modsError) {
+      toast({
+        title: "Erro ao ler permissões",
+        description: permsError?.message ?? modsError?.message,
+        variant: "destructive",
+      });
+    }
     setUserPerms(new Set((perms ?? []).map((r: any) => r.permission_code)));
     setUserMods(new Set((mods ?? []).map((r: any) => r.modulo_slug)));
     setLoadingPerms(false);

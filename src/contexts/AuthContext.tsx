@@ -37,6 +37,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const PROFILE_SELECT = "id,auth_user_id,username,first_name,last_name,email,role,status,rejection_reason";
+const PROFILE_SELECT_LEGACY = "id,username,first_name,last_name,email,role,status,rejection_reason";
 
 function getUserMetadata(user: User) {
   return {
@@ -62,11 +63,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = useCallback(async (userOrUid: User | string) => {
     const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
     const fetchProfile = async (column: "id" | "auth_user_id") => {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("agent_tc_app_users")
         .select(PROFILE_SELECT)
         .eq(column, uid)
         .maybeSingle();
+
+      if (error && error.message.toLowerCase().includes("auth_user_id")) {
+        if (column === "auth_user_id") return null;
+        ({ data, error } = await supabase
+          .from("agent_tc_app_users")
+          .select(PROFILE_SELECT_LEGACY)
+          .eq(column, uid)
+          .maybeSingle());
+      }
 
       if (error) {
         console.warn(`[auth] Falha ao buscar perfil por ${column}:`, error.message);
