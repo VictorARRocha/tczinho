@@ -34,6 +34,7 @@ export default function Dashboard() {
     }
   };
 
+  const { modules, permissions } = useAuth();
   useEffect(() => {
     load();
     const off = subscribeToTable("rodagens", (p) => {
@@ -44,7 +45,8 @@ export default function Dashboard() {
       load();
     });
     return off;
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modules, permissions]);
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
