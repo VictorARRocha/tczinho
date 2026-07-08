@@ -187,7 +187,26 @@ begin
   end if;
 end$$;
 
+-- Compatibilidade com colunas legadas NOT NULL (permission_key, key, slug)
+do $$
+declare
+  col record;
+begin
+  for col in
+    select column_name
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name   = 'agent_tc_permission_catalog'
+       and column_name in ('permission_key','key','slug')
+       and is_nullable  = 'NO'
+  loop
+    execute format('update public.agent_tc_permission_catalog set %I = code where %I is null', col.column_name, col.column_name);
+    execute format('alter table public.agent_tc_permission_catalog alter column %I drop not null', col.column_name);
+  end loop;
+end$$;
+
 insert into public.agent_tc_permission_catalog (code, label, categoria) values
+
   ('dashboard.view',           'Ver dashboard',          'plataforma'),
   ('modules.view',             'Ver módulos',            'plataforma'),
   ('runs.view',                'Ver rodagens',           'plataforma'),
