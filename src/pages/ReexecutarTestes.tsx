@@ -79,6 +79,47 @@ export default function ReexecutarTestes() {
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedCasos = useMemo(() => {
+    const arr = [...casos];
+    const dir = sortDir === "asc" ? 1 : -1;
+    const numericId = (s: string) =>
+      s.split(".").map((p) => {
+        const n = parseInt(p, 10);
+        return Number.isFinite(n) ? n : p;
+      });
+    arr.sort((a, b) => {
+      const va = (a as any)[sortKey] ?? "";
+      const vb = (b as any)[sortKey] ?? "";
+      if (sortKey === "id_caso_teste") {
+        const pa = numericId(String(va));
+        const pb = numericId(String(vb));
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+          const x = pa[i], y = pb[i];
+          if (x === undefined) return -1 * dir;
+          if (y === undefined) return 1 * dir;
+          if (x < y) return -1 * dir;
+          if (x > y) return 1 * dir;
+        }
+        return 0;
+      }
+      return String(va).localeCompare(String(vb), "pt-BR", { numeric: true }) * dir;
+    });
+    return arr;
+  }, [casos, sortKey, sortDir]);
+
 
   const selectedRun = useMemo(
     () => runs.find((r) => r.id_rodagem === selectedRunId) || null,
