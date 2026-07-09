@@ -869,10 +869,28 @@ function FalhasTab({
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const hasActiveFilter = Boolean(debouncedQ || extFilter || subTab !== "todos");
-  // Estado inicial recolhido; expande automaticamente apenas quando há filtro/busca ativos
+  // Estado inicial recolhido; ao aplicar filtro, expande apenas o caminho até
+  // o primeiro item encontrado, mantendo os demais recolhidos.
   useEffect(() => {
-    setExpanded(hasActiveFilter ? new Set(allIds) : new Set());
-  }, [allIds, hasActiveFilter]);
+    if (!hasActiveFilter) { setExpanded(new Set()); return; }
+    const path: string[] = [];
+    const dfs = (n: TreeNode): boolean => {
+      const kids = Array.from(n.children.values()).sort(
+        (a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment),
+      );
+      for (const k of kids) {
+        path.push(k.id);
+        if (k.items.length > 0) return true;
+        if (dfs(k)) return true;
+        path.pop();
+      }
+      return false;
+    };
+    dfs(root);
+    // expande apenas os ancestrais (remove o próprio nó folha da lista)
+    setExpanded(new Set(path.slice(0, -1)));
+  }, [root, hasActiveFilter]);
+
 
   const toggle = (id: string) => setExpanded((prev) => {
     const n = new Set(prev);
