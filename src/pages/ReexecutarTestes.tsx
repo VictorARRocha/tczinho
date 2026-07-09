@@ -436,8 +436,13 @@ export default function ReexecutarTestes() {
               sortedCasos.map((c) => {
                 const checked = marcados.has(c.id_falha);
                 return (
-                  <TableRow key={c.id_falha} data-state={checked ? "selected" : undefined}>
-                    <TableCell>
+                  <TableRow
+                    key={c.id_falha}
+                    data-state={checked ? "selected" : undefined}
+                    onClick={() => c.id_caso_teste && toggleOne(c.id_falha, !checked)}
+                    className={c.id_caso_teste ? "cursor-pointer" : "cursor-not-allowed opacity-70"}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(v) => toggleOne(c.id_falha, !!v)}
