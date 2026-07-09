@@ -887,8 +887,8 @@ function FalhasTab({
       return false;
     };
     dfs(root);
-    // expande apenas os ancestrais (remove o próprio nó folha da lista)
-    setExpanded(new Set(path.slice(0, -1)));
+    // expande todos os ancestrais + o próprio nó da primeira falha
+    setExpanded(new Set(path));
   }, [root, hasActiveFilter]);
 
 
