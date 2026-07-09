@@ -80,6 +80,9 @@ export default function ReexecutarTestes() {
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [fVm, setFVm] = useState<string>("all");
+  const [fModulo, setFModulo] = useState<string>("all");
+  const [fVersao, setFVersao] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
