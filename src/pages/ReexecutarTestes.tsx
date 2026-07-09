@@ -294,21 +294,16 @@ export default function ReexecutarTestes() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
           Selecione uma rodagem analisada, marque os casos quebrados ou com diferença e crie uma
-          solicitação. O <strong>JenkinsBridge</strong> local lê a tabela{" "}
-          <code className="text-xs">rerun_requests</code> e dispara o pipeline — a Lovable nunca
-          conversa com o Jenkins diretamente.
+          solicitação.
         </p>
       </div>
 
       {/* Seletor de rodagem */}
       <Card className="glass-card p-5 mb-5">
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Rodagem
           </h2>
-          <Button size="sm" variant="ghost" onClick={loadRuns}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
-          </Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 mb-3">
           <div>
@@ -441,8 +436,13 @@ export default function ReexecutarTestes() {
               sortedCasos.map((c) => {
                 const checked = marcados.has(c.id_falha);
                 return (
-                  <TableRow key={c.id_falha} data-state={checked ? "selected" : undefined}>
-                    <TableCell>
+                  <TableRow
+                    key={c.id_falha}
+                    data-state={checked ? "selected" : undefined}
+                    onClick={() => c.id_caso_teste && toggleOne(c.id_falha, !checked)}
+                    className={c.id_caso_teste ? "cursor-pointer" : "cursor-not-allowed opacity-70"}
+                  >
+                    <TableCell onClick={(e) => e.stopPropagation()}>
                       <Checkbox
                         checked={checked}
                         onCheckedChange={(v) => toggleOne(c.id_falha, !!v)}
@@ -496,68 +496,74 @@ export default function ReexecutarTestes() {
       </Card>
 
       {/* Histórico */}
-      <div className="mb-3 flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Histórico de reexecuções</h2>
-        <Button size="sm" variant="ghost" onClick={loadHistory}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
-        </Button>
-      </div>
-      <Card className="glass-card overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data/hora</TableHead>
-              <TableHead>VM</TableHead>
-              <TableHead>Versão</TableHead>
-              <TableHead>Casos</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Jenkins</TableHead>
-              <TableHead>Build</TableHead>
-              <TableHead>Erro</TableHead>
-              <TableHead className="w-20"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {history.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
-            ) : (
-              history.map((r) => {
-                const meta = STATUS_META[r.status] || { label: r.status, className: "" };
-                return (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
-                    <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
-                    <TableCell className="text-xs">{r.versao}</TableCell>
-                    <TableCell className="text-xs max-w-xs truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
-                    <TableCell><Badge variant="outline" className={meta.className}>{meta.label}</Badge></TableCell>
-                    <TableCell className="text-xs">
-                      {r.jenkins_queue_url ? (
-                        <a href={r.jenkins_queue_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                          Queue <ExternalLink className="h-3 w-3" />
-                        </a>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">{r.jenkins_build_number || "—"}</TableCell>
-                    <TableCell className="text-xs text-red-400 max-w-xs truncate" title={r.erro || ""}>{r.erro || "—"}</TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
-                          toast.success("CONFIG_JSON copiado");
-                        }}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      <Collapsible>
+        <div className="mb-3 flex items-center justify-between">
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="group -ml-2">
+              <ChevronDown className="h-4 w-4 mr-1 transition-transform group-data-[state=open]:rotate-180" />
+              <h2 className="text-lg font-semibold">Histórico de reexecuções</h2>
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent>
+          <Card className="glass-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data/hora</TableHead>
+                  <TableHead>VM</TableHead>
+                  <TableHead>Versão</TableHead>
+                  <TableHead>Casos</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Jenkins</TableHead>
+                  <TableHead>Build</TableHead>
+                  <TableHead>Erro</TableHead>
+                  <TableHead className="w-20"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                ) : (
+                  history.map((r) => {
+                    const meta = STATUS_META[r.status] || { label: r.status, className: "" };
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
+                        <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
+                        <TableCell className="text-xs">{r.versao}</TableCell>
+                        <TableCell className="text-xs max-w-xs truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
+                        <TableCell><Badge variant="outline" className={meta.className}>{meta.label}</Badge></TableCell>
+                        <TableCell className="text-xs">
+                          {r.jenkins_queue_url ? (
+                            <a href={r.jenkins_queue_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                              Queue <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : "—"}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono">{r.jenkins_build_number || "—"}</TableCell>
+                        <TableCell className="text-xs text-red-400 max-w-xs truncate" title={r.erro || ""}>{r.erro || "—"}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
+                              toast.success("CONFIG_JSON copiado");
+                            }}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   );
 }
