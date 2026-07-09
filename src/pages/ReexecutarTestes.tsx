@@ -59,13 +59,16 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
   if (tipo === "quebra")
-    return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra de testes</Badge>;
+    return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferença entre arquivos</Badge>;
+    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferenças</Badge>;
   if (tipo === "quebra_diferenca")
     return <Badge variant="outline" className="border-purple-500/40 text-purple-400">Quebra com diferença</Badge>;
   return <Badge variant="outline">—</Badge>;
 }
+
+type SortKey = "id_caso_teste" | "nome_mds" | "grupo" | "tipo_ocorrencia" | "cluster_titulo" | "arquivo_origem";
+type SortDir = "asc" | "desc";
 
 export default function ReexecutarTestes() {
   const [runs, setRuns] = useState<RodagemListItem[]>([]);
