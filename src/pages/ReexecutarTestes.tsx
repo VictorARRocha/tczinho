@@ -414,17 +414,15 @@ export default function ReexecutarTestes() {
               <TableHead className="w-10"></TableHead>
               <SortableHead label="ID" sortKey="id_caso_teste" active={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableHead label="Nome" sortKey="nome_mds" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableHead label="Tipo" sortKey="tipo_ocorrencia" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Causa" sortKey="cluster_titulo" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Arquivo" sortKey="arquivo_origem" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
             {loadingCasos ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Carregando casos…</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Carregando casos…</TableCell></TableRow>
             ) : casos.length === 0 ? (
-              <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum caso disponível para esta rodagem.</TableCell></TableRow>
+              <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Nenhum caso disponível para esta rodagem.</TableCell></TableRow>
             ) : (
               sortedCasos.map((c) => {
                 const checked = marcados.has(c.id_falha);
@@ -444,10 +442,8 @@ export default function ReexecutarTestes() {
                     </TableCell>
                     <TableCell className="font-mono text-xs">{c.id_caso_teste || "—"}</TableCell>
                     <TableCell className="max-w-xs truncate" title={c.nome_mds || ""}>{c.nome_mds || "—"}</TableCell>
-                    <TableCell className="text-xs">{c.grupo || "—"}</TableCell>
                     <TableCell><TipoBadge tipo={c.tipo_ocorrencia} /></TableCell>
-                    <TableCell className="max-w-xs truncate text-xs" title={c.cluster_titulo || ""}>{c.cluster_titulo || "—"}</TableCell>
-                    <TableCell className="max-w-xs truncate text-xs font-mono" title={c.arquivo_origem || ""}>{c.arquivo_origem || "—"}</TableCell>
+                    <TableCell className="text-xs">{c.grupo || "—"}</TableCell>
                   </TableRow>
                 );
               })
