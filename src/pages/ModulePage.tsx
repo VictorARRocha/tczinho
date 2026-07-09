@@ -836,12 +836,13 @@ function FalhasTab({
     if (!debouncedQ) return enriched;
     const needle = debouncedQ.toLowerCase();
     const matchingIds = new Set<string>();
+    const asStr = (v: any) => Array.isArray(v) ? v.join(" ") : (v == null ? "" : String(v));
     hierMap.forEach((h, id) => {
-      if ((h.node_name || "").toLowerCase().includes(needle) ||
-          (h.full_path_names || "").toLowerCase().includes(needle) ||
-          (h.full_path_label || "").toLowerCase().includes(needle) ||
-          (h.script_name || "").toLowerCase().includes(needle) ||
-          (h.procedure_name || "").toLowerCase().includes(needle)) {
+      if (asStr(h.node_name).toLowerCase().includes(needle) ||
+          asStr(h.full_path_names).toLowerCase().includes(needle) ||
+          asStr(h.full_path_label).toLowerCase().includes(needle) ||
+          asStr(h.script_name).toLowerCase().includes(needle) ||
+          asStr(h.procedure_name).toLowerCase().includes(needle)) {
         matchingIds.add(id);
       }
     });
