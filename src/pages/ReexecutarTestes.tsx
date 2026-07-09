@@ -360,13 +360,6 @@ export default function ReexecutarTestes() {
 
         {selectedRun && (
           <>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-sm">
-              <Info label="VM" value={vmName || "—"} />
-              <Info label="Versão" value={selectedRun.versao || "—"} />
-              <Info label="Módulo" value={selectedRun.modulo_slug || selectedRun.sistema || "—"} />
-              <Info label="Data/hora" value={selectedRun.data_inicio ? new Date(selectedRun.data_inicio).toLocaleString("pt-BR") : "—"} />
-              <Info label="Total de falhas" value={String(selectedRun.total_falhas ?? 0)} />
-            </div>
             <div className="mt-3 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Caminho de logs</div>
               <div
