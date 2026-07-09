@@ -294,21 +294,16 @@ export default function ReexecutarTestes() {
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
           Selecione uma rodagem analisada, marque os casos quebrados ou com diferença e crie uma
-          solicitação. O <strong>JenkinsBridge</strong> local lê a tabela{" "}
-          <code className="text-xs">rerun_requests</code> e dispara o pipeline — a Lovable nunca
-          conversa com o Jenkins diretamente.
+          solicitação.
         </p>
       </div>
 
       {/* Seletor de rodagem */}
       <Card className="glass-card p-5 mb-5">
-        <div className="flex items-center justify-between mb-3">
+        <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Rodagem
           </h2>
-          <Button size="sm" variant="ghost" onClick={loadRuns}>
-            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
-          </Button>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 mb-3">
           <div>
