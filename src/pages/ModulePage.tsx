@@ -117,6 +117,9 @@ function cleanFileName(nome?: string | null, extensao?: string | null): string {
 
 export default function ModulePage() {
   const { slug = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runParam = searchParams.get("run") || undefined;
+  const tabParam = searchParams.get("tab");
   const [modulo, setModulo] = useState<Modulo | null>(null);
   const [rodagem, setRodagem] = useState<Rodagem | null>(null);
   const [historico, setHistorico] = useState<Rodagem[]>([]);
