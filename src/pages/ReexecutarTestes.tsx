@@ -414,10 +414,8 @@ export default function ReexecutarTestes() {
               <TableHead className="w-10"></TableHead>
               <SortableHead label="ID" sortKey="id_caso_teste" active={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableHead label="Nome" sortKey="nome_mds" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
               <SortableHead label="Tipo" sortKey="tipo_ocorrencia" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Causa" sortKey="cluster_titulo" active={sortKey} dir={sortDir} onSort={toggleSort} />
-              <SortableHead label="Arquivo" sortKey="arquivo_origem" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
