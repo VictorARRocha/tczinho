@@ -33,6 +33,9 @@ import {
   GitCompare,
   Layers,
   ExternalLink,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   fetchAllRuns,
