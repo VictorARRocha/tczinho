@@ -33,6 +33,9 @@ import {
   GitCompare,
   Layers,
   ExternalLink,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 import {
   fetchAllRuns,
@@ -56,13 +59,16 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
   if (tipo === "quebra")
-    return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra de testes</Badge>;
+    return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferença entre arquivos</Badge>;
+    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferenças</Badge>;
   if (tipo === "quebra_diferenca")
     return <Badge variant="outline" className="border-purple-500/40 text-purple-400">Quebra com diferença</Badge>;
   return <Badge variant="outline">—</Badge>;
 }
+
+type SortKey = "id_caso_teste" | "nome_mds" | "grupo" | "tipo_ocorrencia" | "cluster_titulo" | "arquivo_origem";
+type SortDir = "asc" | "desc";
 
 export default function ReexecutarTestes() {
   const [runs, setRuns] = useState<RodagemListItem[]>([]);
@@ -73,6 +79,47 @@ export default function ReexecutarTestes() {
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+
+  const sortedCasos = useMemo(() => {
+    const arr = [...casos];
+    const dir = sortDir === "asc" ? 1 : -1;
+    const numericId = (s: string) =>
+      s.split(".").map((p) => {
+        const n = parseInt(p, 10);
+        return Number.isFinite(n) ? n : p;
+      });
+    arr.sort((a, b) => {
+      const va = (a as any)[sortKey] ?? "";
+      const vb = (b as any)[sortKey] ?? "";
+      if (sortKey === "id_caso_teste") {
+        const pa = numericId(String(va));
+        const pb = numericId(String(vb));
+        const len = Math.max(pa.length, pb.length);
+        for (let i = 0; i < len; i++) {
+          const x = pa[i], y = pb[i];
+          if (x === undefined) return -1 * dir;
+          if (y === undefined) return 1 * dir;
+          if (x < y) return -1 * dir;
+          if (x > y) return 1 * dir;
+        }
+        return 0;
+      }
+      return String(va).localeCompare(String(vb), "pt-BR", { numeric: true }) * dir;
+    });
+    return arr;
+  }, [casos, sortKey, sortDir]);
+
 
   const selectedRun = useMemo(
     () => runs.find((r) => r.id_rodagem === selectedRunId) || null,
@@ -281,12 +328,12 @@ export default function ReexecutarTestes() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"></TableHead>
-              <TableHead>ID</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Grupo</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Causa</TableHead>
-              <TableHead>Arquivo</TableHead>
+              <SortableHead label="ID" sortKey="id_caso_teste" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Nome" sortKey="nome_mds" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Tipo" sortKey="tipo_ocorrencia" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Causa" sortKey="cluster_titulo" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Arquivo" sortKey="arquivo_origem" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -295,7 +342,7 @@ export default function ReexecutarTestes() {
             ) : casos.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum caso disponível para esta rodagem.</TableCell></TableRow>
             ) : (
-              casos.map((c) => {
+              sortedCasos.map((c) => {
                 const checked = marcados.has(c.id_falha);
                 return (
                   <TableRow key={c.id_falha} data-state={checked ? "selected" : undefined}>
@@ -425,5 +472,36 @@ function Info({ label, value, mono }: { label: string; value: string; mono?: boo
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className={`text-sm truncate ${mono ? "font-mono" : ""}`} title={value}>{value}</div>
     </div>
+  );
+}
+
+function SortableHead({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: SortKey;
+  dir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  const isActive = active === sortKey;
+  const Icon = !isActive ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 select-none hover:text-foreground transition-colors ${
+          isActive ? "text-foreground" : "text-muted-foreground"
+        }`}
+      >
+        {label}
+        <Icon className="h-3 w-3 opacity-70" />
+      </button>
+    </TableHead>
   );
 }
