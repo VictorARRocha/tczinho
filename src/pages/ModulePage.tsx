@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
@@ -117,6 +117,9 @@ function cleanFileName(nome?: string | null, extensao?: string | null): string {
 
 export default function ModulePage() {
   const { slug = "" } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const runParam = searchParams.get("run") || undefined;
+  const tabParam = searchParams.get("tab");
   const [modulo, setModulo] = useState<Modulo | null>(null);
   const [rodagem, setRodagem] = useState<Rodagem | null>(null);
   const [historico, setHistorico] = useState<Rodagem[]>([]);
@@ -195,7 +198,8 @@ export default function ModulePage() {
     setLoading(true);
     setLoadError(null);
 
-    loadAll(undefined, slug);
+    loadAll(runParam, slug);
+    if (tabParam === "falhas") setActiveTab("falhas");
     const offs = [
       subscribeToTable("rodagens", (p) => {
         if (p.new?.modulo_slug === currentSlugRef.current) {

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,9 @@ export default function ReexecutarTestes() {
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [fVm, setFVm] = useState<string>("all");
+  const [fModulo, setFModulo] = useState<string>("all");
+  const [fVersao, setFVersao] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -121,10 +125,46 @@ export default function ReexecutarTestes() {
   }, [casos, sortKey, sortDir]);
 
 
+  const runVm = (r: RodagemListItem) =>
+    (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "").toLowerCase();
+  const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toString();
+
+  const vmOptions = useMemo(
+    () => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(),
+    [runs],
+  );
+  const moduloOptions = useMemo(
+    () => Array.from(new Set(runs.map(runModulo).filter(Boolean))).sort(),
+    [runs],
+  );
+  const versaoOptions = useMemo(
+    () => Array.from(new Set(runs.map((r) => (r.versao || "").toString()).filter(Boolean))).sort(),
+    [runs],
+  );
+
+  const filteredRuns = useMemo(
+    () =>
+      runs.filter((r) => {
+        if (fVm !== "all" && runVm(r) !== fVm) return false;
+        if (fModulo !== "all" && runModulo(r) !== fModulo) return false;
+        if (fVersao !== "all" && (r.versao || "") !== fVersao) return false;
+        return true;
+      }),
+    [runs, fVm, fModulo, fVersao],
+  );
+
   const selectedRun = useMemo(
     () => runs.find((r) => r.id_rodagem === selectedRunId) || null,
     [runs, selectedRunId],
   );
+
+  // Se o filtro esconder a rodagem selecionada, seleciona a primeira do filtro
+  useEffect(() => {
+    if (!filteredRuns.length) return;
+    if (!filteredRuns.some((r) => r.id_rodagem === selectedRunId)) {
+      setSelectedRunId(filteredRuns[0].id_rodagem);
+    }
+  }, [filteredRuns, selectedRunId]);
 
   const loadRuns = async () => {
     try {
@@ -270,12 +310,45 @@ export default function ReexecutarTestes() {
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
           </Button>
         </div>
+        <div className="grid gap-3 sm:grid-cols-3 mb-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">VM</label>
+            <Select value={fVm} onValueChange={setFVm}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {vmOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Módulo</label>
+            <Select value={fModulo} onValueChange={setFModulo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {moduloOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Versão</label>
+            <Select value={fVersao} onValueChange={setFVersao}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {versaoOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <Select value={selectedRunId} onValueChange={setSelectedRunId}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione uma rodagem analisada" />
           </SelectTrigger>
           <SelectContent>
-            {runs.map((r) => {
+            {filteredRuns.map((r) => {
               const vm = (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "—").toLowerCase();
               const dt = r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—";
               return (
@@ -284,20 +357,36 @@ export default function ReexecutarTestes() {
                 </SelectItem>
               );
             })}
+            {filteredRuns.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma rodagem com os filtros atuais.</div>
+            )}
           </SelectContent>
         </Select>
 
         {selectedRun && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-sm">
-            <Info label="ID da rodagem" value={selectedRun.id_rodagem} mono />
-            <Info label="VM" value={vmName || "—"} />
-            <Info label="Versão" value={selectedRun.versao || "—"} />
-            <Info label="Módulo" value={selectedRun.modulo_slug || selectedRun.sistema || "—"} />
-            <Info label="Data/hora" value={selectedRun.data_inicio ? new Date(selectedRun.data_inicio).toLocaleString("pt-BR") : "—"} />
-            <Info label="Total de falhas" value={String(selectedRun.total_falhas ?? 0)} />
-            <Info label="Total de clusters" value={String(selectedRun.total_clusters ?? 0)} />
-            <Info label="Caminho de logs" value={selectedRun.caminho_logs || "—"} mono />
-          </div>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-sm">
+              <Info label="ID da rodagem" value={selectedRun.id_rodagem} mono />
+              <Info label="VM" value={vmName || "—"} />
+              <Info label="Versão" value={selectedRun.versao || "—"} />
+              <Info label="Módulo" value={selectedRun.modulo_slug || selectedRun.sistema || "—"} />
+              <Info label="Data/hora" value={selectedRun.data_inicio ? new Date(selectedRun.data_inicio).toLocaleString("pt-BR") : "—"} />
+              <Info label="Total de falhas" value={String(selectedRun.total_falhas ?? 0)} />
+              <Info label="Caminho de logs" value={selectedRun.caminho_logs || "—"} mono />
+            </div>
+            {(selectedRun.modulo_slug || selectedRun.sistema) && (
+              <div className="mt-4">
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    to={`/modulo/${selectedRun.modulo_slug || selectedRun.sistema}?run=${encodeURIComponent(selectedRun.id_rodagem)}&tab=falhas`}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    Ver falhas desta rodagem
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </Card>
 
