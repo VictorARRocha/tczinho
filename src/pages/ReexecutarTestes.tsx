@@ -125,10 +125,46 @@ export default function ReexecutarTestes() {
   }, [casos, sortKey, sortDir]);
 
 
+  const runVm = (r: RodagemListItem) =>
+    (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "").toLowerCase();
+  const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toString();
+
+  const vmOptions = useMemo(
+    () => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(),
+    [runs],
+  );
+  const moduloOptions = useMemo(
+    () => Array.from(new Set(runs.map(runModulo).filter(Boolean))).sort(),
+    [runs],
+  );
+  const versaoOptions = useMemo(
+    () => Array.from(new Set(runs.map((r) => (r.versao || "").toString()).filter(Boolean))).sort(),
+    [runs],
+  );
+
+  const filteredRuns = useMemo(
+    () =>
+      runs.filter((r) => {
+        if (fVm !== "all" && runVm(r) !== fVm) return false;
+        if (fModulo !== "all" && runModulo(r) !== fModulo) return false;
+        if (fVersao !== "all" && (r.versao || "") !== fVersao) return false;
+        return true;
+      }),
+    [runs, fVm, fModulo, fVersao],
+  );
+
   const selectedRun = useMemo(
     () => runs.find((r) => r.id_rodagem === selectedRunId) || null,
     [runs, selectedRunId],
   );
+
+  // Se o filtro esconder a rodagem selecionada, seleciona a primeira do filtro
+  useEffect(() => {
+    if (!filteredRuns.length) return;
+    if (!filteredRuns.some((r) => r.id_rodagem === selectedRunId)) {
+      setSelectedRunId(filteredRuns[0].id_rodagem);
+    }
+  }, [filteredRuns, selectedRunId]);
 
   const loadRuns = async () => {
     try {
