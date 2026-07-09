@@ -198,7 +198,8 @@ export default function ModulePage() {
     setLoading(true);
     setLoadError(null);
 
-    loadAll(undefined, slug);
+    loadAll(runParam, slug);
+    if (tabParam === "falhas") setActiveTab("falhas");
     const offs = [
       subscribeToTable("rodagens", (p) => {
         if (p.new?.modulo_slug === currentSlugRef.current) {
