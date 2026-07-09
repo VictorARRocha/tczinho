@@ -310,12 +310,45 @@ export default function ReexecutarTestes() {
             <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
           </Button>
         </div>
+        <div className="grid gap-3 sm:grid-cols-3 mb-3">
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">VM</label>
+            <Select value={fVm} onValueChange={setFVm}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {vmOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Módulo</label>
+            <Select value={fModulo} onValueChange={setFModulo}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                {moduloOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Versão</label>
+            <Select value={fVersao} onValueChange={setFVersao}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas</SelectItem>
+                {versaoOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         <Select value={selectedRunId} onValueChange={setSelectedRunId}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Selecione uma rodagem analisada" />
           </SelectTrigger>
           <SelectContent>
-            {runs.map((r) => {
+            {filteredRuns.map((r) => {
               const vm = (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "—").toLowerCase();
               const dt = r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—";
               return (
@@ -324,20 +357,36 @@ export default function ReexecutarTestes() {
                 </SelectItem>
               );
             })}
+            {filteredRuns.length === 0 && (
+              <div className="px-3 py-2 text-xs text-muted-foreground">Nenhuma rodagem com os filtros atuais.</div>
+            )}
           </SelectContent>
         </Select>
 
         {selectedRun && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-sm">
-            <Info label="ID da rodagem" value={selectedRun.id_rodagem} mono />
-            <Info label="VM" value={vmName || "—"} />
-            <Info label="Versão" value={selectedRun.versao || "—"} />
-            <Info label="Módulo" value={selectedRun.modulo_slug || selectedRun.sistema || "—"} />
-            <Info label="Data/hora" value={selectedRun.data_inicio ? new Date(selectedRun.data_inicio).toLocaleString("pt-BR") : "—"} />
-            <Info label="Total de falhas" value={String(selectedRun.total_falhas ?? 0)} />
-            <Info label="Total de clusters" value={String(selectedRun.total_clusters ?? 0)} />
-            <Info label="Caminho de logs" value={selectedRun.caminho_logs || "—"} mono />
-          </div>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mt-4 text-sm">
+              <Info label="ID da rodagem" value={selectedRun.id_rodagem} mono />
+              <Info label="VM" value={vmName || "—"} />
+              <Info label="Versão" value={selectedRun.versao || "—"} />
+              <Info label="Módulo" value={selectedRun.modulo_slug || selectedRun.sistema || "—"} />
+              <Info label="Data/hora" value={selectedRun.data_inicio ? new Date(selectedRun.data_inicio).toLocaleString("pt-BR") : "—"} />
+              <Info label="Total de falhas" value={String(selectedRun.total_falhas ?? 0)} />
+              <Info label="Caminho de logs" value={selectedRun.caminho_logs || "—"} mono />
+            </div>
+            {(selectedRun.modulo_slug || selectedRun.sistema) && (
+              <div className="mt-4">
+                <Button asChild size="sm" variant="outline">
+                  <Link
+                    to={`/modulo/${selectedRun.modulo_slug || selectedRun.sistema}?run=${encodeURIComponent(selectedRun.id_rodagem)}&tab=falhas`}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    Ver falhas desta rodagem
+                  </Link>
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </Card>
 
