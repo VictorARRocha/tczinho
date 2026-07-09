@@ -328,12 +328,12 @@ export default function ReexecutarTestes() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-10"></TableHead>
-              <TableHead>ID</TableHead>
-              <TableHead>Nome</TableHead>
-              <TableHead>Grupo</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Causa</TableHead>
-              <TableHead>Arquivo</TableHead>
+              <SortableHead label="ID" sortKey="id_caso_teste" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Nome" sortKey="nome_mds" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Grupo" sortKey="grupo" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Tipo" sortKey="tipo_ocorrencia" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Causa" sortKey="cluster_titulo" active={sortKey} dir={sortDir} onSort={toggleSort} />
+              <SortableHead label="Arquivo" sortKey="arquivo_origem" active={sortKey} dir={sortDir} onSort={toggleSort} />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -342,7 +342,7 @@ export default function ReexecutarTestes() {
             ) : casos.length === 0 ? (
               <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-8">Nenhum caso disponível para esta rodagem.</TableCell></TableRow>
             ) : (
-              casos.map((c) => {
+              sortedCasos.map((c) => {
                 const checked = marcados.has(c.id_falha);
                 return (
                   <TableRow key={c.id_falha} data-state={checked ? "selected" : undefined}>
