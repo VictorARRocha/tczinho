@@ -61,7 +61,7 @@ function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
   if (tipo === "quebra")
     return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferenças</Badge>;
+    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferença</Badge>;
   if (tipo === "quebra_diferenca")
     return <Badge variant="outline" className="border-purple-500/40 text-purple-400">Quebra com diferença</Badge>;
   return <Badge variant="outline">—</Badge>;
