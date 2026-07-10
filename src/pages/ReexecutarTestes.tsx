@@ -85,6 +85,7 @@ export default function ReexecutarTestes() {
   const [fVersao, setFVersao] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [restaurarBase, setRestaurarBase] = useState(true);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -239,8 +240,10 @@ export default function ReexecutarTestes() {
           .filter(Boolean),
       ),
     );
-    return ids.map((id) => `[${id}]`).join(", ");
-  }, [casosSelecionados]);
+    const parts = ids.map((id) => `[${id}]`);
+    if (restaurarBase) parts.push("[0.4]", "[0.5]");
+    return parts.join(", ");
+  }, [casosSelecionados, restaurarBase]);
 
   const configJsonPreview = useMemo(() => ({
     vm_name: vmName,
@@ -383,6 +386,22 @@ export default function ReexecutarTestes() {
             )}
           </>
         )}
+
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
+          <Checkbox
+            id="restaurar-base"
+            checked={restaurarBase}
+            onCheckedChange={(v) => setRestaurarBase(!!v)}
+            className="mt-0.5"
+          />
+          <label htmlFor="restaurar-base" className="cursor-pointer select-none">
+            <div className="text-sm font-medium">Restaurar base</div>
+            <div className="text-[11px] text-muted-foreground">
+              Quando habilitado, adiciona <code className="text-xs">[0.4]</code> e{" "}
+              <code className="text-xs">[0.5]</code> ao campo <code className="text-xs">casos_teste</code>.
+            </div>
+          </label>
+        </div>
       </Card>
 
       {/* Filtros */}
