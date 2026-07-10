@@ -240,8 +240,10 @@ export default function ReexecutarTestes() {
           .filter(Boolean),
       ),
     );
-    return ids.map((id) => `[${id}]`).join(", ");
-  }, [casosSelecionados]);
+    const parts = ids.map((id) => `[${id}]`);
+    if (restaurarBase) parts.push("[0.4]", "[0.5]");
+    return parts.join(", ");
+  }, [casosSelecionados, restaurarBase]);
 
   const configJsonPreview = useMemo(() => ({
     vm_name: vmName,
