@@ -386,6 +386,22 @@ export default function ReexecutarTestes() {
             )}
           </>
         )}
+
+        <div className="mt-4 flex items-start gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
+          <Checkbox
+            id="restaurar-base"
+            checked={restaurarBase}
+            onCheckedChange={(v) => setRestaurarBase(!!v)}
+            className="mt-0.5"
+          />
+          <label htmlFor="restaurar-base" className="cursor-pointer select-none">
+            <div className="text-sm font-medium">Restaurar base</div>
+            <div className="text-[11px] text-muted-foreground">
+              Quando habilitado, adiciona <code className="text-xs">[0.4]</code> e{" "}
+              <code className="text-xs">[0.5]</code> ao campo <code className="text-xs">casos_teste</code>.
+            </div>
+          </label>
+        </div>
       </Card>
 
       {/* Filtros */}
