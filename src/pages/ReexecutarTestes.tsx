@@ -85,6 +85,7 @@ export default function ReexecutarTestes() {
   const [fVersao, setFVersao] = useState<string>("all");
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [restaurarBase, setRestaurarBase] = useState(true);
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
