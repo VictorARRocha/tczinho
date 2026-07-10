@@ -240,8 +240,8 @@ export default function ReexecutarTestes() {
           .filter(Boolean),
       ),
     );
-    const parts = ids.map((id) => `[${id}]`);
-    if (restaurarBase) parts.push("[0.4]", "[0.5]");
+    const parts = restaurarBase ? ["[0.4]", "[0.5]"] : [];
+    parts.push(...ids.map((id) => `[${id}]`));
     return parts.join(", ");
   }, [casosSelecionados, restaurarBase]);
 
