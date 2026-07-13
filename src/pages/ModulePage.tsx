@@ -1219,7 +1219,7 @@ function ToggleChip({ label, active, onClick }: { label: string; active: boolean
   );
 }
 
-function AgrupamentosTab({ grupos, falhas, links, onSelect }: { grupos: Agrupamento[]; falhas: Falha[]; links: Record<string, string[]>; onSelect: (f: Falha) => void }) {
+function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: { runId: string; grupos: Agrupamento[]; falhas: Falha[]; links: Record<string, string[]>; onSelect: (f: Falha) => void; onReload: () => void | Promise<void> }) {
   const indices = useMemo(() => {
     const byId = new Map<string, Falha>();
     const byCaso = new Map<string, Falha[]>();
