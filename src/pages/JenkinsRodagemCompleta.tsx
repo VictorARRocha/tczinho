@@ -282,11 +282,7 @@ export default function JenkinsRodagemCompleta() {
               </Field>
 
               <Field label="versao">
-                <Input
-                  value={cVersao}
-                  onChange={(e) => setCVersao(e.target.value)}
-                  placeholder="ex.: proxima1.26.7.0"
-                />
+                <Input value={cVersao} onChange={(e) => setCVersao(e.target.value)} placeholder="ex.: pre-cliente" />
               </Field>
 
               <Field
