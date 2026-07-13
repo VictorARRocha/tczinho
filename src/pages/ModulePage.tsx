@@ -1335,11 +1335,9 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
 
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
-  const hasRealGroups = grupos.length > 0;
-
   return (
     <div className="space-y-4">
-      <AiGroupingPanel runId={runId} hasRealGroups={hasRealGroups} onReload={onReload} />
+      <AiGroupingPanel runId={runId} onReload={onReload} />
 
       {filteredItems.length === 0 ? (
         <Empty text="Sem agrupamentos com múltiplos casos." />
