@@ -1335,19 +1335,112 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
 
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
-  if (filteredItems.length === 0) return <Empty text="Sem agrupamentos com múltiplos casos." />;
-
-  const visualAviso = filteredItems.some((i) => i.isVisual);
+  const hasRealGroups = grupos.length > 0;
 
   return (
     <div className="space-y-4">
-      {visualAviso && (
-        <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
-      )}
+      <AiGroupingPanel runId={runId} hasRealGroups={hasRealGroups} onReload={onReload} />
 
-      {filteredItems.map((g) => (
-        <AgrupamentoCard key={g.id} g={g} onSelect={onSelect} />
-      ))}
+      {filteredItems.length === 0 ? (
+        <Empty text="Sem agrupamentos com múltiplos casos." />
+      ) : (
+        <>
+          {filteredItems.some((i) => i.isVisual) && (
+            <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
+          )}
+          {filteredItems.map((g) => (
+            <AgrupamentoCard key={g.id} g={g} onSelect={onSelect} />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AiGroupingPanel({ runId, hasRealGroups, onReload }: { runId: string; hasRealGroups: boolean; onReload: () => void | Promise<void> }) {
+  const [status, setStatus] = useState<import("@/services/aiGrouping").AiGroupStatus | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const refreshStatus = async () => {
+    try {
+      setLoadingStatus(true);
+      const { fetchAiGroupStatus } = await import("@/services/aiGrouping");
+      const s = await fetchAiGroupStatus(runId);
+      setStatus(s.status);
+      if (s.status === "failed" && s.error_message) setErrorMsg(s.error_message);
+      else setErrorMsg(null);
+    } catch (e: any) {
+      // Falha ao consultar status não deve quebrar a tela
+      setStatus(null);
+      setErrorMsg(null);
+      console.warn("[ai-group-status]", e?.message || e);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!runId) return;
+    refreshStatus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runId]);
+
+  const grouped = hasRealGroups || status === "completed";
+  const running = status === "running" || submitting;
+
+  const handleClick = async () => {
+    setSubmitting(true);
+    setErrorMsg(null);
+    try {
+      const { requestAiGrouping } = await import("@/services/aiGrouping");
+      await requestAiGrouping(runId, false);
+      await onReload();
+      await refreshStatus();
+      toast.success("Falhas agrupadas pela IA");
+    } catch (e: any) {
+      const status = e?.status as number | undefined;
+      const code = e?.code as string | undefined;
+      if (status === 401) {
+        setErrorMsg("Sessão expirada ou sem permissão. Faça login novamente.");
+      } else if (status === 409 && code === "already_grouped") {
+        await onReload();
+        await refreshStatus();
+      } else if (status === 409 && code === "already_processing") {
+        setErrorMsg("Agrupamento já está em andamento.");
+        await refreshStatus();
+      } else if (status === 503 && code === "openai_not_configured") {
+        setErrorMsg("IA de agrupamento não está configurada no backend.");
+      } else if (status === 422 || code === "invalid_ai_response") {
+        setErrorMsg("A resposta da IA foi recusada pelo backend. Tente novamente.");
+      } else {
+        setErrorMsg(e?.message || "Não foi possível solicitar o agrupamento.");
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  let label = "Agrupar falhas";
+  let disabled = false;
+  if (loadingStatus) { label = "Carregando..."; disabled = true; }
+  else if (grouped) { label = "Falhas agrupadas"; disabled = true; }
+  else if (running) { label = "Agrupando..."; disabled = true; }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card/60 px-3 py-2">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">Agrupamento por IA</p>
+        {errorMsg && <p className="text-xs text-destructive mt-0.5 truncate" title={errorMsg}>{errorMsg}</p>}
+        {!errorMsg && grouped && <p className="text-xs text-muted-foreground mt-0.5">As falhas desta rodagem já foram agrupadas.</p>}
+        {!errorMsg && !grouped && !running && <p className="text-xs text-muted-foreground mt-0.5">Solicite ao Agent TC agrupar as falhas semelhantes.</p>}
+        {!errorMsg && running && <p className="text-xs text-muted-foreground mt-0.5">Processando no backend, isso pode levar alguns instantes.</p>}
+      </div>
+      <Button size="sm" onClick={handleClick} disabled={disabled}>
+        {running && <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />}
+        {label}
+      </Button>
     </div>
   );
 }
