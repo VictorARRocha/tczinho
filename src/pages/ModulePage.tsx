@@ -274,7 +274,7 @@ export default function ModulePage() {
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
-          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} /></TabsContent>
+          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
         </Tabs>
