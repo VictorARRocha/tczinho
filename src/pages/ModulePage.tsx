@@ -1335,11 +1335,9 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
 
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
-  const hasRealGroups = grupos.length > 0;
-
   return (
     <div className="space-y-4">
-      <AiGroupingPanel runId={runId} hasRealGroups={hasRealGroups} onReload={onReload} />
+      <AiGroupingPanel runId={runId} onReload={onReload} />
 
       {filteredItems.length === 0 ? (
         <Empty text="Sem agrupamentos com múltiplos casos." />
@@ -1357,8 +1355,9 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
   );
 }
 
-function AiGroupingPanel({ runId, hasRealGroups, onReload }: { runId: string; hasRealGroups: boolean; onReload: () => void | Promise<void> }) {
+function AiGroupingPanel({ runId, onReload }: { runId: string; onReload: () => void | Promise<void> }) {
   const [status, setStatus] = useState<import("@/services/aiGrouping").AiGroupStatus | null>(null);
+  const [grouped, setGrouped] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -1369,11 +1368,13 @@ function AiGroupingPanel({ runId, hasRealGroups, onReload }: { runId: string; ha
       const { fetchAiGroupStatus } = await import("@/services/aiGrouping");
       const s = await fetchAiGroupStatus(runId);
       setStatus(s.status);
+      setGrouped(s.grouped === true || s.status === "completed");
       if (s.status === "failed" && s.error_message) setErrorMsg(s.error_message);
       else setErrorMsg(null);
     } catch (e: any) {
       // Falha ao consultar status não deve quebrar a tela
       setStatus(null);
+      setGrouped(false);
       setErrorMsg(null);
       console.warn("[ai-group-status]", e?.message || e);
     } finally {
@@ -1387,7 +1388,6 @@ function AiGroupingPanel({ runId, hasRealGroups, onReload }: { runId: string; ha
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
 
-  const grouped = hasRealGroups || status === "completed";
   const running = status === "running" || submitting;
 
   const handleClick = async () => {
