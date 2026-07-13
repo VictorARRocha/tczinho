@@ -7,24 +7,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayCircle, ChevronLeft, Copy, Server } from "lucide-react";
-import {
-  createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr,
-} from "@/services/data";
+import { createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr } from "@/services/data";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
 
 const MODULOS = [
-  { nome: "Folha",       codigo: "[1]" },
-  { nome: "Fiscal",      codigo: "[2]" },
-  { nome: "Contábil",    codigo: "[3], [4], [7]" },
-  { nome: "Financeiro",  codigo: "[5]" },
-  { nome: "Geral",       codigo: "[6]" },
-  { nome: "Gestão",      codigo: "[9]" },
+  { nome: "Folha", codigo: "[1]" },
+  { nome: "Fiscal", codigo: "[2]" },
+  { nome: "Contábil", codigo: "[3], [4], [7]" },
+  { nome: "Financeiro", codigo: "[5]" },
+  { nome: "Geral", codigo: "[6]" },
+  { nome: "Gestão", codigo: "[9]" },
 ];
 
 function casosTesteValido(s: string): boolean {
@@ -56,15 +52,18 @@ export default function JenkinsRodagemCompleta() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sAgora, sData, sNowTick]);
 
-  const sConfig = useMemo(() => ({
-    vm_name: sVm,
-    versao: sVersao,
-    casos_teste: sModuloObj.codigo,
-    paralelo: "",
-    ct_desmarcar: "[0.3]",
-    data_hora: sDataHora,
-    branch: "",
-  }), [sVm, sVersao, sModuloObj, sDataHora]);
+  const sConfig = useMemo(
+    () => ({
+      vm_name: sVm,
+      versao: sVersao,
+      casos_teste: sModuloObj.codigo,
+      paralelo: "",
+      ct_desmarcar: "[0.3]",
+      data_hora: sDataHora,
+      branch: "",
+    }),
+    [sVm, sVersao, sModuloObj, sDataHora],
+  );
 
   // ---- Configurada ----
   const [cVm, setCVm] = useState("a07");
@@ -74,15 +73,18 @@ export default function JenkinsRodagemCompleta() {
   const [cDataHora, setCDataHora] = useState(() => formatNowMinusOneMinuteBr());
   const [cBranch, setCBranch] = useState("");
 
-  const cConfig = useMemo(() => ({
-    vm_name: cVm,
-    versao: cVersao,
-    casos_teste: cCasos,
-    paralelo: "",
-    ct_desmarcar: cCtDesmarcar,
-    data_hora: cDataHora,
-    branch: cBranch,
-  }), [cVm, cVersao, cCasos, cCtDesmarcar, cDataHora, cBranch]);
+  const cConfig = useMemo(
+    () => ({
+      vm_name: cVm,
+      versao: cVersao,
+      casos_teste: cCasos,
+      paralelo: "",
+      ct_desmarcar: cCtDesmarcar,
+      data_hora: cDataHora,
+      branch: cBranch,
+    }),
+    [cVm, cVersao, cCasos, cCtDesmarcar, cDataHora, cBranch],
+  );
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -165,27 +167,38 @@ export default function JenkinsRodagemCompleta() {
 
       <Tabs defaultValue="simplificada" className="mb-8 sm:mb-10">
         <TabsList className="mb-4 w-full sm:w-auto">
-          <TabsTrigger value="simplificada" className="flex-1 sm:flex-none">Simplificada</TabsTrigger>
-          <TabsTrigger value="configurada" className="flex-1 sm:flex-none">Configurada</TabsTrigger>
+          <TabsTrigger value="simplificada" className="flex-1 sm:flex-none">
+            Simplificada
+          </TabsTrigger>
+          <TabsTrigger value="configurada" className="flex-1 sm:flex-none">
+            Configurada
+          </TabsTrigger>
         </TabsList>
 
         {/* ============================== SIMPLIFICADA ============================== */}
         <TabsContent value="simplificada">
           <div className="grid gap-4 sm:gap-5 lg:grid-cols-2">
-
             <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="VM">
                 <Select value={sVm} onValueChange={setSVm}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {VM_OPTIONS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    {VM_OPTIONS.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
 
               <Field label="Módulo">
                 <Select value={sModulo} onValueChange={setSModulo}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
                     {MODULOS.map((m) => (
                       <SelectItem key={m.nome} value={m.nome}>
@@ -200,7 +213,7 @@ export default function JenkinsRodagemCompleta() {
               </Field>
 
               <Field label="Versão">
-                <Input value={sVersao} onChange={(e) => setSVersao(e.target.value)} placeholder="ex.: proxima1.26.7.0" />
+                <Input value={sVersao} onChange={(e) => setSVersao(e.target.value)} placeholder="ex.: pre-cliente" />
               </Field>
 
               <Field label="Agendamento">
@@ -223,7 +236,10 @@ export default function JenkinsRodagemCompleta() {
                     type="datetime-local"
                     onChange={(e) => {
                       const v = e.target.value;
-                      if (!v) { setSData(""); return; }
+                      if (!v) {
+                        setSData("");
+                        return;
+                      }
                       const d = new Date(v);
                       setSData(formatNowBr(d));
                     }}
@@ -231,7 +247,12 @@ export default function JenkinsRodagemCompleta() {
                 )}
               </Field>
 
-              <Button size="lg" className="w-full bg-gradient-primary" onClick={submitSimplificada} disabled={submitting}>
+              <Button
+                size="lg"
+                className="w-full bg-gradient-primary"
+                onClick={submitSimplificada}
+                disabled={submitting}
+              >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 {submitting ? "Enviando…" : "Enviar rodagem para Jenkins"}
               </Button>
@@ -247,35 +268,66 @@ export default function JenkinsRodagemCompleta() {
             <Card className="glass-card p-4 sm:p-6 space-y-5">
               <Field label="vm_name">
                 <Select value={cVm} onValueChange={setCVm}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
                   <SelectContent>
-                    {VM_OPTIONS.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                    {VM_OPTIONS.map((v) => (
+                      <SelectItem key={v} value={v}>
+                        {v}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </Field>
 
               <Field label="versao">
-                <Input value={cVersao} onChange={(e) => setCVersao(e.target.value)} placeholder="ex.: proxima1.26.7.0" />
+                <Input
+                  value={cVersao}
+                  onChange={(e) => setCVersao(e.target.value)}
+                  placeholder="ex.: proxima1.26.7.0"
+                />
               </Field>
 
-              <Field label="casos_teste" hint="Use o mesmo padrão do Jenkins. Para rodar um módulo inteiro, informe o código do módulo (ex.: [2] para Fiscal). Para casos específicos, informe os IDs com colchetes separados por vírgula.">
-                <Input value={cCasos} onChange={(e) => setCCasos(e.target.value)} placeholder="[2]   ou   [9.1.4.1.3], [9.1.4.1.4]" />
+              <Field
+                label="casos_teste"
+                hint="Use o mesmo padrão do Jenkins. Para rodar um módulo inteiro, informe o código do módulo (ex.: [2] para Fiscal). Para casos específicos, informe os IDs com colchetes separados por vírgula."
+              >
+                <Input
+                  value={cCasos}
+                  onChange={(e) => setCCasos(e.target.value)}
+                  placeholder="[2]   ou   [9.1.4.1.3], [9.1.4.1.4]"
+                />
               </Field>
-
 
               <Field label="ct_desmarcar" hint="Casos que devem ser desmarcados antes da execução. Padrão: [0.3].">
                 <Input value={cCtDesmarcar} onChange={(e) => setCCtDesmarcar(e.target.value)} />
               </Field>
 
-              <Field label="data_hora" hint="Formato dd/MM/yyyy HH:mm:ss. Para rodar imediatamente, use a data/hora atual menos 1 minuto.">
-                <Input value={cDataHora} onChange={(e) => setCDataHora(e.target.value)} placeholder={formatNowMinusOneMinuteBr()} />
+              <Field
+                label="data_hora"
+                hint="Formato dd/MM/yyyy HH:mm:ss. Para rodar imediatamente, use a data/hora atual menos 1 minuto."
+              >
+                <Input
+                  value={cDataHora}
+                  onChange={(e) => setCDataHora(e.target.value)}
+                  placeholder={formatNowMinusOneMinuteBr()}
+                />
               </Field>
 
-              <Field label="branch" hint="Nome da branch que o TestComplete deve usar. Deixe vazio se não quiser trocar branch.">
+              <Field
+                label="branch"
+                hint="Nome da branch que o TestComplete deve usar. Deixe vazio se não quiser trocar branch."
+              >
                 <Input value={cBranch} onChange={(e) => setCBranch(e.target.value)} placeholder="(vazio)" />
               </Field>
 
-              <Button size="lg" className="w-full bg-gradient-primary" onClick={submitConfigurada} disabled={submitting}>
+              <Button
+                size="lg"
+                className="w-full bg-gradient-primary"
+                onClick={submitConfigurada}
+                disabled={submitting}
+              >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 {submitting ? "Enviando…" : "Enviar rodagem para Jenkins"}
               </Button>
@@ -311,7 +363,7 @@ function JsonPreview({ title, data, onCopy }: { title: string; data: any; onCopy
         </Button>
       </div>
       <pre className="text-xs bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto">
-{JSON.stringify(data, null, 2)}
+        {JSON.stringify(data, null, 2)}
       </pre>
     </Card>
   );
