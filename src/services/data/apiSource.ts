@@ -95,6 +95,11 @@ function normalizeExecutionStatus(row: ApiRow): string {
     canceled: "cancelado",
     cancelled: "cancelado",
     error: "erro",
+    cancel_requested: "cancel_requested",
+    cancelamento_solicitado: "cancel_requested",
+    canceling: "cancelando",
+    cancelling: "cancelando",
+    cancelando: "cancelando",
   };
   return map[raw] || raw || "solicitado";
 }
