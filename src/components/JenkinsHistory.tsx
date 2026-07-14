@@ -19,6 +19,7 @@ import { fetchRerunRequests, cancelRerunRequest, subscribeToTable, type RerunReq
 type StatusKey =
   | "solicitado" | "processando" | "enviado_jenkins" | "na_fila" | "rodando"
   | "finalizado_sucesso" | "finalizado_falha" | "cancelado"
+  | "cancel_requested" | "cancelando"
   | "erro_envio" | "erro_monitoramento" | "erro";
 
 const STATUS_META: Record<string, { label: string; badge: string; bar: string; animated?: boolean }> = {
