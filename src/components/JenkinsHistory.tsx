@@ -198,7 +198,7 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
               <TableHead>Agendado</TableHead>
               <TableHead>Status da rodagem</TableHead>
               <TableHead className="min-w-[180px]">Progresso</TableHead>
-              <TableHead>Erro</TableHead>
+              <TableHead className="w-32 text-center">Cancelar</TableHead>
               <TableHead className="w-28 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -234,18 +234,36 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                       </div>
                     </div>
                   </TableCell>
-                  <TableCell className="text-xs">
-                    {errText ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="inline-flex items-center gap-1 text-red-400">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            <span className="max-w-[140px] truncate">{errText}</span>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent className="max-w-md text-xs whitespace-pre-wrap">{errText}</TooltipContent>
-                      </Tooltip>
-                    ) : "—"}
+                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                    {CANCELABLE_STATUSES.has(status) ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
+                          try {
+                            await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
+                            toast.success("Cancelamento solicitado", {
+                              description: "O Bridge irá confirmar o cancelamento no Jenkins.",
+                            });
+                            load();
+                          } catch (err) {
+                            console.error(err);
+                            toast.error("Falha ao solicitar cancelamento");
+                          }
+                        }}
+                      >
+                        <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                      </Button>
+                    ) : CANCEL_PENDING_STATUSES.has(status) ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
+                        <XCircle className="h-3.5 w-3.5" /> Cancelando…
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1">
@@ -278,46 +296,6 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                             </a>
                           </TooltipTrigger>
                           <TooltipContent>Abrir build</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {CANCELABLE_STATUSES.has(status) && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-red-400 hover:text-red-500"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
-                                try {
-                                  await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
-                                  toast.success("Cancelamento solicitado", {
-                                    description: "O Bridge irá confirmar o cancelamento no Jenkins.",
-                                  });
-                                  load();
-                                } catch (err) {
-                                  console.error(err);
-                                  toast.error("Falha ao solicitar cancelamento");
-                                }
-                              }}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Cancelar rodagem</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {CANCEL_PENDING_STATUSES.has(status) && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button size="sm" variant="ghost" disabled className="text-muted-foreground">
-                                <XCircle className="h-3.5 w-3.5" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>Cancelamento em andamento</TooltipContent>
                         </Tooltip>
                       )}
                     </div>
