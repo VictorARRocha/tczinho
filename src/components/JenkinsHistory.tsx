@@ -298,46 +298,6 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                           <TooltipContent>Abrir build</TooltipContent>
                         </Tooltip>
                       )}
-                      {CANCELABLE_STATUSES.has(status) && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-red-400 hover:text-red-500"
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
-                                try {
-                                  await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
-                                  toast.success("Cancelamento solicitado", {
-                                    description: "O Bridge irá confirmar o cancelamento no Jenkins.",
-                                  });
-                                  load();
-                                } catch (err) {
-                                  console.error(err);
-                                  toast.error("Falha ao solicitar cancelamento");
-                                }
-                              }}
-                            >
-                              <XCircle className="h-3.5 w-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Cancelar rodagem</TooltipContent>
-                        </Tooltip>
-                      )}
-                      {CANCEL_PENDING_STATUSES.has(status) && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span>
-                              <Button size="sm" variant="ghost" disabled className="text-muted-foreground">
-                                <XCircle className="h-3.5 w-3.5" />
-                              </Button>
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent>Cancelamento em andamento</TooltipContent>
-                        </Tooltip>
-                      )}
                     </div>
                   </TableCell>
                 </TableRow>
