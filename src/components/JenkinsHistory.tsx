@@ -77,6 +77,8 @@ function resolveProgress(r: RerunRequest, status: StatusKey): { value: number; i
     case "enviado_jenkins":     return { value: hasReal ? value : 5, indeterminate: false };
     case "na_fila":             return { value: hasReal ? value : 10, indeterminate: false };
     case "rodando":             return { value: hasReal ? value : 50, indeterminate: !hasReal };
+    case "cancel_requested":    return { value: hasReal ? value : 0, indeterminate: !hasReal };
+    case "cancelando":          return { value: hasReal ? value : 0, indeterminate: !hasReal };
     case "finalizado_sucesso":
     case "finalizado_falha":
     case "cancelado":
