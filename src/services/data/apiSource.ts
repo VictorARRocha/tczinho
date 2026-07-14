@@ -265,6 +265,12 @@ export const ApiQaDataSource: QaDataSource = {
   createRerunRequest: (payload: CreateRerunPayload) =>
     req<ApiRow>(`/rerun-requests`, { method: "POST", body: JSON.stringify(payload) }).then(normalizeRerunRequest),
 
+  cancelRerunRequest: (id: string, reason?: string) =>
+    req<ApiRow>(`/rerun-requests/${encodeURIComponent(id)}/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ reason: reason || "Cancelamento solicitado pelo dashboard." }),
+    }).then((res) => normalizeRerunRequest((res && (res as any).rerun_request) ?? res)),
+
   async fetchModuleDashboardData(slug) {
     const [modulos, runs] = await Promise.all([this.fetchModules(), this.fetchRunsByModule(slug)]);
     const modulo = modulos.find((m) => m.slug === slug) || null;
