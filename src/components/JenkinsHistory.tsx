@@ -31,6 +31,8 @@ const STATUS_META: Record<string, { label: string; badge: string; bar: string; a
   finalizado_sucesso: { label: "Finalizado",            badge: "bg-green-500/15 text-green-500 border-green-500/30",          bar: "bg-green-500" },
   finalizado_falha:   { label: "Falhou",                badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   cancelado:          { label: "Cancelado",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",       bar: "bg-orange-500" },
+  cancel_requested:   { label: "Cancelamento solicitado", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30",         bar: "bg-amber-500", animated: true },
+  cancelando:         { label: "Cancelando",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",      bar: "bg-orange-500", animated: true },
   erro_envio:         { label: "Erro no envio",         badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   erro_monitoramento: { label: "Erro no monitoramento", badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   erro:               { label: "Erro",                  badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
