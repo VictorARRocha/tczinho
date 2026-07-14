@@ -78,6 +78,7 @@ export interface QaDataSource {
     limit?: number,
   ): Promise<RerunRequest[]>;
   createRerunRequest(payload: CreateRerunPayload): Promise<RerunRequest>;
+  cancelRerunRequest(id: string, reason?: string): Promise<RerunRequest>;
 
   // Dashboard agregado
   fetchModuleDashboardData(slug: string): Promise<{

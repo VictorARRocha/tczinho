@@ -12,13 +12,14 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Copy, ExternalLink, RefreshCw, AlertTriangle, Info } from "lucide-react";
-import { fetchRerunRequests, subscribeToTable, type RerunRequest } from "@/services/data";
+import { Copy, ExternalLink, RefreshCw, AlertTriangle, Info, XCircle } from "lucide-react";
+import { fetchRerunRequests, cancelRerunRequest, subscribeToTable, type RerunRequest } from "@/services/data";
 
 // ---------- Status mapping ----------
 type StatusKey =
   | "solicitado" | "processando" | "enviado_jenkins" | "na_fila" | "rodando"
   | "finalizado_sucesso" | "finalizado_falha" | "cancelado"
+  | "cancel_requested" | "cancelando"
   | "erro_envio" | "erro_monitoramento" | "erro";
 
 const STATUS_META: Record<string, { label: string; badge: string; bar: string; animated?: boolean }> = {
@@ -30,6 +31,8 @@ const STATUS_META: Record<string, { label: string; badge: string; bar: string; a
   finalizado_sucesso: { label: "Finalizado",            badge: "bg-green-500/15 text-green-500 border-green-500/30",          bar: "bg-green-500" },
   finalizado_falha:   { label: "Falhou",                badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   cancelado:          { label: "Cancelado",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",       bar: "bg-orange-500" },
+  cancel_requested:   { label: "Cancelamento solicitado", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30",         bar: "bg-amber-500", animated: true },
+  cancelando:         { label: "Cancelando",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",      bar: "bg-orange-500", animated: true },
   erro_envio:         { label: "Erro no envio",         badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   erro_monitoramento: { label: "Erro no monitoramento", badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
   erro:               { label: "Erro",                  badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
@@ -47,7 +50,14 @@ const MODO_LABEL: Record<string, string> = {
 
 const ACTIVE_STATUSES = new Set<string>([
   "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
+  "cancel_requested", "cancelando",
 ]);
+
+const CANCELABLE_STATUSES = new Set<string>([
+  "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
+]);
+
+const CANCEL_PENDING_STATUSES = new Set<string>(["cancel_requested", "cancelando"]);
 
 function resolveStatus(r: RerunRequest): StatusKey {
   const raw = (r.execution_status || r.status || "solicitado").toString().toLowerCase().trim();
@@ -67,6 +77,8 @@ function resolveProgress(r: RerunRequest, status: StatusKey): { value: number; i
     case "enviado_jenkins":     return { value: hasReal ? value : 5, indeterminate: false };
     case "na_fila":             return { value: hasReal ? value : 10, indeterminate: false };
     case "rodando":             return { value: hasReal ? value : 50, indeterminate: !hasReal };
+    case "cancel_requested":    return { value: hasReal ? value : 0, indeterminate: !hasReal };
+    case "cancelando":          return { value: hasReal ? value : 0, indeterminate: !hasReal };
     case "finalizado_sucesso":
     case "finalizado_falha":
     case "cancelado":
@@ -266,6 +278,46 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                             </a>
                           </TooltipTrigger>
                           <TooltipContent>Abrir build</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {CANCELABLE_STATUSES.has(status) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-400 hover:text-red-500"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
+                                try {
+                                  await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
+                                  toast.success("Cancelamento solicitado", {
+                                    description: "O Bridge irá confirmar o cancelamento no Jenkins.",
+                                  });
+                                  load();
+                                } catch (err) {
+                                  console.error(err);
+                                  toast.error("Falha ao solicitar cancelamento");
+                                }
+                              }}
+                            >
+                              <XCircle className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>Cancelar rodagem</TooltipContent>
+                        </Tooltip>
+                      )}
+                      {CANCEL_PENDING_STATUSES.has(status) && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span>
+                              <Button size="sm" variant="ghost" disabled className="text-muted-foreground">
+                                <XCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>Cancelamento em andamento</TooltipContent>
                         </Tooltip>
                       )}
                     </div>

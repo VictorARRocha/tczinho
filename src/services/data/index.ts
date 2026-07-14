@@ -65,6 +65,8 @@ export const fetchRerunRequestsByModule = (
 ) => qaData.fetchRerunRequestsByModule(slug, moduleName, limit);
 export const createRerunRequest = (payload: import("./types").CreateRerunPayload) =>
   qaData.createRerunRequest(payload);
+export const cancelRerunRequest = (id: string, reason?: string) =>
+  qaData.cancelRerunRequest(id, reason);
 export const fetchModuleDashboardData = (slug: string) => qaData.fetchModuleDashboardData(slug);
 export const subscribeToTable = (
   table: import("./types").RealtimeTable,
