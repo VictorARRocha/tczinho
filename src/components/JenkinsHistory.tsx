@@ -198,7 +198,7 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
               <TableHead>Agendado</TableHead>
               <TableHead>Status da rodagem</TableHead>
               <TableHead className="min-w-[180px]">Progresso</TableHead>
-              <TableHead>Erro</TableHead>
+              <TableHead className="w-32 text-center">Cancelar</TableHead>
               <TableHead className="w-28 text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
