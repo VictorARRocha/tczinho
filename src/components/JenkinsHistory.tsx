@@ -50,7 +50,14 @@ const MODO_LABEL: Record<string, string> = {
 
 const ACTIVE_STATUSES = new Set<string>([
   "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
+  "cancel_requested", "cancelando",
 ]);
+
+const CANCELABLE_STATUSES = new Set<string>([
+  "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
+]);
+
+const CANCEL_PENDING_STATUSES = new Set<string>(["cancel_requested", "cancelando"]);
 
 function resolveStatus(r: RerunRequest): StatusKey {
   const raw = (r.execution_status || r.status || "solicitado").toString().toLowerCase().trim();
