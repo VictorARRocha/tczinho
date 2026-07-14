@@ -12,8 +12,8 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Copy, ExternalLink, RefreshCw, AlertTriangle, Info } from "lucide-react";
-import { fetchRerunRequests, subscribeToTable, type RerunRequest } from "@/services/data";
+import { Copy, ExternalLink, RefreshCw, AlertTriangle, Info, XCircle } from "lucide-react";
+import { fetchRerunRequests, cancelRerunRequest, subscribeToTable, type RerunRequest } from "@/services/data";
 
 // ---------- Status mapping ----------
 type StatusKey =
