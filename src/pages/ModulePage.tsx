@@ -1335,17 +1335,18 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
 
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
+  const [aiGrouped, setAiGrouped] = useState(false);
+
   return (
     <div className="space-y-4">
-      <AiGroupingPanel runId={runId} onReload={onReload} />
+      <AiGroupingPanel runId={runId} onReload={onReload} onGroupedChange={setAiGrouped} />
 
-      {filteredItems.length === 0 ? (
+      {!aiGrouped ? (
+        <Empty text="Clique em 'Agrupar falhas' para que a IA agrupe as falhas desta rodagem." />
+      ) : filteredItems.length === 0 ? (
         <Empty text="Sem agrupamentos com múltiplos casos." />
       ) : (
         <>
-          {filteredItems.some((i) => i.isVisual) && (
-            <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
-          )}
           {filteredItems.map((g) => (
             <AgrupamentoCard key={g.id} g={g} onSelect={onSelect} />
           ))}
