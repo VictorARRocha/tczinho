@@ -1335,17 +1335,18 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
 
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
+  const [aiGrouped, setAiGrouped] = useState(false);
+
   return (
     <div className="space-y-4">
-      <AiGroupingPanel runId={runId} onReload={onReload} />
+      <AiGroupingPanel runId={runId} onReload={onReload} onGroupedChange={setAiGrouped} />
 
-      {filteredItems.length === 0 ? (
+      {!aiGrouped ? (
+        <Empty text="Clique em 'Agrupar falhas' para que a IA agrupe as falhas desta rodagem." />
+      ) : filteredItems.length === 0 ? (
         <Empty text="Sem agrupamentos com múltiplos casos." />
       ) : (
         <>
-          {filteredItems.some((i) => i.isVisual) && (
-            <p className="text-xs text-muted-foreground italic">Agrupamento visual calculado a partir das falhas (sem dados em <code>agrupamentos.arquivos_relacionados</code>).</p>
-          )}
           {filteredItems.map((g) => (
             <AgrupamentoCard key={g.id} g={g} onSelect={onSelect} />
           ))}
@@ -1355,12 +1356,14 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
   );
 }
 
-function AiGroupingPanel({ runId, onReload }: { runId: string; onReload: () => void | Promise<void> }) {
+function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; onReload: () => void | Promise<void>; onGroupedChange?: (grouped: boolean) => void }) {
   const [status, setStatus] = useState<import("@/services/aiGrouping").AiGroupStatus | null>(null);
   const [grouped, setGrouped] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { onGroupedChange?.(grouped); }, [grouped, onGroupedChange]);
 
   const refreshStatus = async () => {
     try {
@@ -1387,6 +1390,7 @@ function AiGroupingPanel({ runId, onReload }: { runId: string; onReload: () => v
     refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
 
   const running = status === "running" || submitting;
 
