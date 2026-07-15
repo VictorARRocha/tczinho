@@ -1477,14 +1477,12 @@ function AgrupamentoCard({ g, onSelect }: { g: any; onSelect: (f: Falha) => void
     >
       <div className="flex items-start justify-between mb-3 gap-3">
         <div className="min-w-0">
-          {g.tipo && <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{g.tipo}</div>}
-          <h3 className="font-semibold mt-0.5">{displayTitulo}</h3>
+          <h3 className="font-semibold">{displayTitulo}</h3>
         </div>
         <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
       </div>
       {displayDescricao && <p className="text-sm text-muted-foreground mb-3">{displayDescricao}</p>}
       <div className="flex flex-wrap gap-2 mb-4">
-        {g.classificacao_predominante && <ClassificationBadge value={g.classificacao_predominante} />}
         {g.severidade_predominante && <SeverityBadge value={g.severidade_predominante} />}
       </div>
       {acao && (
