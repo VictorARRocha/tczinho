@@ -1356,12 +1356,14 @@ function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onReload }: {
   );
 }
 
-function AiGroupingPanel({ runId, onReload }: { runId: string; onReload: () => void | Promise<void> }) {
+function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; onReload: () => void | Promise<void>; onGroupedChange?: (grouped: boolean) => void }) {
   const [status, setStatus] = useState<import("@/services/aiGrouping").AiGroupStatus | null>(null);
   const [grouped, setGrouped] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => { onGroupedChange?.(grouped); }, [grouped, onGroupedChange]);
 
   const refreshStatus = async () => {
     try {
@@ -1388,6 +1390,7 @@ function AiGroupingPanel({ runId, onReload }: { runId: string; onReload: () => v
     refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
 
   const running = status === "running" || submitting;
 
