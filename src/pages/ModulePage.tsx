@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
@@ -24,8 +24,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree, ArrowUp, ArrowDown } from "lucide-react";
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
-import { FailureDetailSheet } from "@/components/FailureDetailSheet";
-import { FileComparatorDialog } from "@/components/FileComparator";
+const FailureDetailSheet = lazy(() =>
+  import("@/components/FailureDetailSheet").then((m) => ({ default: m.FailureDetailSheet }))
+);
+const FileComparatorDialog = lazy(() =>
+  import("@/components/FileComparator").then((m) => ({ default: m.FileComparatorDialog }))
+);
 import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
