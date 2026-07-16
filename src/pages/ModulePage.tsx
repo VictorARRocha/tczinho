@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
@@ -24,8 +24,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ChevronLeft, ChevronDown, ChevronRight, Search, FileText, Image as ImageIcon, FileArchive, RefreshCw, ArrowRight, ChevronsUpDown, Check, Lightbulb, Gauge, TrendingUp, TrendingDown, Minus, Copy, FolderTree, ArrowUp, ArrowDown } from "lucide-react";
 import { formatDateTime, getHealthStatus, severityRank } from "@/lib/format";
 import { ClassificationBadge, SeverityBadge, ConfidenceBadge } from "@/components/Badges";
-import { FailureDetailSheet } from "@/components/FailureDetailSheet";
-import { FileComparatorDialog } from "@/components/FileComparator";
+const FailureDetailSheet = lazy(() =>
+  import("@/components/FailureDetailSheet").then((m) => ({ default: m.FailureDetailSheet }))
+);
+const FileComparatorDialog = lazy(() =>
+  import("@/components/FileComparator").then((m) => ({ default: m.FileComparatorDialog }))
+);
 import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -280,21 +284,29 @@ export default function ModulePage() {
         </Tabs>
       )}
 
-      <FailureDetailSheet
-        falha={selectedFalha}
-        open={!!selectedFalha}
-        onClose={() => setSelectedFalha(null)}
-        evidencias={selectedFalha ? evidencias.filter((e) => {
-          if (e.falha_id && e.falha_id === selectedFalha.id) return true;
-          // falhas sintéticas: id "storage:{folder}" → evidências cujo path está dentro do folder
-          if (selectedFalha.id?.startsWith("storage:")) {
-            const folder = selectedFalha.id.replace(/^storage:/, "");
-            return (e.storage_path || "").startsWith(folder);
-          }
-          return false;
-        }) : undefined}
-      />
-      <FileComparatorDialog open={!!comparePair} pair={comparePair?.pair || null} falha={comparePair?.falha || null} onClose={() => setComparePair(null)} />
+      {selectedFalha && (
+        <Suspense fallback={null}>
+          <FailureDetailSheet
+            falha={selectedFalha}
+            open={!!selectedFalha}
+            onClose={() => setSelectedFalha(null)}
+            evidencias={evidencias.filter((e) => {
+              if (e.falha_id && e.falha_id === selectedFalha.id) return true;
+              // falhas sintéticas: id "storage:{folder}" → evidências cujo path está dentro do folder
+              if (selectedFalha.id?.startsWith("storage:")) {
+                const folder = selectedFalha.id.replace(/^storage:/, "");
+                return (e.storage_path || "").startsWith(folder);
+              }
+              return false;
+            })}
+          />
+        </Suspense>
+      )}
+      {comparePair && (
+        <Suspense fallback={null}>
+          <FileComparatorDialog open={!!comparePair} pair={comparePair.pair} falha={comparePair.falha} onClose={() => setComparePair(null)} />
+        </Suspense>
+      )}
     </div>
   );
 }
