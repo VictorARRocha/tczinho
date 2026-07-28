@@ -1,5 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
+
 import {
   fetchLatestRunByModule, fetchRunsByModule, fetchRunById,
   fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun,
@@ -120,8 +122,9 @@ function cleanFileName(nome?: string | null, extensao?: string | null): string {
 }
 
 export default function ModulePage() {
-  const { slug = "" } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { slug = "", rodagemSlug } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const runParam = searchParams.get("run") || undefined;
   const tabParam = searchParams.get("tab");
   const [modulo, setModulo] = useState<Modulo | null>(null);
@@ -137,6 +140,8 @@ export default function ModulePage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
+  const [runLoading, setRunLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
   const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
@@ -147,32 +152,64 @@ export default function ModulePage() {
 
   const moduleName = modulo?.nome || slug;
 
-  const loadAll = async (runId?: string, targetSlug: string = slug) => {
+  const clearRunData = () => {
+    setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]);
+    setPerformance([]); setGroupLinks({}); setHierarchy([]);
+  };
+
+  const loadRunDetails = async (r: Rodagem, targetSlug: string, reqId: number) => {
+    const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
+      fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
+      fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
+      listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
+      fetchTestcaseHierarchy(targetSlug),
+    ]);
+    if (reqId !== requestRef.current) return;
+    const merged = mergeEvidences(e, storageFiles);
+    setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p);
+    setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
+  };
+
+  const loadAll = async (runId?: string, targetSlug: string = slug, runSlug?: string) => {
     const reqId = ++requestRef.current;
     setLoading(true);
     setLoadError(null);
+    setNotFound(false);
     try {
       // Fetches independentes rodam em paralelo
       const [mods, runs] = await Promise.all([fetchModules(), fetchRunsByModule(targetSlug)]);
       if (reqId !== requestRef.current) return;
       setModulo(mods.find((x) => x.slug === targetSlug) || null);
       setHistorico(runs);
-      const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(targetSlug)));
+
+      let r: Rodagem | null = null;
+      if (runId) {
+        r = await fetchRunById(runId);
+      } else if (runSlug) {
+        r = findRodagemBySlug(runs, runSlug);
+        if (!r) {
+          if (reqId !== requestRef.current) return;
+          setRodagem(null);
+          clearRunData();
+          setNotFound(true);
+          return;
+        }
+      } else {
+        r = runs[0] || (await fetchLatestRunByModule(targetSlug));
+      }
       if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
-          fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
-          fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
-          listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
-          fetchTestcaseHierarchy(targetSlug),
-        ]);
-        if (reqId !== requestRef.current) return;
-        const merged = mergeEvidences(e, storageFiles);
-        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
+        if (!runSlug) {
+          // reflete a rodagem aberta na URL (link compartilhável) sem empilhar histórico
+          initialRouteRef.current = true;
+          navigate(`/modulo/${targetSlug}/${rodagemSlugFor(runs, r)}`, { replace: true });
+        }
+        await loadRunDetails(r, targetSlug, reqId);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({}); setHierarchy([]);
+        clearRunData();
       }
+
     } catch (e: any) {
       if (reqId !== requestRef.current) return;
       setLoadError(e?.message || "Erro ao carregar módulo");
@@ -182,27 +219,48 @@ export default function ModulePage() {
     }
   };
 
+  // Troca de rodagem dentro do mesmo módulo (loading leve, sem recarregar a lista)
+  const switchRun = async (runSlug: string) => {
+    const reqId = ++requestRef.current;
+    setNotFound(false);
+    setLoadError(null);
+    setSelectedFalha(null);
+    setComparePair(null);
+    const target = findRodagemBySlug(historico, runSlug);
+    if (!target) { setRodagem(null); clearRunData(); setNotFound(true); return; }
+    setRunLoading(true);
+    setRodagem(target);
+    try {
+      await loadRunDetails(target, slug, reqId);
+    } catch (e: any) {
+      if (reqId === requestRef.current) setLoadError(e?.message || "Erro ao carregar rodagem");
+    } finally {
+      if (reqId === requestRef.current) setRunLoading(false);
+    }
+  };
+
+  const goToRun = (run: Rodagem | null | undefined) => {
+    if (!run) return;
+    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}`);
+  };
+  const goToRunId = (id: string) => goToRun(historico.find((r) => r.id === id) || null);
+
+  // Carrega módulo (e rodagem inicial) quando o módulo muda
   useEffect(() => {
-    // Trocou de módulo → invalida tudo IMEDIATAMENTE para evitar mostrar dados antigos
     currentSlugRef.current = slug;
     requestRef.current++; // cancela respostas em voo do módulo anterior
     setModulo(null);
     setRodagem(null);
     setHistorico([]);
-    setFalhas([]);
-    setEvidencias([]);
-    setGrupos([]);
-    setPassos([]);
-    setPerformance([]);
-    setGroupLinks({});
-    setHierarchy([]);
+    clearRunData();
     setSelectedFalha(null);
     setComparePair(null);
     setActiveTab("resumo");
     setLoading(true);
     setLoadError(null);
+    setNotFound(false);
 
-    loadAll(runParam, slug);
+    loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
     if (tabParam === "falhas") setActiveTab("falhas");
     const offs = [
       subscribeToTable("rodagens", (p) => {
@@ -215,6 +273,20 @@ export default function ModulePage() {
     return () => offs.forEach((o) => o());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  // Rodagem selecionada derivada da rota (navegação/voltar do browser)
+  const initialRouteRef = useRef(true);
+  useEffect(() => {
+    if (initialRouteRef.current) { initialRouteRef.current = false; return; }
+    if (loading || historico.length === 0) return;
+    if (rodagemSlug) {
+      const target = findRodagemBySlug(historico, rodagemSlug);
+      if (target && target.id === rodagem?.id) return;
+      switchRun(rodagemSlug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rodagemSlug]);
+
 
   if (loading) {
     return (
@@ -259,9 +331,17 @@ export default function ModulePage() {
         <ChevronLeft className="h-3 w-3" /> Visão geral
       </Link>
 
-      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={(id) => loadAll(id)} onRefresh={() => loadAll(rodagem?.id)} />
+      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} onRefresh={() => loadAll(rodagem?.id)} />
 
-      {!rodagem ? (
+      {notFound ? (
+        <Card className="glass-card p-12 text-center mt-8">
+          <h3 className="text-lg font-semibold">Rodagem não encontrada.</h3>
+          <p className="mt-2 text-sm text-muted-foreground">O link pode estar desatualizado ou a rodagem foi removida.</p>
+          <Button className="mt-4" variant="outline" asChild>
+            <Link to={`/modulo/${slug}`}>Voltar ao módulo</Link>
+          </Button>
+        </Card>
+      ) : !rodagem ? (
         <Card className="glass-card p-12 text-center mt-8">
           <h3 className="text-lg font-semibold">Nenhuma rodagem encontrada</h3>
           <p className="mt-2 text-sm text-muted-foreground">Este módulo ainda não recebeu análise do Codex/Python.</p>
@@ -276,11 +356,18 @@ export default function ModulePage() {
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
+          {runLoading && (
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" /> Carregando rodagem...
+            </div>
+          )}
+
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
-          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
+          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={goToRunId} /></TabsContent>
+
         </Tabs>
       )}
 
