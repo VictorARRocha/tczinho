@@ -325,9 +325,17 @@ export default function ModulePage() {
         <ChevronLeft className="h-3 w-3" /> Visão geral
       </Link>
 
-      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={(id) => loadAll(id)} onRefresh={() => loadAll(rodagem?.id)} />
+      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} onRefresh={() => loadAll(rodagem?.id)} />
 
-      {!rodagem ? (
+      {notFound ? (
+        <Card className="glass-card p-12 text-center mt-8">
+          <h3 className="text-lg font-semibold">Rodagem não encontrada.</h3>
+          <p className="mt-2 text-sm text-muted-foreground">O link pode estar desatualizado ou a rodagem foi removida.</p>
+          <Button className="mt-4" variant="outline" asChild>
+            <Link to={`/modulo/${slug}`}>Voltar ao módulo</Link>
+          </Button>
+        </Card>
+      ) : !rodagem ? (
         <Card className="glass-card p-12 text-center mt-8">
           <h3 className="text-lg font-semibold">Nenhuma rodagem encontrada</h3>
           <p className="mt-2 text-sm text-muted-foreground">Este módulo ainda não recebeu análise do Codex/Python.</p>
@@ -342,11 +350,18 @@ export default function ModulePage() {
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
+          {runLoading && (
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" /> Carregando rodagem...
+            </div>
+          )}
+
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
-          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={(id) => loadAll(id)} /></TabsContent>
+          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={goToRunId} /></TabsContent>
+
         </Tabs>
       )}
 
