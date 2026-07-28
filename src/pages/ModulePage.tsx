@@ -200,10 +200,16 @@ export default function ModulePage() {
       if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
+        if (!runSlug) {
+          // reflete a rodagem aberta na URL (link compartilhável) sem empilhar histórico
+          initialRouteRef.current = true;
+          navigate(`/modulo/${targetSlug}/${rodagemSlugFor(runs, r)}`, { replace: true });
+        }
         await loadRunDetails(r, targetSlug, reqId);
       } else {
         clearRunData();
       }
+
     } catch (e: any) {
       if (reqId !== requestRef.current) return;
       setLoadError(e?.message || "Erro ao carregar módulo");
