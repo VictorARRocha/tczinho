@@ -64,6 +64,11 @@ const App = () => (
                 path="/modulo/:slug"
                 element={withSuspense(<ModulePage />, "Carregando módulo...", "skeleton-table")}
               />
+              <Route
+                path="/modulo/:slug/:rodagemSlug"
+                element={withSuspense(<ModulePage />, "Carregando rodagem...", "skeleton-table")}
+              />
+
               <Route path="/importar" element={<Navigate to="/" replace />} />
               <Route
                 path="/jenkins"
