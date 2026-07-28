@@ -120,8 +120,9 @@ function cleanFileName(nome?: string | null, extensao?: string | null): string {
 }
 
 export default function ModulePage() {
-  const { slug = "" } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const { slug = "", rodagemSlug } = useParams();
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const runParam = searchParams.get("run") || undefined;
   const tabParam = searchParams.get("tab");
   const [modulo, setModulo] = useState<Modulo | null>(null);
@@ -137,6 +138,8 @@ export default function ModulePage() {
   const [activeTab, setActiveTab] = useState("resumo");
   const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
+  const [runLoading, setRunLoading] = useState(false);
+  const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
   const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
@@ -147,31 +150,57 @@ export default function ModulePage() {
 
   const moduleName = modulo?.nome || slug;
 
-  const loadAll = async (runId?: string, targetSlug: string = slug) => {
+  const clearRunData = () => {
+    setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]);
+    setPerformance([]); setGroupLinks({}); setHierarchy([]);
+  };
+
+  const loadRunDetails = async (r: Rodagem, targetSlug: string, reqId: number) => {
+    const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
+      fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
+      fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
+      listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
+      fetchTestcaseHierarchy(targetSlug),
+    ]);
+    if (reqId !== requestRef.current) return;
+    const merged = mergeEvidences(e, storageFiles);
+    setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p);
+    setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
+  };
+
+  const loadAll = async (runId?: string, targetSlug: string = slug, runSlug?: string) => {
     const reqId = ++requestRef.current;
     setLoading(true);
     setLoadError(null);
+    setNotFound(false);
     try {
       // Fetches independentes rodam em paralelo
       const [mods, runs] = await Promise.all([fetchModules(), fetchRunsByModule(targetSlug)]);
       if (reqId !== requestRef.current) return;
       setModulo(mods.find((x) => x.slug === targetSlug) || null);
       setHistorico(runs);
-      const r = runId ? await fetchRunById(runId) : (runs[0] || (await fetchLatestRunByModule(targetSlug)));
+
+      let r: Rodagem | null = null;
+      if (runId) {
+        r = await fetchRunById(runId);
+      } else if (runSlug) {
+        r = findRodagemBySlug(runs, runSlug);
+        if (!r) {
+          if (reqId !== requestRef.current) return;
+          setRodagem(null);
+          clearRunData();
+          setNotFound(true);
+          return;
+        }
+      } else {
+        r = runs[0] || (await fetchLatestRunByModule(targetSlug));
+      }
       if (reqId !== requestRef.current) return;
       setRodagem(r);
       if (r) {
-        const [f, e, g, p, perf, links, storageFiles, hier] = await Promise.all([
-          fetchFailuresByRun(r.id), fetchEvidenceByRun(r.id), fetchGroupsByRun(r.id), fetchNextStepsByRun(r.id),
-          fetchPerformanceByRun(r.id), fetchGroupLinksByRun(r.id),
-          listStorageFilesByRun(r.id, targetSlug, r.pasta_origem),
-          fetchTestcaseHierarchy(targetSlug),
-        ]);
-        if (reqId !== requestRef.current) return;
-        const merged = mergeEvidences(e, storageFiles);
-        setFalhas(f); setEvidencias(merged); setGrupos(g); setPassos(p); setPerformance(perf); setGroupLinks(links); setHierarchy(hier);
+        await loadRunDetails(r, targetSlug, reqId);
       } else {
-        setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]); setPerformance([]); setGroupLinks({}); setHierarchy([]);
+        clearRunData();
       }
     } catch (e: any) {
       if (reqId !== requestRef.current) return;
@@ -182,27 +211,48 @@ export default function ModulePage() {
     }
   };
 
+  // Troca de rodagem dentro do mesmo módulo (loading leve, sem recarregar a lista)
+  const switchRun = async (runSlug: string) => {
+    const reqId = ++requestRef.current;
+    setNotFound(false);
+    setLoadError(null);
+    setSelectedFalha(null);
+    setComparePair(null);
+    const target = findRodagemBySlug(historico, runSlug);
+    if (!target) { setRodagem(null); clearRunData(); setNotFound(true); return; }
+    setRunLoading(true);
+    setRodagem(target);
+    try {
+      await loadRunDetails(target, slug, reqId);
+    } catch (e: any) {
+      if (reqId === requestRef.current) setLoadError(e?.message || "Erro ao carregar rodagem");
+    } finally {
+      if (reqId === requestRef.current) setRunLoading(false);
+    }
+  };
+
+  const goToRun = (run: Rodagem | null | undefined) => {
+    if (!run) return;
+    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}`);
+  };
+  const goToRunId = (id: string) => goToRun(historico.find((r) => r.id === id) || null);
+
+  // Carrega módulo (e rodagem inicial) quando o módulo muda
   useEffect(() => {
-    // Trocou de módulo → invalida tudo IMEDIATAMENTE para evitar mostrar dados antigos
     currentSlugRef.current = slug;
     requestRef.current++; // cancela respostas em voo do módulo anterior
     setModulo(null);
     setRodagem(null);
     setHistorico([]);
-    setFalhas([]);
-    setEvidencias([]);
-    setGrupos([]);
-    setPassos([]);
-    setPerformance([]);
-    setGroupLinks({});
-    setHierarchy([]);
+    clearRunData();
     setSelectedFalha(null);
     setComparePair(null);
     setActiveTab("resumo");
     setLoading(true);
     setLoadError(null);
+    setNotFound(false);
 
-    loadAll(runParam, slug);
+    loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
     if (tabParam === "falhas") setActiveTab("falhas");
     const offs = [
       subscribeToTable("rodagens", (p) => {
@@ -215,6 +265,20 @@ export default function ModulePage() {
     return () => offs.forEach((o) => o());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
+
+  // Rodagem selecionada derivada da rota (navegação/voltar do browser)
+  const initialRouteRef = useRef(true);
+  useEffect(() => {
+    if (initialRouteRef.current) { initialRouteRef.current = false; return; }
+    if (loading || historico.length === 0) return;
+    if (rodagemSlug) {
+      const target = findRodagemBySlug(historico, rodagemSlug);
+      if (target && target.id === rodagem?.id) return;
+      switchRun(rodagemSlug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rodagemSlug]);
+
 
   if (loading) {
     return (
