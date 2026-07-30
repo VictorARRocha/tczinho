@@ -179,11 +179,16 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
             </Badge>
           )}
         </div>
-        <Button size="sm" variant="ghost" onClick={load}>
-          <RefreshCw className="h-3.5 w-3.5 mr-1" /> Atualizar
+        <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
+          {expanded ? (
+            <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Minimizar</>
+          ) : (
+            <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Expandir</>
+          )}
         </Button>
       </div>
-      <Card className="glass-card overflow-hidden">
+      {expanded && (
+        <Card className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
 
