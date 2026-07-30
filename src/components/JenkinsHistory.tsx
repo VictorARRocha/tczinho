@@ -12,7 +12,7 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Copy, ExternalLink, ChevronDown, ChevronUp, AlertTriangle, Info, XCircle } from "lucide-react";
+import { Copy, ExternalLink, ChevronDown, ChevronUp, Info, XCircle } from "lucide-react";
 import { fetchRerunRequests, cancelRerunRequest, subscribeToTable, type RerunRequest } from "@/services/data";
 
 // ---------- Status mapping ----------
