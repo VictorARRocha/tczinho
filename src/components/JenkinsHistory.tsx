@@ -189,131 +189,126 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
       </div>
       {expanded && (
         <Card className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table>
-
-          <TableHeader>
-            <TableRow>
-              <TableHead>Data/hora</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Modo</TableHead>
-              <TableHead>VM</TableHead>
-              <TableHead>Versão</TableHead>
-              <TableHead>Módulo</TableHead>
-              <TableHead>Casos</TableHead>
-              <TableHead>Agendado</TableHead>
-              <TableHead>Status da rodagem</TableHead>
-              <TableHead className="min-w-[180px]">Progresso</TableHead>
-              <TableHead className="w-32 text-center">Cancelar</TableHead>
-              <TableHead className="w-28 text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {history.length === 0 ? (
-              <TableRow><TableCell colSpan={12} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
-            ) : history.map((r) => {
-              const status = resolveStatus(r);
-              const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
-              const prog = resolveProgress(r, status);
-              const buildUrl = r.build_url || null;
-              const monErr = safeError(r.monitor_error);
-              const subErr = safeError(r.erro);
-              const errText = monErr || subErr;
-              return (
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail(r)}>
-                  <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell className="text-xs">{TIPO_LABEL[r.tipo_solicitacao || ""] || r.tipo_solicitacao || "—"}</TableCell>
-                  <TableCell className="text-xs">{MODO_LABEL[r.modo_configuracao || ""] || r.modo_configuracao || "—"}</TableCell>
-                  <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
-                  <TableCell className="text-xs">{r.versao}</TableCell>
-                  <TableCell className="text-xs">{r.modulo_nome || r.modulo_codigo || "—"}</TableCell>
-                  <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
-                  <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col gap-1">
-                      <ProgressBar value={prog.value} color={meta.bar} indeterminate={prog.indeterminate || meta.animated && status === "rodando" && prog.indeterminate} />
-                      <div className="text-[10px] text-muted-foreground">
-                        {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                    {CANCELABLE_STATUSES.has(status) ? (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 px-2 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
-                          try {
-                            await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
-                            toast.success("Cancelamento solicitado", {
-                              description: "O Bridge irá confirmar o cancelamento no Jenkins.",
-                            });
-                            load();
-                          } catch (err) {
-                            console.error(err);
-                            toast.error("Falha ao solicitar cancelamento");
-                          }
-                        }}
-                      >
-                        <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
-                      </Button>
-                    ) : CANCEL_PENDING_STATUSES.has(status) ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
-                        <XCircle className="h-3.5 w-3.5" /> Cancelando…
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-end gap-1">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>
-                            <Info className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Detalhes</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button size="sm" variant="ghost" onClick={() => {
-                            navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
-                            toast.success("CONFIG_JSON copiado");
-                          }}>
-                            <Copy className="h-3.5 w-3.5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Copiar CONFIG_JSON</TooltipContent>
-                      </Tooltip>
-                      {buildUrl && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <a href={buildUrl} target="_blank" rel="noreferrer">
-                              <Button size="sm" variant="ghost">
-                                <ExternalLink className="h-3.5 w-3.5" />
-                              </Button>
-                            </a>
-                          </TooltipTrigger>
-                          <TooltipContent>Abrir build</TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Data/hora</TableHead>
+                  <TableHead>VM</TableHead>
+                  <TableHead>Versão</TableHead>
+                  <TableHead>Módulo</TableHead>
+                  <TableHead>Casos</TableHead>
+                  <TableHead>Agendado</TableHead>
+                  <TableHead>Status da rodagem</TableHead>
+                  <TableHead className="min-w-[180px]">Progresso</TableHead>
+                  <TableHead className="w-32 text-center">Cancelar</TableHead>
+                  <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-          </Table>
-        </div>
-      </Card>
-
+              </TableHeader>
+              <TableBody>
+                {history.length === 0 ? (
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                ) : history.map((r) => {
+                  const status = resolveStatus(r);
+                  const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
+                  const prog = resolveProgress(r, status);
+                  const buildUrl = r.build_url || null;
+                  const monErr = safeError(r.monitor_error);
+                  const subErr = safeError(r.erro);
+                  const errText = monErr || subErr;
+                  return (
+                    <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail(r)}>
+                      <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
+                      <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
+                      <TableCell className="text-xs">{r.versao}</TableCell>
+                      <TableCell className="text-xs">{r.modulo_nome || r.modulo_codigo || "—"}</TableCell>
+                      <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
+                      <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col gap-1">
+                          <ProgressBar value={prog.value} color={meta.bar} indeterminate={prog.indeterminate || meta.animated && status === "rodando" && prog.indeterminate} />
+                          <div className="text-[10px] text-muted-foreground">
+                            {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
+                        {CANCELABLE_STATUSES.has(status) ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
+                              try {
+                                await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
+                                toast.success("Cancelamento solicitado", {
+                                  description: "O Bridge irá confirmar o cancelamento no Jenkins.",
+                                });
+                                load();
+                              } catch (err) {
+                                console.error(err);
+                                toast.error("Falha ao solicitar cancelamento");
+                              }
+                            }}
+                          >
+                            <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                          </Button>
+                        ) : CANCEL_PENDING_STATUSES.has(status) ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
+                            <XCircle className="h-3.5 w-3.5" /> Cancelando…
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>
+                                <Info className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Detalhes</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
+                                toast.success("CONFIG_JSON copiado");
+                              }}>
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Copiar CONFIG_JSON</TooltipContent>
+                          </Tooltip>
+                          {buildUrl && (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <a href={buildUrl} target="_blank" rel="noreferrer">
+                                  <Button size="sm" variant="ghost">
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                  </Button>
+                                </a>
+                              </TooltipTrigger>
+                              <TooltipContent>Abrir build</TooltipContent>
+                            </Tooltip>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
+      )}
 
       <DetailDialog request={detail} onClose={() => setDetail(null)} />
     </TooltipProvider>
