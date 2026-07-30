@@ -127,6 +127,7 @@ function safeError(s?: string | null): string | null {
 export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { title?: string; limit?: number }) {
   const [history, setHistory] = useState<RerunRequest[]>([]);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
+  const [expanded, setExpanded] = useState(true);
   const pollingRef = useRef<number | null>(null);
 
   const load = async () => setHistory(await fetchRerunRequests(limit));
