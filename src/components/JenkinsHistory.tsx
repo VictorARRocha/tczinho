@@ -215,7 +215,6 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                   const buildUrl = r.build_url || null;
                   const monErr = safeError(r.monitor_error);
                   const subErr = safeError(r.erro);
-                  const errText = monErr || subErr;
                   return (
                     <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail(r)}>
                       <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
