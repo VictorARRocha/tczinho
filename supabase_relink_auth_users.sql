@@ -6,6 +6,44 @@
 
 begin;
 
+-- Torna novos cadastros compatíveis com perfis trazidos do projeto antigo:
+-- se o username já existir, preserva o perfil/aprovação e troca somente o
+-- vínculo para a nova conta do Authentication.
+create or replace function public.agent_tc_handle_new_user()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  insert into public.agent_tc_app_users (
+    id, auth_user_id, username, first_name, last_name, email, status, role
+  )
+  values (
+    new.id,
+    new.id,
+    coalesce(new.raw_user_meta_data->>'username', split_part(new.email, '@', 1)),
+    new.raw_user_meta_data->>'first_name',
+    new.raw_user_meta_data->>'last_name',
+    new.email,
+    'pending',
+    'user'
+  )
+  on conflict (username) do update
+    set auth_user_id = excluded.auth_user_id,
+        email = excluded.email,
+        first_name = coalesce(public.agent_tc_app_users.first_name, excluded.first_name),
+        last_name = coalesce(public.agent_tc_app_users.last_name, excluded.last_name),
+        updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists agent_tc_on_auth_user_created on auth.users;
+create trigger agent_tc_on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.agent_tc_handle_new_user();
+
 -- Interrompe sem alterar nada se houver nomes duplicados no Authentication.
 do $$
 begin
