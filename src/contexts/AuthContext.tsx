@@ -46,7 +46,7 @@ function getUserMetadata(user: User) {
 
 export function usernameToEmail(username: string) {
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
-  return `${norm}@agent-tc.local`;
+  return `${norm}@agent-tc.com`;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
