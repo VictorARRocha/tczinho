@@ -6,6 +6,14 @@
 
 begin;
 
+-- Garante as colunas usadas abaixo (perfis importados podem não tê-las).
+alter table public.agent_tc_app_users add column if not exists email text;
+alter table public.agent_tc_app_users add column if not exists first_name text;
+alter table public.agent_tc_app_users add column if not exists last_name text;
+alter table public.agent_tc_app_users add column if not exists updated_at timestamptz default now();
+
+
+
 -- Torna novos cadastros compatíveis com perfis trazidos do projeto antigo:
 -- se o username já existir, preserva o perfil/aprovação e troca somente o
 -- vínculo para a nova conta do Authentication.
