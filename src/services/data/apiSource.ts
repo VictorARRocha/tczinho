@@ -245,7 +245,9 @@ export const ApiQaDataSource: QaDataSource = {
   fetchAllRuns: () => req<RodagemListItem[]>(`/runs`).catch(() => { notImplemented("fetchAllRuns"); return []; }),
 
   fetchFailuresByRun: (runId) =>
-    req<Falha[]>(`/runs/${encodeURIComponent(runId)}/failures`).catch(() => { notImplemented("fetchFailuresByRun"); return []; }),
+    req<Falha[]>(`/runs/${encodeURIComponent(runId)}/failures`)
+      .then((list) => (list || []).map((f) => normalizeFailure(f)))
+      .catch(() => { notImplemented("fetchFailuresByRun"); return []; }),
 
   fetchEvidenceByRun: (runId) =>
     req<Evidencia[]>(`/runs/${encodeURIComponent(runId)}/evidences`).catch(() => { notImplemented("fetchEvidenceByRun"); return []; }),
