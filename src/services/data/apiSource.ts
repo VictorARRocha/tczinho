@@ -277,7 +277,9 @@ export const ApiQaDataSource: QaDataSource = {
     req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`).catch(() => { notImplemented("fetchTestcaseHierarchy"); return []; }),
 
   fetchCasosReexecutaveis: (runId) =>
-    req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`).catch(() => { notImplemented("fetchCasosReexecutaveis"); return []; }),
+    req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`)
+      .then((list) => (list || []).map((c) => normalizeFailure(c) as CasoReexecutavel))
+      .catch(() => { notImplemented("fetchCasosReexecutaveis"); return []; }),
 
   fetchRerunRequests: (limit = 50) =>
     req<ApiRow[]>(`/rerun-requests?limit=${limit}`)
