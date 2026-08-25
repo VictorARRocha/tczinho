@@ -189,6 +189,34 @@ function normalizeRerunRequest(row: ApiRow): RerunRequest {
   };
 }
 
+// Extrai o ID do caso a partir do nome do arquivo compactado.
+// Formatos aceitos: "[19.600.3.3] - 9001 082020 PC - ....RAR" e
+// "19.700.1 - 25-08-2026 01_45_44.RAR".
+function caseIdFromArchiveName(name: string): string | null {
+  if (!name) return null;
+  const bracket = name.match(/\[(\d+(?:\.\d+)*)\]/);
+  if (bracket) return bracket[1];
+  const prefix = name.match(/^\s*(\d+(?:\.\d+)*)\s*[-_ ]/);
+  if (prefix) return prefix[1];
+  return null;
+}
+
+// O analyzer às vezes devolve id_caso_teste = "ID invalido" quando não
+// consegue parsear o nome do arquivo (ex.: ID entre colchetes). Nesses
+// casos, recuperamos o ID a partir do nome do arquivo de origem.
+function normalizeFailure<T extends Partial<Falha> & Record<string, any>>(row: T): T {
+  if (!row) return row;
+  const raw = textValue((row as any).id_caso_teste).trim();
+  if (!raw || !/\d/.test(raw)) {
+    const recovered =
+      caseIdFromArchiveName(textValue((row as any).arquivo_origem)) ||
+      caseIdFromArchiveName(textValue((row as any).arquivo_zip)) ||
+      caseIdFromArchiveName(textValue((row as any).source_archive_name));
+    if (recovered) (row as any).id_caso_teste = recovered;
+  }
+  return row;
+}
+
 function normalizeRun<T extends Partial<Rodagem> & Record<string, any>>(row: T | null): T | null {
   if (!row) return row;
   const executed = (row as any).total_executed ?? (row as any).total_analisados ?? (row as any).total_casos;
@@ -217,7 +245,9 @@ export const ApiQaDataSource: QaDataSource = {
   fetchAllRuns: () => req<RodagemListItem[]>(`/runs`).catch(() => { notImplemented("fetchAllRuns"); return []; }),
 
   fetchFailuresByRun: (runId) =>
-    req<Falha[]>(`/runs/${encodeURIComponent(runId)}/failures`).catch(() => { notImplemented("fetchFailuresByRun"); return []; }),
+    req<Falha[]>(`/runs/${encodeURIComponent(runId)}/failures`)
+      .then((list) => (list || []).map((f) => normalizeFailure(f)))
+      .catch(() => { notImplemented("fetchFailuresByRun"); return []; }),
 
   fetchEvidenceByRun: (runId) =>
     req<Evidencia[]>(`/runs/${encodeURIComponent(runId)}/evidences`).catch(() => { notImplemented("fetchEvidenceByRun"); return []; }),
@@ -247,7 +277,9 @@ export const ApiQaDataSource: QaDataSource = {
     req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`).catch(() => { notImplemented("fetchTestcaseHierarchy"); return []; }),
 
   fetchCasosReexecutaveis: (runId) =>
-    req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`).catch(() => { notImplemented("fetchCasosReexecutaveis"); return []; }),
+    req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`)
+      .then((list) => (list || []).map((c) => normalizeFailure(c) as CasoReexecutavel))
+      .catch(() => { notImplemented("fetchCasosReexecutaveis"); return []; }),
 
   fetchRerunRequests: (limit = 50) =>
     req<ApiRow[]>(`/rerun-requests?limit=${limit}`)
