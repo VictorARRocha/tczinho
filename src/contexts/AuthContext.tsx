@@ -178,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { username: username.trim(), first_name, last_name },
+        data: { username: normalizeUsername(username), first_name, last_name },
       },
     });
     return { error: error?.message ?? null };
