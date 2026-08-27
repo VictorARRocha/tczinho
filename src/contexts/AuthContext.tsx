@@ -44,10 +44,23 @@ function getUserMetadata(user: User) {
   };
 }
 
+export function normalizeUsername(username: string) {
+  return username
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9._-]/g, "");
+}
+
 export function usernameToEmail(username: string) {
+  // mantém o formato antigo (espaços removidos) para não quebrar logins existentes
   const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
   return `${norm}@agent-tc.com`;
 }
+
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -165,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password,
       options: {
         emailRedirectTo: window.location.origin,
-        data: { username: username.trim(), first_name, last_name },
+        data: { username: normalizeUsername(username), first_name, last_name },
       },
     });
     return { error: error?.message ?? null };
