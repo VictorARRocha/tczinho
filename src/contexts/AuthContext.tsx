@@ -44,10 +44,20 @@ function getUserMetadata(user: User) {
   };
 }
 
-export function usernameToEmail(username: string) {
-  const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
-  return `${norm}@agent-tc.com`;
+export function normalizeUsername(username: string) {
+  return username
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9._-]/g, "");
 }
+
+export function usernameToEmail(username: string) {
+  return `${normalizeUsername(username).replace(/[^a-z0-9._-]/g, "")}@agent-tc.com`;
+}
+
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
