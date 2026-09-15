@@ -1,7 +1,6 @@
 // =====================================================================
-// QaDataSource — camada de dados abstrata do dashboard.
-// Implementações: SupabaseQaDataSource (atual) e ApiQaDataSource (futuro).
-// Trocada via VITE_DATA_PROVIDER=supabase|api.
+// QaDataSource - contrato da camada de dados do dashboard.
+// Implementacao atual: ApiQaDataSource.
 // =====================================================================
 import type {
   Modulo,

@@ -164,7 +164,7 @@ export function AppSidebar() {
               <span className="absolute inline-flex h-full w-full animate-pulse-glow rounded-full bg-success" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
             </span>
-            Conectado ao Supabase
+            Conectado a API
           </div>
         )}
       </SidebarFooter>

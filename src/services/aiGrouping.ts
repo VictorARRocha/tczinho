@@ -3,15 +3,14 @@
 //   GET  /runs/{runId}/ai-group-status
 //   POST /runs/{runId}/ai-group
 //
-// A IA (OpenAI) é chamada pelo backend Python. O frontend apenas
-// dispara e atualiza a tela. Nunca chame OpenAI aqui.
+// A IA e chamada pelo backend Python. O frontend apenas dispara e
+// atualiza a tela.
 //
-// Autenticação: SEMPRE enviar Authorization: Bearer {session.access_token}
-// obtido via supabase.auth.getSession(). Nunca usar service_role nem anon
-// key como Bearer.
+// Autenticacao: SEMPRE enviar Authorization: Bearer {token local}
+// emitido pela API em /auth/login. Nunca usar service_role nem anon key.
 // =====================================================================
 import { getDataConfig } from "./data/config";
-import { supabase } from "@/lib/supabase";
+import { getAuthToken } from "@/services/authApi";
 
 export type AiGroupStatus = "not_requested" | "running" | "completed" | "failed";
 
@@ -32,31 +31,14 @@ export interface AiGroupError {
   message: string;
 }
 
-async function getAccessToken(): Promise<string | null> {
-  const { data } = await supabase.auth.getSession();
-  let token = data.session?.access_token ?? null;
-  const expiresAt = data.session?.expires_at ?? 0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  // Se expirado ou prestes a expirar (<30s), tenta renovar.
-  if (!token || (expiresAt && expiresAt - nowSec < 30)) {
-    try {
-      const { data: refreshed } = await supabase.auth.refreshSession();
-      token = refreshed.session?.access_token ?? token;
-    } catch {
-      /* ignore — cai no fluxo de "sem token" abaixo */
-    }
-  }
-  return token;
-}
-
-async function authHeaders(required: boolean): Promise<Record<string, string>> {
-  const token = await getAccessToken();
+function authHeaders(required: boolean): Record<string, string> {
+  const token = getAuthToken();
   if (!token) {
     if (required) {
       const err: AiGroupError = {
         status: 401,
         code: "not_authenticated",
-        message: "Sessão expirada ou sem permissão. Faça login novamente.",
+        message: "Sessao expirada ou sem permissao. Faca login novamente.",
       };
       throw err;
     }
@@ -67,7 +49,7 @@ async function authHeaders(required: boolean): Promise<Record<string, string>> {
 
 function baseUrl(): string {
   const { apiBaseUrl } = getDataConfig();
-  if (!apiBaseUrl) throw new Error("VITE_AGENT_TC_API_URL não configurada");
+  if (!apiBaseUrl) throw new Error("VITE_AGENT_TC_API_URL nao configurada");
   return apiBaseUrl.replace(/\/+$/, "");
 }
 
@@ -79,22 +61,21 @@ async function parseError(res: Response): Promise<AiGroupError> {
     code = body?.error || body?.code;
     message = body?.message || body?.detail || code || message;
   } catch {
-    /* ignore */
+    // Mantem a mensagem HTTP padrao.
   }
   return { status: res.status, code, message };
 }
 
 export async function fetchAiGroupStatus(runId: string): Promise<AiGroupStatusResponse> {
   const res = await fetch(`${baseUrl()}/runs/${encodeURIComponent(runId)}/ai-group-status`, {
-    headers: { "Content-Type": "application/json", ...(await authHeaders(true)) },
+    headers: { "Content-Type": "application/json", ...authHeaders(true) },
   });
   if (!res.ok) throw await parseError(res);
   return (await res.json()) as AiGroupStatusResponse;
 }
 
 export async function requestAiGrouping(runId: string, dryRun = false): Promise<AiGroupStatusResponse> {
-  // Auth obrigatória — não chama a API sem Bearer.
-  const auth = await authHeaders(true);
+  const auth = authHeaders(true);
   const res = await fetch(`${baseUrl()}/runs/${encodeURIComponent(runId)}/ai-group`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...auth },

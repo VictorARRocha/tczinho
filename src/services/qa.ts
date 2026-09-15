@@ -2,17 +2,9 @@
 // qa.ts — utilitários puros compartilhados pelo dashboard.
 //
 // IMPORTANTE:
-// As tabelas legadas (modulos, rodagens, falhas, evidencias, agrupamentos,
-// proximos_passos, atrasos_rodagem, rerun_requests, testcase_hierarchy)
-// serão removidas do Supabase. Toda leitura de dados de QA agora passa pelo
-// ApiQaDataSource (VITE_DATA_PROVIDER=api). Este arquivo mantém somente:
-//   - Tipos usados pela UI e pela camada de dados
-//   - Helpers puros (formatação, merge de evidências, extração de VM)
-//   - Listagem de arquivos direto no Storage do Supabase (Storage != tabelas)
-//
-// Nunca reintroduzir consultas às tabelas legadas aqui.
+// Toda leitura de dados de QA passa pela API Agent TC.
+// Este arquivo mantem apenas tipos e helpers puros usados pela UI.
 // =====================================================================
-import { supabase, STORAGE_BUCKET, STORAGE_BUCKET_FALLBACKS } from "@/lib/supabase";
 import type { Evidencia } from "@/types/db";
 
 // =====================================================================
@@ -153,7 +145,7 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
     modulo_slug: row?.modulo_slug ?? modulo_slug,
     tipo: finalTipo,
     nome_arquivo: nome,
-    bucket: row?.bucket ?? STORAGE_BUCKET,
+    bucket: row?.bucket ?? "local",
     storage_path: path,
     public_url: row?.public_url ?? null,
     signed_url: row?.signed_url ?? null,
@@ -173,96 +165,12 @@ function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
 // Estrutura esperada:
 //   {moduloSlug}/{rodagemFolder}/falhas/{pastaDaFalha}/{comparacao|imagens|zip|...}/arquivo
 // =====================================================================
-async function listAllUnderBucket(bucket: string, prefix: string): Promise<{ path: string; meta: any }[]> {
-  const out: { path: string; meta: any }[] = [];
-  const stack = [prefix.replace(/\/+$/, "")];
-  let safety = 0;
-  while (stack.length && safety++ < 500) {
-    const cur = stack.pop()!;
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .list(cur, { limit: 1000, sortBy: { column: "name", order: "asc" } });
-    if (error) continue;
-    for (const item of data || []) {
-      const full = cur ? `${cur}/${item.name}` : item.name;
-      if ((item as any).id == null && !item.metadata) stack.push(full);
-      else out.push({ path: full, meta: item });
-    }
-  }
-  return out;
-}
-
-async function listAllUnder(prefix: string): Promise<{ bucket: string; path: string; meta: any }[]> {
-  const buckets = [STORAGE_BUCKET, ...STORAGE_BUCKET_FALLBACKS];
-  for (const b of buckets) {
-    const r = await listAllUnderBucket(b, prefix);
-    if (r.length > 0) return r.map((x) => ({ bucket: b, ...x }));
-  }
-  return [];
-}
-
-function lastSegment(p?: string | null): string {
-  if (!p) return "";
-  return p.toString().split(/[\\/]/).filter(Boolean).pop() || "";
-}
-
 export async function listStorageFilesByRun(
-  runId: string,
-  moduloSlug?: string,
-  pastaOrigem?: string | null,
+  _runId: string,
+  _moduloSlug?: string,
+  _pastaOrigem?: string | null,
 ): Promise<Evidencia[]> {
-  if (!runId && !pastaOrigem) return [];
-  const runFolder = lastSegment(pastaOrigem) || runId;
-
-  const candidates = Array.from(
-    new Set(
-      [
-        moduloSlug ? `${moduloSlug}/${runFolder}` : "",
-        moduloSlug ? `${moduloSlug}/${runId}` : "",
-        runFolder,
-        runId,
-        `rodagens/${runFolder}`,
-        `rodagens/${runId}`,
-      ].filter(Boolean),
-    ),
-  );
-
-  let collected: { bucket: string; path: string; meta: any }[] = [];
-  let usedRoot = "";
-  for (const prefix of candidates) {
-    const files = await listAllUnder(prefix);
-    if (files.length > 0) {
-      collected = files;
-      usedRoot = prefix;
-      break;
-    }
-  }
-  if (collected.length === 0) return [];
-  console.log(`[storage] ${collected.length} arquivos em ${usedRoot}`);
-
-  return collected.map((f) => {
-    const name = f.path.split("/").pop() || f.path;
-    const ext = (name.split(".").pop() || "").toLowerCase();
-    const mime = (f.meta?.metadata?.mimetype as string | undefined) ?? null;
-    const isComparacao = /\/comparacao\//i.test(f.path) || /(^|\/)comparacao\//i.test(f.path);
-    return normEvidencia(
-      {
-        id_evidencia: `storage:${f.bucket}:${f.path}`,
-        falha_id: null,
-        rodagem_id: runId,
-        nome_arquivo: name,
-        storage_path: f.path,
-        bucket: f.bucket,
-        mime_type: mime,
-        extensao: ext,
-        tamanho_bytes: f.meta?.metadata?.size ?? null,
-        created_at: f.meta?.created_at ?? "",
-        tipo: isComparacao ? "comparacao" : undefined,
-      },
-      runId,
-      moduloSlug || "",
-    );
-  });
+  return [];
 }
 
 /** Mescla evidências do banco com arquivos descobertos no Storage (sem duplicar storage_path). */

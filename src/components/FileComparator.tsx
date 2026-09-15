@@ -12,21 +12,14 @@ import {
   FileText,
   Image as ImageIcon,
 } from "lucide-react";
-import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
 import type { Evidencia, Falha } from "@/types/db";
+import { resolveEvidenceUrl } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
 import { diffLines, type DiffLine } from "@/lib/diff";
 import { toast } from "sonner";
 
 async function resolveUrl(ev?: Evidencia): Promise<string | null> {
-  if (!ev) return null;
-  if (ev.public_url) return ev.public_url;
-  if (ev.signed_url) return ev.signed_url;
-  const bucket = ev.bucket || STORAGE_BUCKET;
-  if (!ev.storage_path) return null;
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60);
-  if (error) { console.error("[comparator] signed url", error); return null; }
-  return data?.signedUrl || null;
+  return resolveEvidenceUrl(ev);
 }
 
 function countReplacementChars(text: string): number {

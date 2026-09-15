@@ -1,26 +1,38 @@
-import { createContext, useContext, useEffect, useMemo, useState, useCallback, ReactNode } from "react";
-import type { Session, User } from "@supabase/supabase-js";
-import { supabase } from "@/lib/supabase";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  authApi,
+  clearAuthToken,
+  getAuthToken,
+  normalizeUsername,
+  setAuthToken,
+} from "@/services/authApi";
+import type { AppUserProfile, AppUserRole, AppUserStatus, LocalAuthError, LocalAuthSession } from "@/services/authApi";
 
-export type AppUserStatus = "pending" | "approved" | "rejected" | "disabled";
-export type AppUserRole = "user" | "admin";
+export type { AppUserProfile, AppUserRole, AppUserStatus };
 
-export interface AppUserProfile {
+export interface AppSession {
+  access_token: string;
+  token: string;
+  session?: LocalAuthSession;
+  user: AppUserProfile;
+}
+
+export interface AppAuthUser {
   id: string;
-  auth_user_id?: string | null;
-  username: string;
-  first_name: string | null;
-  last_name: string | null;
   email: string | null;
-  role: AppUserRole;
-  status: AppUserStatus;
-  rejection_reason?: string | null;
+  username: string;
+  user_metadata: {
+    username: string;
+    first_name: string | null;
+    last_name: string | null;
+  };
 }
 
 interface AuthContextValue {
   loading: boolean;
-  session: Session | null;
-  user: User | null;
+  session: AppSession | null;
+  user: AppAuthUser | null;
   profile: AppUserProfile | null;
   isAdmin: boolean;
   isApproved: boolean;
@@ -32,165 +44,139 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-const PROFILE_SELECT = "id,auth_user_id,username,first_name,last_name,email,role,status,rejection_reason";
-const PROFILE_SELECT_LEGACY = "id,username,first_name,last_name,email,role,status,rejection_reason";
-
-function getUserMetadata(user: User) {
+function profileToUser(profile: AppUserProfile): AppAuthUser {
   return {
-    username: (user.user_metadata?.username as string | undefined)?.trim() || user.email?.split("@")[0] || user.id,
-    first_name: (user.user_metadata?.first_name as string | undefined) ?? null,
-    last_name: (user.user_metadata?.last_name as string | undefined) ?? null,
-    email: user.email ?? null,
+    id: profile.id,
+    email: profile.email,
+    username: profile.username,
+    user_metadata: {
+      username: profile.username,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+    },
   };
 }
 
-export function normalizeUsername(username: string) {
-  return username
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, ".")
-    .replace(/[^a-z0-9._-]/g, "");
+function buildSession(token: string, user: AppUserProfile, session?: LocalAuthSession): AppSession {
+  return {
+    access_token: token,
+    token,
+    session,
+    user,
+  };
+}
+
+function authMessage(error: unknown): string {
+  const err = error as LocalAuthError;
+  return err?.message || "Falha ao autenticar.";
 }
 
 export function usernameToEmail(username: string) {
-  // mantém o formato antigo (espaços removidos) para não quebrar logins existentes
-  const norm = username.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9._-]/g, "");
-  return `${norm}@agent-tc.com`;
+  return `${normalizeUsername(username)}@agent-tc.local`;
 }
 
-
+export { normalizeUsername };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<AppSession | null>(null);
   const [profile, setProfile] = useState<AppUserProfile | null>(null);
 
-  const loadProfile = useCallback(async (userOrUid: User | string) => {
-    const uid = typeof userOrUid === "string" ? userOrUid : userOrUid.id;
-    const fetchProfile = async (column: "id" | "auth_user_id") => {
-      let { data, error } = await supabase
-        .from("agent_tc_app_users")
-        .select(PROFILE_SELECT)
-        .eq(column, uid)
-        .maybeSingle();
-
-      if (error && error.message.toLowerCase().includes("auth_user_id")) {
-        if (column === "auth_user_id") return null;
-        ({ data, error } = await supabase
-          .from("agent_tc_app_users")
-          .select(PROFILE_SELECT_LEGACY)
-          .eq(column, uid)
-          .maybeSingle());
-      }
-
-      if (error) {
-        console.warn(`[auth] Falha ao buscar perfil por ${column}:`, error.message);
-        return null;
-      }
-
-      return (data as AppUserProfile | null) ?? null;
-    };
-
-    const ensureProfile = async () => {
-      if (typeof userOrUid === "string") return null;
-
-      const meta = getUserMetadata(userOrUid);
-      const baseProfile = {
-        id: uid,
-        username: meta.username,
-        first_name: meta.first_name,
-        last_name: meta.last_name,
-        email: meta.email,
-      };
-      const upsertProfile = (row: typeof baseProfile & { auth_user_id?: string }) =>
-        supabase
-          .from("agent_tc_app_users")
-          .upsert(row, { onConflict: "id", ignoreDuplicates: true })
-          .select(PROFILE_SELECT)
-          .maybeSingle();
-
-      let { data, error } = await upsertProfile({ ...baseProfile, auth_user_id: uid });
-
-      if (error?.message?.toLowerCase().includes("auth_user_id")) {
-        ({ data, error } = await upsertProfile(baseProfile));
-      }
-
-      if (error) {
-        console.warn("[auth] Não foi possível criar/vincular perfil automaticamente:", error.message);
-        return null;
-      }
-
-      return (data as AppUserProfile | null) ?? null;
-    };
-
-    const p = (await fetchProfile("id")) ?? (await fetchProfile("auth_user_id")) ?? (await ensureProfile());
-    setProfile((p as AppUserProfile) ?? null);
+  const applySession = useCallback((token: string, user: AppUserProfile, localSession?: LocalAuthSession) => {
+    setAuthToken(token);
+    setSession(buildSession(token, user, localSession));
+    setProfile(user);
   }, []);
+
+  const clearSession = useCallback(() => {
+    clearAuthToken();
+    setSession(null);
+    setProfile(null);
+  }, []);
+
+  const refreshProfile = useCallback(async () => {
+    const token = getAuthToken();
+    if (!token) {
+      clearSession();
+      return;
+    }
+
+    try {
+      const { user } = await authApi.me();
+      setSession((current) => buildSession(token, user, current?.session));
+      setProfile(user);
+    } catch {
+      clearSession();
+    }
+  }, [clearSession]);
 
   useEffect(() => {
     let mounted = true;
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
-      if (!mounted) return;
-      setSession(sess);
-      if (sess?.user) {
-        setTimeout(() => loadProfile(sess.user).finally(() => setLoading(false)), 0);
-      } else {
-        setProfile(null);
-        setLoading(false);
+    async function loadStoredSession() {
+      const token = getAuthToken();
+      if (!token) {
+        if (mounted) setLoading(false);
+        return;
       }
-    });
 
+      try {
+        const { user } = await authApi.me();
+        if (!mounted) return;
+        setSession(buildSession(token, user));
+        setProfile(user);
+      } catch {
+        if (mounted) clearSession();
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
+
+    loadStoredSession();
     return () => {
       mounted = false;
-      sub.subscription.unsubscribe();
     };
-  }, [loadProfile]);
+  }, [clearSession]);
 
-  // Realtime: reagir a mudanças no próprio perfil do usuário logado.
-  useEffect(() => {
-    const uid = session?.user?.id;
-    if (!uid) return;
-    const profileId = profile?.id;
-    const isOwnProfileRow = (row: any) => row?.id === uid || row?.auth_user_id === uid || (!!profileId && row?.id === profileId);
-    const reload = () => loadProfile(uid);
-    const channel = supabase
-      .channel(`self-profile-${uid}-${profileId ?? "pending"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
-        if (isOwnProfileRow(payload.new) || isOwnProfileRow(payload.old)) reload();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [session?.user?.id, profile?.id, loadProfile]);
+  const signIn = useCallback<AuthContextValue["signIn"]>(async (username, password) => {
+    try {
+      const result = await authApi.login(username, password);
+      applySession(result.token, result.user, result.session);
+      return { error: null };
+    } catch (error) {
+      clearSession();
+      return { error: authMessage(error) };
+    }
+  }, [applySession, clearSession]);
 
-  const signIn: AuthContextValue["signIn"] = async (username, password) => {
-    const email = usernameToEmail(username);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error?.message ?? null };
-  };
+  const signUp = useCallback<AuthContextValue["signUp"]>(async ({ username, first_name, last_name, password }) => {
+    try {
+      const normalizedUsername = normalizeUsername(username);
+      await authApi.register({ username: normalizedUsername, first_name, last_name, password });
 
-  const signUp: AuthContextValue["signUp"] = async ({ username, first_name, last_name, password }) => {
-    const email = usernameToEmail(username);
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: window.location.origin,
-        data: { username: normalizeUsername(username), first_name, last_name },
-      },
-    });
-    return { error: error?.message ?? null };
-  };
+      try {
+        const result = await authApi.login(normalizedUsername, password);
+        applySession(result.token, result.user, result.session);
+      } catch (error) {
+        const err = error as LocalAuthError;
+        if (err?.code !== "user_not_approved" && err?.status !== 403) {
+          throw error;
+        }
+      }
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-  };
+      return { error: null };
+    } catch (error) {
+      return { error: authMessage(error) };
+    }
+  }, [applySession]);
 
-  const refreshProfile = useCallback(async () => {
-    if (session?.user) await loadProfile(session.user.id);
-  }, [session, loadProfile]);
+  const signOut = useCallback(async () => {
+    try {
+      if (getAuthToken()) await authApi.logout();
+    } finally {
+      clearSession();
+    }
+  }, [clearSession]);
 
   const value = useMemo<AuthContextValue>(() => {
     const isAdmin = profile?.role === "admin" && profile?.status === "approved";
@@ -198,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {
       loading,
       session,
-      user: session?.user ?? null,
+      user: profile ? profileToUser(profile) : null,
       profile,
       isAdmin,
       isApproved,
@@ -207,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signOut,
       refreshProfile,
     };
-  }, [loading, session, profile, refreshProfile]);
+  }, [loading, session, profile, signIn, signUp, signOut, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

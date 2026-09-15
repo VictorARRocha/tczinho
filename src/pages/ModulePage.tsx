@@ -36,17 +36,14 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+import { resolveEvidenceUrl } from "@/lib/evidenceUrl";
 import { useDebounce } from "@/hooks/useDebounce";
 
 async function handleEvidenceDownload(ev: Evidencia) {
-  const direct = ev.public_url || ev.signed_url;
+  const direct = resolveEvidenceUrl(ev);
   if (direct) { window.open(direct, "_blank", "noopener,noreferrer"); return; }
-  const bucket = ev.bucket || STORAGE_BUCKET;
   if (!ev.storage_path) { toast.error("Sem URL disponível"); return; }
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60);
-  if (error || !data?.signedUrl) { toast.error("Falha ao gerar link"); return; }
-  window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  toast.error("Sem URL disponivel");
 }
 
 const CASE_NOT_FOUND_RE = /n[aã]o\s+encontrado(?:\s+no\s+.*\.mds)?/i;

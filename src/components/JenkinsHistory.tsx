@@ -330,7 +330,7 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Detalhes da solicitação</DialogTitle>
-          <DialogDescription>Dados completos lidos do Supabase.</DialogDescription>
+          <DialogDescription>Dados completos lidos da API.</DialogDescription>
         </DialogHeader>
         {r && (() => {
           const status = resolveStatus(r);

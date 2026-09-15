@@ -25,7 +25,7 @@ export default function Dashboard() {
       );
       setData(results);
     } catch (e: any) {
-      toast.error("Erro ao conectar Supabase", { description: e?.message });
+      toast.error("Erro ao conectar API", { description: e?.message });
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ function EmptyState() {
       </div>
       <h3 className="text-lg font-semibold">Sem dados reais ainda</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-        Nenhum módulo encontrado. Execute as migrations no Supabase do projeto TC Agente SCI para começar.
+        Nenhum modulo encontrado. Verifique se a API esta apontando para o banco correto.
       </p>
     </Card>
   );

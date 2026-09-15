@@ -1,28 +1,20 @@
 // =====================================================================
 // Ponto de entrada da camada de dados.
 //
-// Use SEMPRE via `qaData` — nunca importe supabase-js direto nos componentes.
+// Use SEMPRE via `qaData`.
 //   import { qaData } from "@/services/data";
 //   const modulos = await qaData.fetchModules();
 //
-// O provider padrão é Supabase. Para trocar para a API REST futura:
+// O provider padrao e API. Para trocar explicitamente:
 //   VITE_DATA_PROVIDER=api
 //   VITE_AGENT_TC_API_URL=http://localhost:8000
 // =====================================================================
-import { getDataConfig } from "./config";
-import { SupabaseQaDataSource } from "./supabaseSource";
 import { ApiQaDataSource } from "./apiSource";
 import type { QaDataSource } from "./types";
 
-function pickProvider(): QaDataSource {
-  const { provider } = getDataConfig();
-  return provider === "api" ? ApiQaDataSource : SupabaseQaDataSource;
-}
-
-export const qaData: QaDataSource = pickProvider();
+export const qaData: QaDataSource = ApiQaDataSource;
 
 export type { QaDataSource, CreateRerunPayload, RealtimeTable } from "./types";
-export { SupabaseQaDataSource } from "./supabaseSource";
 export { ApiQaDataSource } from "./apiSource";
 export { getDataConfig } from "./config";
 export type {

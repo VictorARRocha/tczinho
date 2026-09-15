@@ -1,15 +1,15 @@
 // =====================================================================
-// Configuração do provider de dados.
+// Configuracao da API de dados.
 //
-// Variáveis (arquivo .env na raiz do projeto):
-//   VITE_DATA_PROVIDER   = "supabase" | "api"   (default: "supabase")
-//   VITE_AGENT_TC_API_URL = "http://localhost:8000"  (usado quando provider="api")
+// Variaveis (arquivo .env na raiz do projeto):
+//   VITE_DATA_PROVIDER=api
+//   VITE_AGENT_TC_API_URL=http://localhost:8000
 //
 // IMPORTANTE:
 //   - Nunca coloque service_role key no frontend.
-//   - Apenas chaves públicas/anon podem existir aqui.
+//   - O dashboard deve falar com a API, nao direto com banco/storage.
 // =====================================================================
-export type DataProvider = "supabase" | "api";
+export type DataProvider = "api";
 
 export interface DataConfig {
   provider: DataProvider;
@@ -17,9 +17,7 @@ export interface DataConfig {
 }
 
 export function getDataConfig(): DataConfig {
-  const raw = (import.meta.env.VITE_DATA_PROVIDER as string | undefined)?.toLowerCase();
-  const provider: DataProvider = raw === "supabase" ? "supabase" : "api";
   const apiBaseUrl =
     (import.meta.env.VITE_AGENT_TC_API_URL as string | undefined) ?? "https://agent-tc-api.onrender.com";
-  return { provider, apiBaseUrl };
+  return { provider: "api", apiBaseUrl };
 }

@@ -27,7 +27,7 @@ export default function Login() {
     setSubmitting(true);
     const { error } = await signIn(username, password);
     setSubmitting(false);
-    if (error) setErr("Usuário ou senha inválidos.");
+    if (error) setErr(error);
     else nav("/", { replace: true });
   }
 

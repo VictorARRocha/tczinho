@@ -4,7 +4,7 @@ import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sh
 import { cn } from "@/lib/utils";
 import type { Falha, Evidencia } from "@/types/db";
 import { fetchEvidenceByFailure } from "@/services/data";
-import { supabase, STORAGE_BUCKET } from "@/lib/supabase";
+import { fetchEvidenceBlob, resolveEvidenceUrl } from "@/lib/evidenceUrl";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,27 +54,6 @@ function evidenceFileName(ev: Evidencia) {
   return ev.nome_arquivo || (ev.storage_path || "").split(/[\\/]/).filter(Boolean).pop() || "evidencia";
 }
 
-async function fetchEvidenceBlob(ev: Evidencia): Promise<Blob | null> {
-  const bucket = ev.bucket || STORAGE_BUCKET;
-  const path = ev.storage_path;
-
-  if (bucket && path) {
-    const { data } = await supabase.storage.from(bucket).download(path);
-    if (data) return data;
-  }
-
-  const url = await resolveDownloadUrl(ev, false);
-  if (!url) return null;
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-    return await response.blob();
-  } catch {
-    return null;
-  }
-}
-
 async function fetchEvidenceText(ev: Evidencia): Promise<string | null> {
   try {
     const blob = await fetchEvidenceBlob(ev);
@@ -102,14 +81,9 @@ function isTxtPlaceholder(s?: string | null): boolean {
 
 
 async function resolveDownloadUrl(ev: Evidencia, showError = true): Promise<string | null> {
-  if (ev.public_url) return ev.public_url;
-  if (ev.signed_url) return ev.signed_url;
-  const bucket = ev.bucket || STORAGE_BUCKET;
-  const path = ev.storage_path;
-  if (!bucket || !path) return null;
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
-  if (error) { if (showError) toast.error("Falha ao gerar link"); return null; }
-  return data?.signedUrl || null;
+  const url = resolveEvidenceUrl(ev);
+  if (!url && showError) toast.error("Falha ao gerar link");
+  return url;
 }
 
 async function handleDownload(ev: Evidencia) {
@@ -472,7 +446,7 @@ function TextPreviewDialog({ title, content, open, onOpenChange }: { title: stri
 function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?: boolean; hideCaption?: boolean }) {
   const isImage = isImageEv(ev);
   const isTxt = ev.tipo === "txt" || (ev.extensao || "").toLowerCase() === "txt";
-  const directUrl = ev.public_url || ev.signed_url || null;
+  const directUrl = resolveEvidenceUrl(ev);
   const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
   const [imgError, setImgError] = useState(false);
   const [visible, setVisible] = useState(!!priority || isTxt);
@@ -495,14 +469,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
 
   useEffect(() => {
     let cancel = false;
-    if (isImage && !directUrl && visible && ev.storage_path) {
-      const bucket = ev.bucket || STORAGE_BUCKET;
-      supabase.storage.from(bucket).createSignedUrl(ev.storage_path, 60 * 60).then(({ data, error }) => {
-        if (cancel) return;
-        if (error || !data?.signedUrl) setImgError(true);
-        else setImgUrl(data.signedUrl);
-      });
-    }
+    if (isImage && !directUrl && visible && ev.storage_path && !cancel) setImgError(true);
     return () => { cancel = true; };
   }, [ev.id, visible]);
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
+import { authApi } from "@/services/authApi";
+import type { AppUserProfile } from "@/services/authApi";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -10,20 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "@/hooks/use-toast";
 import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw } from "lucide-react";
 
-interface AppUserRow {
-  id: string;
-  auth_user_id: string | null;
-  username: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-  role: "user" | "admin";
-  status: "pending" | "approved" | "rejected" | "disabled";
-  created_at: string;
-  approved_at: string | null;
-  rejected_at: string | null;
-  rejection_reason: string | null;
-}
+type AppUserRow = AppUserProfile;
 
 const STATUS_LABEL: Record<AppUserRow["status"], string> = {
   pending: "Pendente",
@@ -31,6 +19,10 @@ const STATUS_LABEL: Record<AppUserRow["status"], string> = {
   rejected: "Rejeitado",
   disabled: "Desativado",
 };
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 
 export default function AdminUsuarios() {
   const { profile, refreshProfile } = useAuth();
@@ -42,93 +34,58 @@ export default function AdminUsuarios() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const primary = await supabase
-      .from("agent_tc_app_users")
-      .select("id,auth_user_id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
-      .order("created_at", { ascending: false });
-    let data = primary.data as any[] | null;
-    let error = primary.error;
-
-    if (error && error.message.toLowerCase().includes("auth_user_id")) {
-      const legacy = await supabase
-        .from("agent_tc_app_users")
-        .select("id,username,first_name,last_name,email,role,status,created_at,approved_at,rejected_at,rejection_reason")
-        .order("created_at", { ascending: false });
-      data = legacy.data as any[] | null;
-      error = legacy.error;
+    try {
+      const { users } = await authApi.users();
+      setUsers(users ?? []);
+    } catch (error) {
+      toast({
+        title: "Erro ao carregar usuarios",
+        description: errorMessage(error, "Falha ao carregar usuarios."),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-
-    if (error) toast({ title: "Erro ao carregar usuários", description: error.message, variant: "destructive" });
-    setUsers((data ?? []) as AppUserRow[]);
-    setLoading(false);
   }, []);
 
   useEffect(() => {
     load();
-
-    const channel = supabase
-      .channel("admin-users-live")
-      .on("postgres_changes", { event: "*", schema: "public", table: "agent_tc_app_users" }, (payload) => {
-        if (payload.eventType === "INSERT") {
-          const uname = (payload.new as any)?.username;
-          toast({ title: "Novo cadastro", description: uname ? `Usuário ${uname} aguarda aprovação.` : "Um novo usuário aguarda aprovação." });
-        }
-        load();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
   }, [load]);
 
-  async function audit(action: string, target: AppUserRow, details?: any) {
+  async function updateUser(u: AppUserRow, data: Parameters<typeof authApi.updateUser>[1], success?: string) {
     try {
-      await supabase.from("agent_tc_admin_audit_log").insert({
-        actor_id: profile?.id,
-        actor_username: profile?.username,
-        target_id: target.id,
-        target_username: target.username,
-        action,
-        details: details ?? null,
+      await authApi.updateUser(u.id, data);
+      if (success) toast({ title: success });
+      if (u.id === profile?.id) await refreshProfile();
+      await load();
+    } catch (error) {
+      toast({
+        title: "Falha",
+        description: errorMessage(error, "Falha ao atualizar usuario."),
+        variant: "destructive",
       });
-    } catch {}
+    }
   }
 
   async function approve(u: AppUserRow) {
-    const { error } = await supabase.from("agent_tc_app_users").update({ status: "approved", approved_at: new Date().toISOString(), approved_by: profile?.id }).eq("id", u.id);
-    if (error) return toast({ title: "Falha", description: error.message, variant: "destructive" });
-    await audit("approve", u);
-    toast({ title: "Usuário aprovado" });
-    load();
+    await updateUser(u, { status: "approved" }, "Usuario aprovado");
   }
 
   async function reject(u: AppUserRow, reason: string) {
-    const { error } = await supabase.from("agent_tc_app_users").update({ status: "rejected", rejected_at: new Date().toISOString(), rejected_by: profile?.id, rejection_reason: reason }).eq("id", u.id);
-    if (error) return toast({ title: "Falha", description: error.message, variant: "destructive" });
-    await audit("reject", u, { reason });
-    toast({ title: "Usuário rejeitado" });
-    load();
+    await updateUser(u, { status: "rejected", rejection_reason: reason }, "Usuario rejeitado");
   }
 
   async function disable(u: AppUserRow) {
-    const { error } = await supabase.from("agent_tc_app_users").update({ status: "disabled", disabled_at: new Date().toISOString(), disabled_by: profile?.id }).eq("id", u.id);
-    if (error) return toast({ title: "Falha", description: error.message, variant: "destructive" });
-    await audit("disable", u);
-    load();
+    await updateUser(u, { status: "disabled" });
   }
 
   async function reactivate(u: AppUserRow) {
-    const { error } = await supabase.from("agent_tc_app_users").update({ status: "approved", approved_at: new Date().toISOString(), approved_by: profile?.id }).eq("id", u.id);
-    if (error) return toast({ title: "Falha", description: error.message, variant: "destructive" });
-    await audit("reactivate", u);
-    load();
+    await updateUser(u, { status: "approved" });
   }
 
   async function toggleRole(u: AppUserRow) {
     const newRole = u.role === "admin" ? "user" : "admin";
-    const { error } = await supabase.from("agent_tc_app_users").update({ role: newRole }).eq("id", u.id);
-    if (error) return toast({ title: "Falha", description: error.message, variant: "destructive" });
-    await audit("role_change", u, { to: newRole });
-    if (u.id === profile?.id) refreshProfile();
-    load();
+    await updateUser(u, { role: newRole });
   }
 
   const filtered = useMemo(() => users.filter((u) => u.status === tab), [users, tab]);
@@ -136,7 +93,7 @@ export default function AdminUsuarios() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold">Usuários</h1>
+        <h1 className="font-display text-2xl font-bold">Usuarios</h1>
         <p className="text-sm text-muted-foreground">Aprove cadastros e gerencie roles.</p>
       </div>
 
@@ -154,7 +111,7 @@ export default function AdminUsuarios() {
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>
             ) : filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum usuário.</p>
+              <p className="text-sm text-muted-foreground">Nenhum usuario.</p>
             ) : (
               filtered.map((u) => (
                 <Card key={u.id}>
@@ -166,7 +123,7 @@ export default function AdminUsuarios() {
                           {u.role === "admin" && <Badge className="ml-2" variant="default">admin</Badge>}
                         </CardTitle>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {u.first_name} {u.last_name} · {u.email}
+                          {u.first_name} {u.last_name} - {u.email}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -202,7 +159,7 @@ export default function AdminUsuarios() {
         ))}
       </Tabs>
 
-      <Dialog open={!!rejectFor} onOpenChange={(o) => !o && setRejectFor(null)}>
+      <Dialog open={!!rejectFor} onOpenChange={(open) => !open && setRejectFor(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Rejeitar {rejectFor?.username}</DialogTitle></DialogHeader>
           <Textarea placeholder="Motivo (opcional)" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
