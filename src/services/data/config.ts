@@ -18,6 +18,6 @@ export interface DataConfig {
 
 export function getDataConfig(): DataConfig {
   const apiBaseUrl =
-    (import.meta.env.VITE_AGENT_TC_API_URL as string | undefined) ?? "https://agent-tc-api.onrender.com";
+    (import.meta.env.VITE_AGENT_TC_API_URL as string | undefined) ?? "/api";
   return { provider: "api", apiBaseUrl };
 }

@@ -1,0 +1,7 @@
+.git
+.env
+.env.local
+deploy/d01/web.env
+node_modules
+dist
+*.log

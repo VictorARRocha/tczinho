@@ -13,14 +13,10 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import type { Evidencia, Falha } from "@/types/db";
-import { resolveEvidenceUrl } from "@/lib/evidenceUrl";
+import { fetchEvidenceBlob } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
 import { diffLines, type DiffLine } from "@/lib/diff";
 import { toast } from "sonner";
-
-async function resolveUrl(ev?: Evidencia): Promise<string | null> {
-  return resolveEvidenceUrl(ev);
-}
 
 function countReplacementChars(text: string): number {
   return (text.match(/\uFFFD/g) || []).length;
@@ -41,11 +37,10 @@ function decodeArrayBufferSmart(buffer: ArrayBuffer): string {
   return candidates[0].text;
 }
 
-async function fetchText(url: string): Promise<{ text: string | null; tooLarge: boolean }> {
+async function decodeText(blob: Blob | null): Promise<{ text: string | null; tooLarge: boolean }> {
+  if (!blob) return { text: null, tooLarge: false };
   try {
-    const r = await fetch(url);
-    if (!r.ok) return { text: null, tooLarge: false };
-    const buf = await r.arrayBuffer();
+    const buf = await blob.arrayBuffer();
     if (buf.byteLength > 8 * 1024 * 1024) return { text: null, tooLarge: true }; // 8MB cap
     const sniff = new Uint8Array(buf.slice(0, Math.min(4096, buf.byteLength)));
     let nulls = 0;
@@ -117,19 +112,27 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   useEffect(() => {
     if (!open || !pair) return;
     let cancel = false;
+    const objectUrls: string[] = [];
     setLoading(true);
     setLoadingStage("Carregando arquivos de comparação...");
     setBaseText(null); setAtualText(null); setTooLarge(false); setBinary(false);
     setBaseError(null); setAtualError(null);
     (async () => {
-      const [bu, au] = await Promise.all([resolveUrl(pair.base), resolveUrl(pair.atual)]);
+      const [baseBlob, atualBlob] = await Promise.all([
+        pair.base ? fetchEvidenceBlob(pair.base) : Promise.resolve(null),
+        pair.atual ? fetchEvidenceBlob(pair.atual) : Promise.resolve(null),
+      ]);
       if (cancel) return;
+      const bu = baseBlob ? URL.createObjectURL(baseBlob) : null;
+      const au = atualBlob ? URL.createObjectURL(atualBlob) : null;
+      if (bu) objectUrls.push(bu);
+      if (au) objectUrls.push(au);
       setBaseUrl(bu); setAtualUrl(au);
       if (isText || isCsv) {
         setLoadingStage("Preparando diferenças...");
         const [b, a] = await Promise.all([
-          bu ? fetchText(bu) : Promise.resolve({ text: null, tooLarge: false }),
-          au ? fetchText(au) : Promise.resolve({ text: null, tooLarge: false }),
+          decodeText(baseBlob),
+          decodeText(atualBlob),
         ]);
         if (cancel) return;
         if (b.tooLarge || a.tooLarge) setTooLarge(true);
@@ -142,7 +145,10 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
       }
       setLoading(false);
     })();
-    return () => { cancel = true; };
+    return () => {
+      cancel = true;
+      objectUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
   }, [open, pair, ext, isText, isCsv, isImg, isPdf]);
 
   const diff = useMemo(() => {

@@ -36,15 +36,7 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
-import { resolveEvidenceUrl } from "@/lib/evidenceUrl";
 import { useDebounce } from "@/hooks/useDebounce";
-
-async function handleEvidenceDownload(ev: Evidencia) {
-  const direct = resolveEvidenceUrl(ev);
-  if (direct) { window.open(direct, "_blank", "noopener,noreferrer"); return; }
-  if (!ev.storage_path) { toast.error("Sem URL disponível"); return; }
-  toast.error("Sem URL disponivel");
-}
 
 const CASE_NOT_FOUND_RE = /n[aã]o\s+encontrado(?:\s+no\s+.*\.mds)?/i;
 

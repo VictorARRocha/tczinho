@@ -1,0 +1,31 @@
+:80 {
+	encode zstd gzip
+
+	handle_path /api/* {
+		reverse_proxy host.docker.internal:8001
+	}
+
+	@internal_api {
+		path /health /auth /auth/* /modules /modules/* /runs /runs/* /failures/* /testcase-hierarchy /rerun-requests /rerun-requests/* /bridge/* /analyze /ingest /files/*
+	}
+
+	handle @internal_api {
+		reverse_proxy host.docker.internal:8001
+	}
+
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+
+	header {
+		-X-Powered-By
+		-Server
+		Referrer-Policy "same-origin"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+	}
+
+	log
+}

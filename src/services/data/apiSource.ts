@@ -27,6 +27,7 @@ import type {
   TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel,
 } from "@/services/qa";
 import { getDataConfig } from "./config";
+import { getAuthHeader } from "@/services/authApi";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const { apiBaseUrl } = getDataConfig();
@@ -34,7 +35,11 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const url = `${apiBaseUrl.replace(/\/+$/, "")}${path}`;
   const res = await fetch(url, {
     ...init,
-    headers: { "Content-Type": "application/json", ...(init?.headers || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeader(),
+      ...(init?.headers || {}),
+    },
   });
   if (!res.ok) throw new Error(`[api ${res.status}] ${path}`);
   return (await res.json()) as T;

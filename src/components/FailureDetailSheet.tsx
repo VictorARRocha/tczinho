@@ -40,16 +40,6 @@ function decodeBufferSmart(buffer: ArrayBuffer): string {
   cands.sort((a, b) => a.bad - b.bad);
   return cands[0].text;
 }
-async function fetchTextSmart(url: string): Promise<string | null> {
-  try {
-    const r = await fetch(url);
-    if (!r.ok) return null;
-    const buf = await r.arrayBuffer();
-    if (buf.byteLength > 8 * 1024 * 1024) return null;
-    return decodeBufferSmart(buf);
-  } catch { return null; }
-}
-
 function evidenceFileName(ev: Evidencia) {
   return ev.nome_arquivo || (ev.storage_path || "").split(/[\\/]/).filter(Boolean).pop() || "evidencia";
 }
@@ -79,12 +69,6 @@ function isTxtPlaceholder(s?: string | null): boolean {
 
 
 
-
-async function resolveDownloadUrl(ev: Evidencia, showError = true): Promise<string | null> {
-  const url = resolveEvidenceUrl(ev);
-  if (!url && showError) toast.error("Falha ao gerar link");
-  return url;
-}
 
 async function handleDownload(ev: Evidencia) {
   const blob = await fetchEvidenceBlob(ev);
@@ -447,7 +431,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   const isImage = isImageEv(ev);
   const isTxt = ev.tipo === "txt" || (ev.extensao || "").toLowerCase() === "txt";
   const directUrl = resolveEvidenceUrl(ev);
-  const [imgUrl, setImgUrl] = useState<string | null>(directUrl);
+  const [imgUrl, setImgUrl] = useState<string | null>(null);
   const [imgError, setImgError] = useState(false);
   const [visible, setVisible] = useState(!!priority || isTxt);
   const [preview, setPreview] = useState(false);
@@ -457,7 +441,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if ((!isImage && !isTxt) || directUrl || !containerRef.current || visible) return;
+    if ((!isImage && !isTxt) || !containerRef.current || visible) return;
     const el = containerRef.current;
     if (typeof IntersectionObserver === "undefined") { setVisible(true); return; }
     const io = new IntersectionObserver((entries) => {
@@ -468,10 +452,29 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   }, [isImage, isTxt, directUrl, visible]);
 
   useEffect(() => {
+    if (!isImage || !visible || !directUrl) return;
     let cancel = false;
-    if (isImage && !directUrl && visible && ev.storage_path && !cancel) setImgError(true);
-    return () => { cancel = true; };
-  }, [ev.id, visible]);
+    let objectUrl: string | null = null;
+    setImgError(false);
+    setImgUrl(null);
+    (async () => {
+      const blob = await fetchEvidenceBlob(ev);
+      if (!blob) {
+        if (!cancel) setImgError(true);
+        return;
+      }
+      objectUrl = URL.createObjectURL(blob);
+      if (cancel) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+      setImgUrl(objectUrl);
+    })();
+    return () => {
+      cancel = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [ev, isImage, visible, directUrl]);
 
   // Carrega conteúdo real de TXT direto do Storage, sem depender de link externo
   useEffect(() => {
