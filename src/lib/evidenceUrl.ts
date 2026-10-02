@@ -1,5 +1,5 @@
 import { getDataConfig } from "@/services/data/config";
-import { getAuthHeader } from "@/services/authApi";
+import { getAuthHeader, notifySessionExpired } from "@/services/authApi";
 import type { Evidencia } from "@/types/db";
 
 function encodeStoragePath(path: string): string {
@@ -34,6 +34,7 @@ export async function fetchEvidenceBlob(ev: Evidencia): Promise<Blob | null> {
 
   try {
     const response = await fetch(url, { headers: getAuthHeader() });
+    if (response.status === 401) notifySessionExpired();
     if (!response.ok) return null;
     return await response.blob();
   } catch {

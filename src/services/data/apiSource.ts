@@ -27,7 +27,7 @@ import type {
   TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel,
 } from "@/services/qa";
 import { getDataConfig } from "./config";
-import { getAuthHeader } from "@/services/authApi";
+import { getAuthHeader, notifySessionExpired } from "@/services/authApi";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const { apiBaseUrl } = getDataConfig();
@@ -41,12 +41,15 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
       ...(init?.headers || {}),
     },
   });
+  if (res.status === 401) notifySessionExpired();
   if (!res.ok) throw new Error(`[api ${res.status}] ${path}`);
   return (await res.json()) as T;
 }
 
-const notImplemented = (name: string) => {
-  console.warn(`[ApiQaDataSource.${name}] endpoint ainda não implementado — retornando vazio`);
+// As leituras devolvem vazio quando a API falha, para a tela nao quebrar;
+// o motivo real fica no console. Sessao expirada (401) ja leva ao login em req().
+const logFallback = (name: string, error: unknown) => {
+  console.warn(`[ApiQaDataSource.${name}] falhou, retornando vazio:`, (error as Error)?.message || error);
 };
 
 type ApiRow = Record<string, any>;
@@ -230,12 +233,12 @@ function normalizeRun<T extends Partial<Rodagem> & Record<string, any>>(row: T |
 }
 
 export const ApiQaDataSource: QaDataSource = {
-  fetchModules: () => req<Modulo[]>("/modules").catch(() => { notImplemented("fetchModules"); return []; }),
+  fetchModules: () => req<Modulo[]>("/modules").catch((e) => { logFallback("fetchModules", e); return []; }),
 
   fetchRunsByModule: (slug) =>
     req<Rodagem[]>(`/modules/${encodeURIComponent(slug)}/runs`)
       .then((list) => (list || []).map((r) => normalizeRun(r) as Rodagem))
-      .catch(() => { notImplemented("fetchRunsByModule"); return []; }),
+      .catch((e) => { logFallback("fetchRunsByModule", e); return []; }),
 
   async fetchLatestRunByModule(slug) {
     const list = await this.fetchRunsByModule(slug);
@@ -245,32 +248,32 @@ export const ApiQaDataSource: QaDataSource = {
   fetchRunById: (id) =>
     req<Rodagem | null>(`/runs/${encodeURIComponent(id)}`)
       .then((r) => normalizeRun(r))
-      .catch(() => { notImplemented("fetchRunById"); return null; }),
+      .catch((e) => { logFallback("fetchRunById", e); return null; }),
 
-  fetchAllRuns: () => req<RodagemListItem[]>(`/runs`).catch(() => { notImplemented("fetchAllRuns"); return []; }),
+  fetchAllRuns: () => req<RodagemListItem[]>(`/runs`).catch((e) => { logFallback("fetchAllRuns", e); return []; }),
 
   fetchFailuresByRun: (runId) =>
     req<Falha[]>(`/runs/${encodeURIComponent(runId)}/failures`)
       .then((list) => (list || []).map((f) => normalizeFailure(f)))
-      .catch(() => { notImplemented("fetchFailuresByRun"); return []; }),
+      .catch((e) => { logFallback("fetchFailuresByRun", e); return []; }),
 
   fetchEvidenceByRun: (runId) =>
-    req<Evidencia[]>(`/runs/${encodeURIComponent(runId)}/evidences`).catch(() => { notImplemented("fetchEvidenceByRun"); return []; }),
+    req<Evidencia[]>(`/runs/${encodeURIComponent(runId)}/evidences`).catch((e) => { logFallback("fetchEvidenceByRun", e); return []; }),
 
   fetchEvidenceByFailure: (failureId) =>
-    req<Evidencia[]>(`/failures/${encodeURIComponent(failureId)}/evidences`).catch(() => { notImplemented("fetchEvidenceByFailure"); return []; }),
+    req<Evidencia[]>(`/failures/${encodeURIComponent(failureId)}/evidences`).catch((e) => { logFallback("fetchEvidenceByFailure", e); return []; }),
 
   fetchGroupsByRun: (runId) =>
-    req<Agrupamento[]>(`/runs/${encodeURIComponent(runId)}/groups`).catch(() => { notImplemented("fetchGroupsByRun"); return []; }),
+    req<Agrupamento[]>(`/runs/${encodeURIComponent(runId)}/groups`).catch((e) => { logFallback("fetchGroupsByRun", e); return []; }),
 
   fetchGroupLinksByRun: (runId) =>
-    req<Record<string, string[]>>(`/runs/${encodeURIComponent(runId)}/group-links`).catch(() => { notImplemented("fetchGroupLinksByRun"); return {}; }),
+    req<Record<string, string[]>>(`/runs/${encodeURIComponent(runId)}/group-links`).catch((e) => { logFallback("fetchGroupLinksByRun", e); return {}; }),
 
   fetchNextStepsByRun: (runId) =>
-    req<ProximoPasso[]>(`/runs/${encodeURIComponent(runId)}/next-steps`).catch(() => { notImplemented("fetchNextStepsByRun"); return []; }),
+    req<ProximoPasso[]>(`/runs/${encodeURIComponent(runId)}/next-steps`).catch((e) => { logFallback("fetchNextStepsByRun", e); return []; }),
 
   fetchPerformanceByRun: (runId) =>
-    req<AtrasoRodagem[]>(`/runs/${encodeURIComponent(runId)}/performance`).catch(() => { notImplemented("fetchPerformanceByRun"); return []; }),
+    req<AtrasoRodagem[]>(`/runs/${encodeURIComponent(runId)}/performance`).catch((e) => { logFallback("fetchPerformanceByRun", e); return []; }),
 
   async listStorageFilesByRun(_runId, _slug, _pasta) {
     // No provider REST local, as evidencias ja chegam por /runs/:id/evidences.
@@ -279,24 +282,24 @@ export const ApiQaDataSource: QaDataSource = {
   },
 
   fetchTestcaseHierarchy: (slug) =>
-    req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`).catch(() => { notImplemented("fetchTestcaseHierarchy"); return []; }),
+    req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`).catch((e) => { logFallback("fetchTestcaseHierarchy", e); return []; }),
 
   fetchCasosReexecutaveis: (runId) =>
     req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`)
       .then((list) => (list || []).map((c) => normalizeFailure(c) as CasoReexecutavel))
-      .catch(() => { notImplemented("fetchCasosReexecutaveis"); return []; }),
+      .catch((e) => { logFallback("fetchCasosReexecutaveis", e); return []; }),
 
   fetchRerunRequests: (limit = 50) =>
     req<ApiRow[]>(`/rerun-requests?limit=${limit}`)
       .then((rows) => rows.map(normalizeRerunRequest))
-      .catch(() => { notImplemented("fetchRerunRequests"); return []; }),
+      .catch((e) => { logFallback("fetchRerunRequests", e); return []; }),
 
   fetchRerunRequestsByModule: (slug, moduleName, limit = 20) => {
     const params = new URLSearchParams({ slug, limit: String(limit) });
     if (moduleName) params.set("module_name", moduleName);
     return req<ApiRow[]>(`/rerun-requests?${params.toString()}`)
       .then((rows) => rows.map(normalizeRerunRequest))
-      .catch(() => { notImplemented("fetchRerunRequestsByModule"); return []; });
+      .catch((e) => { logFallback("fetchRerunRequestsByModule", e); return []; });
   },
 
   createRerunRequest: (payload: CreateRerunPayload) =>

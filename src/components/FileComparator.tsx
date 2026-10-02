@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
+import "@/lib/monacoSetup";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,7 +16,6 @@ import {
 import type { Evidencia, Falha } from "@/types/db";
 import { fetchEvidenceBlob } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
-import { diffLines, type DiffLine } from "@/lib/diff";
 import { toast } from "sonner";
 
 function countReplacementChars(text: string): number {
@@ -151,32 +151,8 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     };
   }, [open, pair, ext, isText, isCsv, isImg, isPdf]);
 
-  const diff = useMemo(() => {
-    if (!isText) return null;
-    if (baseText == null && atualText == null) return null;
-    return diffLines(baseText ?? "", atualText ?? "");
-  }, [isText, baseText, atualText]);
-
-  // Calcula blocos contíguos de diferenças (para navegação)
-  const diffBlocks = useMemo(() => {
-    if (!diff) return [] as { start: number; end: number }[];
-    const blocks: { start: number; end: number }[] = [];
-    let cur: { start: number; end: number } | null = null;
-    diff.forEach((l, i) => {
-      if (l.op !== "equal") {
-        if (!cur) cur = { start: i, end: i };
-        else cur.end = i;
-      } else if (cur) {
-        blocks.push(cur);
-        cur = null;
-      }
-    });
-    if (cur) blocks.push(cur);
-    return blocks;
-  }, [diff]);
-
+  // Texto e comparado pelo Monaco DiffEditor; CSV usa a navegacao por linhas abaixo.
   const [currentBlock, setCurrentBlock] = useState(0);
-  useEffect(() => { setCurrentBlock(0); }, [diff]);
 
   const csvRows = useMemo(() => {
     if (!isCsv || baseText == null || atualText == null) return null;
@@ -203,6 +179,8 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     if (!csvRows) return [] as number[];
     return csvRows.map((r, i) => (r.rowChanged ? i : -1)).filter((i) => i >= 0);
   }, [csvRows]);
+
+  useEffect(() => { setCurrentBlock(0); }, [csvRows]);
 
   // --- Monaco Diff: navegação real entre line changes -------------------------
   const diffEditorRef = useRef<any>(null);
@@ -507,97 +485,6 @@ function useSyncedScroll() {
     return () => { l.removeEventListener("scroll", a); r.removeEventListener("scroll", b); };
   }, []);
   return { leftRef, rightRef };
-}
-
-function DiffView({
-  diff,
-  blocks,
-  currentBlock,
-}: {
-  diff: DiffLine[];
-  blocks: { start: number; end: number }[];
-  currentBlock: number;
-}) {
-  const { leftRef, rightRef } = useSyncedScroll();
-  const rowRefs = useRef<Array<HTMLDivElement | null>>([]);
-
-  // rola a linha de início do bloco atual para o topo (com margem)
-  useLayoutEffect(() => {
-    const block = blocks[currentBlock];
-    if (!block) return;
-    const el = rowRefs.current[block.start];
-    const container = leftRef.current;
-    if (!el || !container) return;
-    const top = el.offsetTop - 40;
-    container.scrollTo({ top, behavior: "smooth" });
-  }, [currentBlock, blocks]);
-
-  const isCurrentBlock = (i: number) => {
-    const b = blocks[currentBlock];
-    return b ? i >= b.start && i <= b.end : false;
-  };
-
-  return (
-    <div className="grid grid-cols-2 font-mono text-xs h-full">
-      <div ref={leftRef} className="border-r border-border overflow-auto h-full bg-background">
-        {diff.map((l, i) => {
-          const isDel = l.op === "del";
-          const isAdd = l.op === "add";
-          const current = (isDel || isAdd) && isCurrentBlock(i);
-          return (
-            <div
-              key={i}
-              ref={(el) => { rowRefs.current[i] = el; }}
-              className={`flex border-l-2 ${
-                isDel
-                  ? current
-                    ? "bg-destructive/30 border-destructive"
-                    : "bg-destructive/10 border-destructive/40"
-                  : isAdd
-                    ? "bg-muted/40 border-transparent"
-                    : "border-transparent"
-              }`}
-            >
-              <span className="w-12 text-right pr-2 text-muted-foreground/60 select-none shrink-0 border-r border-border/40">
-                {l.baseLine ?? ""}
-              </span>
-              <span className="flex-1 whitespace-pre px-2 overflow-hidden">
-                {l.op === "add" ? "" : l.text}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <div ref={rightRef} className="overflow-auto h-full bg-background">
-        {diff.map((l, i) => {
-          const isAdd = l.op === "add";
-          const isDel = l.op === "del";
-          const current = (isAdd || isDel) && isCurrentBlock(i);
-          return (
-            <div
-              key={i}
-              className={`flex border-l-2 ${
-                isAdd
-                  ? current
-                    ? "bg-success/30 border-success"
-                    : "bg-success/10 border-success/40"
-                  : isDel
-                    ? "bg-muted/40 border-transparent"
-                    : "border-transparent"
-              }`}
-            >
-              <span className="w-12 text-right pr-2 text-muted-foreground/60 select-none shrink-0 border-r border-border/40">
-                {l.atualLine ?? ""}
-              </span>
-              <span className="flex-1 whitespace-pre px-2 overflow-hidden">
-                {l.op === "del" ? "" : l.text}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 function CsvDiffView({

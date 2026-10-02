@@ -10,9 +10,9 @@
 // emitido pela API em /auth/login. Nunca usar service_role nem anon key.
 // =====================================================================
 import { getDataConfig } from "./data/config";
-import { getAuthToken } from "@/services/authApi";
+import { getAuthToken, notifySessionExpired } from "@/services/authApi";
 
-export type AiGroupStatus = "not_requested" | "running" | "completed" | "failed";
+export type AiGroupStatus = "not_requested" | "running" | "completed" | "failed" | "invalid_response";
 
 export interface AiGroupStatusResponse {
   run_id: string;
@@ -54,6 +54,7 @@ function baseUrl(): string {
 }
 
 async function parseError(res: Response): Promise<AiGroupError> {
+  if (res.status === 401) notifySessionExpired();
   let code: string | undefined;
   let message = `HTTP ${res.status}`;
   try {

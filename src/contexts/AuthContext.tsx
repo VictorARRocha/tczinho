@@ -1,6 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { toast } from "sonner";
 import {
+  SESSION_EXPIRED_EVENT,
   authApi,
   clearAuthToken,
   getAuthToken,
@@ -137,6 +139,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       mounted = false;
     };
   }, [clearSession]);
+
+  // Uma chamada de dados recebeu 401: limpa a sessao para o ProtectedRoute levar ao login.
+  useEffect(() => {
+    const onExpired = () => {
+      setSession(null);
+      setProfile(null);
+      toast.error("Sessão expirada", { description: "Entre novamente para continuar." });
+    };
+    window.addEventListener(SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
 
   const signIn = useCallback<AuthContextValue["signIn"]>(async (username, password) => {
     try {

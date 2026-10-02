@@ -1,4 +1,5 @@
-import { Outlet, Link } from "react-router-dom";
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
@@ -9,6 +10,7 @@ import { LogOut, User as UserIcon, ShieldCheck } from "lucide-react";
 
 export function AppLayout() {
   const { profile, isAdmin, signOut } = useAuth();
+  const { pathname } = useLocation();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -55,7 +57,10 @@ export function AppLayout() {
             </div>
           </header>
           <main className="flex-1 min-w-0">
-            <Outlet />
+            {/* Navegar limpa um erro anterior sem remontar a pagina atual. */}
+            <ErrorBoundary resetKey={pathname}>
+              <Outlet />
+            </ErrorBoundary>
           </main>
         </div>
       </div>

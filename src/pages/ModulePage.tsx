@@ -1460,7 +1460,7 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
       const s = await fetchAiGroupStatus(runId);
       setStatus(s.status);
       setGrouped(s.grouped === true || s.status === "completed");
-      if (s.status === "failed" && s.error_message) setErrorMsg(s.error_message);
+      if ((s.status === "failed" || s.status === "invalid_response") && s.error_message) setErrorMsg(s.error_message);
       else setErrorMsg(null);
     } catch (e: any) {
       // Falha ao consultar status não deve quebrar a tela
@@ -1502,7 +1502,7 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
       } else if (status === 409 && code === "already_processing") {
         setErrorMsg("Agrupamento já está em andamento.");
         await refreshStatus();
-      } else if (status === 503 && code === "openai_not_configured") {
+      } else if (status === 503 && (code === "ai_provider_not_configured" || code === "openai_not_configured")) {
         setErrorMsg("IA de agrupamento não está configurada no backend.");
       } else if (status === 422 || code === "invalid_ai_response") {
         setErrorMsg("A resposta da IA foi recusada pelo backend. Tente novamente.");
@@ -1712,7 +1712,7 @@ function PerfBadge({ status }: { status: AtrasoRodagem["status"] }) {
   return <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1"><Minus className="h-3 w-3" />Sem variação</Badge>;
 }
 
-function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
+export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [caseFilter, setCaseFilter] = useState<string>("all");
@@ -1767,18 +1767,6 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     });
     return out;
   }, [data, debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir]);
-
-
-
-  if (data.length === 0) {
-    return (
-      <Card className="glass-card p-12 text-center">
-        <Gauge className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-        <h3 className="text-base font-semibold">Nenhum dado de performance encontrado para esta rodagem.</h3>
-        <p className="text-sm text-muted-foreground mt-1">Quando o Codex enviar dados de performance, eles aparecerão aqui.</p>
-      </Card>
-    );
-  }
 
   const stats = useMemo(() => {
     const slow: AtrasoRodagem[] = [];
@@ -1860,6 +1848,17 @@ function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     [topFast],
   );
 
+  // O retorno antecipado fica depois de todos os hooks: trocar entre rodagens
+  // com e sem performance nao pode mudar a quantidade de hooks chamados.
+  if (data.length === 0) {
+    return (
+      <Card className="glass-card p-12 text-center">
+        <Gauge className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+        <h3 className="text-base font-semibold">Nenhum dado de performance encontrado para esta rodagem.</h3>
+        <p className="text-sm text-muted-foreground mt-1">Quando o Agent TC enviar dados de performance, eles aparecerão aqui.</p>
+      </Card>
+    );
+  }
 
   const copyRow = (d: AtrasoRodagem) => {
     const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");

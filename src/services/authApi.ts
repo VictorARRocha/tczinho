@@ -74,6 +74,17 @@ export function clearAuthToken() {
   window.localStorage.removeItem(TOKEN_KEY);
 }
 
+export const SESSION_EXPIRED_EVENT = "agent-tc:session-expired";
+
+/** Chamado quando uma rota autenticada responde 401: a sessao expirou ou foi revogada. */
+export function notifySessionExpired() {
+  if (typeof window === "undefined") return;
+  // Varias chamadas em paralelo podem receber 401; so a primeira avisa o app.
+  if (!getAuthToken()) return;
+  clearAuthToken();
+  window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
+}
+
 export function getAuthHeader(): Record<string, string> {
   const token = getAuthToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
