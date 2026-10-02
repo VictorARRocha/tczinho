@@ -10,7 +10,7 @@ vi.mock("recharts", async () => {
   return Object.fromEntries(names.map((name) => [name, Stub]));
 });
 
-import { PerformanceTab } from "@/pages/ModulePage";
+import { PerformanceTab } from "@/pages/module/PerformanceTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SESSION_EXPIRED_EVENT, getAuthToken, setAuthToken } from "@/services/authApi";
 import { ApiQaDataSource } from "@/services/data/apiSource";
@@ -116,13 +116,13 @@ describe("sessao expirada", () => {
   it("uma leitura com 401 limpa o token e avisa o app uma unica vez", async () => {
     unauthorized();
 
-    const [modulos, rodagens] = await Promise.all([
-      ApiQaDataSource.fetchModules(),
+    const [rodagens, falhas] = await Promise.all([
       ApiQaDataSource.fetchRunsByModule("contabil"),
+      ApiQaDataSource.fetchFailuresByRun("rod_1"),
     ]);
 
-    expect(modulos).toEqual([]);
     expect(rodagens).toEqual([]);
+    expect(falhas).toEqual([]);
     expect(getAuthToken()).toBeNull();
     expect(events).toBe(1);
   });
@@ -140,7 +140,9 @@ describe("sessao expirada", () => {
   it("erro que nao e 401 nao derruba a sessao", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () => new Response("erro", { status: 500 }));
 
-    await expect(ApiQaDataSource.fetchModules()).resolves.toEqual([]);
+    // Leituras de detalhe devolvem vazio; modulos propagam o erro (ficam em cache, nao podem guardar vazio).
+    await expect(ApiQaDataSource.fetchRunsByModule("contabil")).resolves.toEqual([]);
+    await expect(ApiQaDataSource.fetchModules()).rejects.toMatchObject({ status: 500 });
 
     expect(getAuthToken()).toBe("sessao-vencida");
     expect(events).toBe(0);

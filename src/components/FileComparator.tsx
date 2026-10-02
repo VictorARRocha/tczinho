@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { DiffEditor } from "@monaco-editor/react";
 import "@/lib/monacoSetup";
+// Somente tipos (apagado no build): o editor em si vem de /monaco/vs.
+import type { editor as MonacoEditor } from "monaco-editor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -183,11 +185,11 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   useEffect(() => { setCurrentBlock(0); }, [csvRows]);
 
   // --- Monaco Diff: navegação real entre line changes -------------------------
-  const diffEditorRef = useRef<any>(null);
-  const [monacoChanges, setMonacoChanges] = useState<any[] | null>(null); // null = calculando
+  const diffEditorRef = useRef<MonacoEditor.IStandaloneDiffEditor | null>(null);
+  const [monacoChanges, setMonacoChanges] = useState<MonacoEditor.ILineChange[] | null>(null); // null = calculando
   const [monacoIndex, setMonacoIndex] = useState(0);
 
-  const handleDiffEditorMount = useCallback((editor: any) => {
+  const handleDiffEditorMount = useCallback((editor: MonacoEditor.IStandaloneDiffEditor) => {
     diffEditorRef.current = editor;
     const update = () => {
       try {

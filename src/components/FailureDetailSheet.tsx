@@ -34,7 +34,7 @@ function decodeBufferSmart(buffer: ArrayBuffer): string {
   const encs = ["utf-8", "windows-1252", "iso-8859-1"];
   const cands: { text: string; bad: number }[] = [];
   for (const enc of encs) {
-    try { const t = new TextDecoder(enc, { fatal: false }).decode(buffer); cands.push({ text: t, bad: countBad(t) }); } catch {}
+    try { const t = new TextDecoder(enc, { fatal: false }).decode(buffer); cands.push({ text: t, bad: countBad(t) }); } catch { /* encoding nao suportado pelo navegador */ }
   }
   if (!cands.length) return "";
   cands.sort((a, b) => a.bad - b.bad);
@@ -365,7 +365,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 
 /* ---------------- small building blocks ---------------- */
 
-function Section({ title, children }: { title: string; children: any }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
@@ -495,7 +495,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
   if (isImage) {
     return (
       <>
-        <Card className={cn("overflow-hidden", priority && "border-primary/40 ring-1 ring-primary/20")} ref={containerRef as any}>
+        <Card className={cn("overflow-hidden", priority && "border-primary/40 ring-1 ring-primary/20")} ref={containerRef}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
             <ImageIcon className="h-4 w-4 text-primary" />
             <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Print"}</span>
@@ -548,7 +548,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
     const canCopy = !!txtContent;
     return (
       <>
-        <Card ref={containerRef as any}>
+        <Card ref={containerRef}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
             <FileText className="h-4 w-4 text-warning" />
             <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Erro / Call stack"}</span>

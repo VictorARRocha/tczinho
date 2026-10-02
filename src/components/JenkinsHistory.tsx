@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,9 @@ import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Copy, ExternalLink, ChevronDown, ChevronUp, Info, XCircle } from "lucide-react";
-import { fetchRerunRequests, cancelRerunRequest, subscribeToTable, type RerunRequest } from "@/services/data";
+import { cancelRerunRequest, type RerunRequest } from "@/services/data";
+import { invalidateRerunRequests, useRerunRequests } from "@/services/queries";
+import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -48,10 +50,6 @@ const MODO_LABEL: Record<string, string> = {
   casos_quebrados: "Casos quebrados",
 };
 
-const ACTIVE_STATUSES = new Set<string>([
-  "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
-  "cancel_requested", "cancelando",
-]);
 
 const CANCELABLE_STATUSES = new Set<string>([
   "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
@@ -60,7 +58,7 @@ const CANCELABLE_STATUSES = new Set<string>([
 const CANCEL_PENDING_STATUSES = new Set<string>(["cancel_requested", "cancelando"]);
 
 function resolveStatus(r: RerunRequest): StatusKey {
-  const raw = (r.execution_status || r.status || "solicitado").toString().toLowerCase().trim();
+  const raw = rerunStatusKey(r);
   if (STATUS_META[raw]) return raw as StatusKey;
   // fallback antigos
   if (raw === "erro") return "erro";
@@ -125,42 +123,12 @@ function safeError(s?: string | null): string | null {
 }
 
 export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { title?: string; limit?: number }) {
-  const [history, setHistory] = useState<RerunRequest[]>([]);
+  // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
+  const { data: history = [] } = useRerunRequests(limit);
+  const hasActive = hasActiveRerun(history);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const pollingRef = useRef<number | null>(null);
 
-  const load = async () => setHistory(await fetchRerunRequests(limit));
-
-  const hasActive = useMemo(
-    () => history.some((r) => ACTIVE_STATUSES.has(resolveStatus(r))),
-    [history],
-  );
-
-  // realtime + carga inicial
-  useEffect(() => {
-    load();
-    const off = subscribeToTable("rerun_requests", () => load());
-    return () => { off(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // polling apenas quando há registros ativos
-  useEffect(() => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
-    }
-    if (!hasActive) return;
-    pollingRef.current = window.setInterval(() => load(), 10000);
-    return () => {
-      if (pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasActive]);
 
   return (
     <TooltipProvider delayDuration={150}>
@@ -248,7 +216,7 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
                                 toast.success("Cancelamento solicitado", {
                                   description: "O Bridge irá confirmar o cancelamento no Jenkins.",
                                 });
-                                load();
+                                invalidateRerunRequests();
                               } catch (err) {
                                 console.error(err);
                                 toast.error("Falha ao solicitar cancelamento");

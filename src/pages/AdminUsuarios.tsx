@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { toast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw } from "lucide-react";
 
 type AppUserRow = AppUserProfile;
@@ -38,11 +38,7 @@ export default function AdminUsuarios() {
       const { users } = await authApi.users();
       setUsers(users ?? []);
     } catch (error) {
-      toast({
-        title: "Erro ao carregar usuarios",
-        description: errorMessage(error, "Falha ao carregar usuarios."),
-        variant: "destructive",
-      });
+      toast.error("Erro ao carregar usuarios", { description: errorMessage(error, "Falha ao carregar usuarios.") });
     } finally {
       setLoading(false);
     }
@@ -55,15 +51,11 @@ export default function AdminUsuarios() {
   async function updateUser(u: AppUserRow, data: Parameters<typeof authApi.updateUser>[1], success?: string) {
     try {
       await authApi.updateUser(u.id, data);
-      if (success) toast({ title: success });
+      if (success) toast.success(success);
       if (u.id === profile?.id) await refreshProfile();
       await load();
     } catch (error) {
-      toast({
-        title: "Falha",
-        description: errorMessage(error, "Falha ao atualizar usuario."),
-        variant: "destructive",
-      });
+      toast.error("Falha", { description: errorMessage(error, "Falha ao atualizar usuario.") });
     }
   }
 

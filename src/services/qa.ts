@@ -5,7 +5,6 @@
 // Toda leitura de dados de QA passa pela API Agent TC.
 // Este arquivo mantem apenas tipos e helpers puros usados pela UI.
 // =====================================================================
-import type { Evidencia } from "@/types/db";
 
 // =====================================================================
 // TESTCASE HIERARCHY (tipo mantido para a UI; leitura é feita pelo API source)
@@ -38,13 +37,13 @@ export interface RerunRequest {
   ct_desmarcar: string | null;
   data_hora: string | null;
   branch: string | null;
-  config_json: any;
+  config_json: unknown;
   status: "solicitado" | "processando" | "enviado_jenkins" | "erro" | string;
   jenkins_url: string | null;
   jenkins_queue_url: string | null;
   jenkins_build_number: string | null;
   erro: string | null;
-  retorno_jenkins: any;
+  retorno_jenkins: unknown;
   created_at: string;
   updated_at: string;
   tipo_solicitacao?: string | null;
@@ -97,99 +96,11 @@ export interface CasoReexecutavel {
 // Helpers puros
 // =====================================================================
 
-// Corrige mojibake: texto UTF-8 decodificado como Latin-1 antes de salvar.
-function fixMojibake<T extends string | null | undefined>(s: T): T {
-  if (typeof s !== "string" || !s) return s;
-  if (!/[ÃÂ][\x80-\xBF]/.test(s)) return s;
-  try {
-    const bytes = new Uint8Array(s.length);
-    for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i) & 0xff;
-    const decoded = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    return (decoded.includes("\uFFFD") ? s : decoded) as T;
-  } catch {
-    return s;
-  }
-}
-
-function inferTipo(t?: string | null, path?: string | null, mime?: string | null): string {
-  const v = (t || "").toLowerCase();
-  const m = (mime || "").toLowerCase();
-  const ext = (path || "").toLowerCase().split(".").pop() || "";
-  if (v === "rar" || ext === "rar" || m.includes("rar")) return "rar";
-  if (v.includes("print") || v.includes("img") || ["png", "jpg", "jpeg", "gif", "webp"].includes(ext) || m.startsWith("image/")) return "print";
-  if (v === "log" || ext === "log") return "log";
-  if (v.includes("txt") || ext === "txt" || m.startsWith("text/")) return "txt";
-  if (v === "pdf" || ext === "pdf" || m.includes("pdf")) return "pdf";
-  if (v.includes("zip") || ext === "zip" || m.includes("zip")) return "zip";
-  return v || "outro";
-}
-
-function normEvidencia(row: any, rodagem_id = "", modulo_slug = ""): Evidencia {
-  const path = row?.storage_path ?? row?.caminho_evidencia ?? null;
-  const mime = row?.mime_type ?? null;
-  const rawTipo = row?.tipo ?? row?.tipo_arquivo;
-  const tipo = inferTipo(rawTipo, path, mime);
-  const nome = row?.nome_arquivo ?? (path ? String(path).split("/").pop() || null : null);
-  const ext = row?.extensao ?? (nome ? (nome.split(".").pop() || "").toLowerCase() : null);
-  const isImage =
-    tipo === "print" ||
-    (mime || "").toLowerCase().startsWith("image/") ||
-    ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes((ext || "").toLowerCase());
-  const inComparacaoFolder = typeof path === "string" && /(^|\/)comparacao\//i.test(path);
-  const explicitComparacao = String(rawTipo || "").toLowerCase() === "comparacao";
-  const finalTipo = explicitComparacao || inComparacaoFolder ? "comparacao" : (isImage ? "print" : tipo);
-  return {
-    id: row?.id_evidencia ?? row?.id,
-    falha_id: row?.falha_id ?? row?.fk_falha,
-    rodagem_id: row?.rodagem_id ?? rodagem_id,
-    modulo_slug: row?.modulo_slug ?? modulo_slug,
-    tipo: finalTipo,
-    nome_arquivo: nome,
-    bucket: row?.bucket ?? "local",
-    storage_path: path,
-    public_url: row?.public_url ?? null,
-    signed_url: row?.signed_url ?? null,
-    url_expira_em: row?.url_expira_em ?? null,
-    conteudo_texto: fixMojibake(row?.conteudo_texto ?? row?.conteudo_resumo ?? null),
-    mime_type: mime,
-    extensao: ext,
-    tamanho_bytes: row?.tamanho_bytes ?? null,
-    print_util: isImage,
-    imagem_descricao: row?.imagem_descricao ?? row?.correlacao_visual ?? null,
-    created_at: row?.created_at ?? "",
-  };
-}
-
-// =====================================================================
-// STORAGE: lista arquivos do bucket de evidências (Storage, não tabelas)
-// Estrutura esperada:
-//   {moduloSlug}/{rodagemFolder}/falhas/{pastaDaFalha}/{comparacao|imagens|zip|...}/arquivo
-// =====================================================================
-export async function listStorageFilesByRun(
-  _runId: string,
-  _moduloSlug?: string,
-  _pastaOrigem?: string | null,
-): Promise<Evidencia[]> {
-  return [];
-}
-
-/** Mescla evidências do banco com arquivos descobertos no Storage (sem duplicar storage_path). */
-export function mergeEvidences(db: Evidencia[], storage: Evidencia[]): Evidencia[] {
-  const keys = new Set(db.map((e) => (e.storage_path || e.nome_arquivo || e.id || "").toLowerCase()));
-  const extras = storage.filter((e) => {
-    const k = (e.storage_path || e.nome_arquivo || e.id || "").toLowerCase();
-    if (keys.has(k)) return false;
-    keys.add(k);
-    return true;
-  });
-  return [...db, ...extras];
-}
-
 /** Extrai VM (ex.: "a07") a partir de id_rodagem ou caminho_logs. */
 export function extractVmName(input?: string | null): string | null {
   if (!input) return null;
   const m =
-    input.match(/(?:^|[_\-\/\\])([Aa]\d{2,3})(?:[_\-\/\\]|$)/) ||
+    input.match(/(?:^|[_\-/\\])([Aa]\d{2,3})(?:[_\-/\\]|$)/) ||
     input.match(/\b([Aa]\d{2,3})\b/);
   return m ? m[1].toLowerCase() : null;
 }

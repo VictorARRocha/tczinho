@@ -43,7 +43,7 @@ export interface Rodagem {
   total_alta: number;
   total_media: number;
   total_baixa: number;
-  json_original: any;
+  json_original: unknown;
   created_at: string;
 }
 
@@ -83,8 +83,8 @@ export interface Falha {
   analise_funcional: string | null;
   impacto_possivel: string | null;
   primeira_acao_recomendada: string | null;
-  informacoes_faltantes: any;
-  tags: any;
+  informacoes_faltantes: unknown;
+  tags: unknown;
   created_at: string;
 }
 
@@ -119,7 +119,7 @@ export interface Agrupamento {
   quantidade: number;
   classificacao_predominante: string | null;
   severidade_predominante: string | null;
-  arquivos_relacionados: any;
+  arquivos_relacionados: unknown;
   acao_recomendada: string | null;
   created_at: string;
 }

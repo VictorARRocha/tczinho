@@ -1,47 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
-import { fetchModules, fetchLatestRunByModule, subscribeToTable } from "@/services/data";
 import type { Modulo, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
-import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ArrowUpRight, AlertTriangle, ShieldAlert, Database, Bot, HelpCircle, RefreshCw, type LucideIcon } from "lucide-react";
 import { formatRelative } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
-
-interface ModuleData {
-  modulo: Modulo;
-  rodagem: Rodagem | null;
-}
+import { useLatestRuns } from "@/services/queries";
 
 export default function Dashboard() {
-  const [data, setData] = useState<ModuleData[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Uma chamada (/modules/latest-runs) traz a ultima rodagem de cada modulo, a cada minuto.
+  const { data = [], isLoading, isError, error, refetch, isFetching } = useLatestRuns();
+  const lastSeenRef = useRef<Map<string, string | null> | null>(null);
 
-  const load = async () => {
-    try {
-      const modulos = await fetchModules();
-      const results = await Promise.all(
-        modulos.map(async (m) => ({ modulo: m, rodagem: await fetchLatestRunByModule(m.slug).catch(() => null) })),
-      );
-      setData(results);
-    } catch (e: any) {
-      toast.error("Erro ao conectar API", { description: e?.message });
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // Avisa quando a ultima rodagem de um modulo muda entre uma atualizacao e outra.
   useEffect(() => {
-    load();
-    const off = subscribeToTable("rodagens", (p) => {
-      if (p.eventType === "INSERT") {
-        const slug = p.new?.modulo_slug;
-        toast.success(`Nova rodagem recebida${slug ? ` — ${slug}` : ""}`);
-      }
-      load();
-    });
-    return off;
-  }, []);
+    if (isLoading || isError) return;
+    const current = new Map(data.map(({ modulo, rodagem }) => [modulo.slug, rodagem?.id ?? null]));
+    const previous = lastSeenRef.current;
+    if (previous) {
+      data.forEach(({ modulo, rodagem }) => {
+        if (rodagem && previous.get(modulo.slug) !== rodagem.id) {
+          toast.success(`Nova rodagem recebida — ${modulo.nome}`);
+        }
+      });
+    }
+    lastSeenRef.current = current;
+  }, [data, isLoading, isError]);
+
+  const loading = isLoading;
 
 
   return (
@@ -64,6 +52,14 @@ export default function Dashboard() {
         <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
         </div>
+      ) : isError && data.length === 0 ? (
+        <Card className="glass-card p-12 text-center">
+          <h3 className="text-lg font-semibold">Não foi possível carregar os módulos</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{(error as Error)?.message || "A API não respondeu."}</p>
+          <Button className="mt-4" onClick={() => refetch()} disabled={isFetching}>
+            <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} /> Tentar novamente
+          </Button>
+        </Card>
       ) : data.length === 0 ? (
         <EmptyState />
       ) : (
@@ -135,7 +131,7 @@ function ModuleCard({ modulo, rodagem }: { modulo: Modulo; rodagem: Rodagem | nu
   );
 }
 
-function Stat({ icon: Icon, label, value, tone }: { icon: any; label: string; value: number; tone: string }) {
+function Stat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: string; value: number; tone: string }) {
   return (
     <div className="flex items-center gap-2 rounded-lg bg-secondary/40 px-2.5 py-2">
       <Icon className={`h-3.5 w-3.5 ${tone}`} />

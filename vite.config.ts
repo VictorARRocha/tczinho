@@ -2,7 +2,6 @@ import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import fs from "fs";
 import path from "path";
-import { componentTagger } from "lovable-tagger";
 
 // Arquivos prontos do Monaco (os mesmos que a CDN servia).
 const MONACO_VS = path.resolve(__dirname, "node_modules/monaco-editor/min/vs");
@@ -46,7 +45,7 @@ function monacoStatic(): Plugin {
 }
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
+export default defineConfig({
   server: {
     host: "::",
     port: 8080,
@@ -54,11 +53,11 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [react(), monacoStatic(), mode === "development" && componentTagger()].filter(Boolean),
+  plugins: [react(), monacoStatic()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
     dedupe: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "@tanstack/react-query", "@tanstack/query-core"],
   },
-}));
+});

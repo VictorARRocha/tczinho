@@ -39,17 +39,14 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import {
-  fetchAllRuns,
   fetchCasosReexecutaveis,
-  fetchRerunRequests,
   createRerunRequest,
   extractVmName,
   formatNowBr,
-  subscribeToTable,
   type RodagemListItem,
   type CasoReexecutavel,
-  type RerunRequest,
 } from "@/services/data";
+import { invalidateRerunRequests, useAllRuns, useRerunRequests } from "@/services/queries";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   solicitado: { label: "Solicitado", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },
@@ -72,11 +69,12 @@ type SortKey = "id_caso_teste" | "nome_mds" | "grupo" | "tipo_ocorrencia" | "clu
 type SortDir = "asc" | "desc";
 
 export default function ReexecutarTestes() {
-  const [runs, setRuns] = useState<RodagemListItem[]>([]);
+  const { data: runs = [] } = useAllRuns();
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  const [history, setHistory] = useState<RerunRequest[]>([]);
+  // Mesmo cache do JenkinsHistory: 10s com pedido ativo, 1 minuto sem.
+  const { data: history = [] } = useRerunRequests(50);
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -105,8 +103,8 @@ export default function ReexecutarTestes() {
         return Number.isFinite(n) ? n : p;
       });
     arr.sort((a, b) => {
-      const va = (a as any)[sortKey] ?? "";
-      const vb = (b as any)[sortKey] ?? "";
+      const va = a[sortKey] ?? "";
+      const vb = b[sortKey] ?? "";
       if (sortKey === "id_caso_teste") {
         const pa = numericId(String(va));
         const pb = numericId(String(vb));
@@ -167,37 +165,13 @@ export default function ReexecutarTestes() {
     }
   }, [filteredRuns, selectedRunId]);
 
-  const loadRuns = async () => {
-    try {
-      const list = await fetchAllRuns();
-      setRuns(list);
-      if (!selectedRunId && list.length) setSelectedRunId(list[0].id_rodagem);
-    } catch (e: any) {
-      console.error("[ReexecutarTestes] loadRuns error", e);
-      toast.error("Erro ao carregar rodagens", { description: e?.message });
-    }
-  };
-
-  const loadHistory = async () => {
-    setHistory(await fetchRerunRequests(50));
-  };
-
-  useEffect(() => {
-    loadRuns();
-    loadHistory();
-    const off = subscribeToTable("rerun_requests", () => loadHistory());
-    const t = setInterval(loadHistory, 10000);
-    return () => { off(); clearInterval(t); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     if (!selectedRunId) { setCasos([]); return; }
     setLoadingCasos(true);
     setMarcados(new Set());
     fetchCasosReexecutaveis(selectedRunId)
       .then(setCasos)
-      .catch((e) => toast.error("Erro ao carregar casos", { description: e?.message }))
+      .catch((e) => toast.error("Erro ao carregar casos", { description: (e as Error)?.message }))
       .finally(() => setLoadingCasos(false));
   }, [selectedRunId]);
 
@@ -277,9 +251,9 @@ export default function ReexecutarTestes() {
         description: "O JenkinsBridge local irá disparar o Jenkins.",
       });
       setMarcados(new Set());
-      loadHistory();
-    } catch (e: any) {
-      toast.error("Falha ao criar solicitação", { description: e?.message });
+      invalidateRerunRequests();
+    } catch (e) {
+      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
     } finally {
       setSubmitting(false);
     }

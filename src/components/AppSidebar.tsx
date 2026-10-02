@@ -42,20 +42,16 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { useEffect, useState } from "react";
-import { fetchModules } from "@/services/data";
-import type { Modulo } from "@/types/db";
+import { useApiHealth, useModules } from "@/services/queries";
+import { ApiStatusDot } from "./ApiStatus";
 
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
-  const [modulos, setModulos] = useState<Modulo[]>([]);
+  const { data: modulos = [] } = useModules();
+  const health = useApiHealth();
   const { isAdmin } = useAuth();
-
-  useEffect(() => {
-    fetchModules().then(setModulos).catch(() => {});
-  }, []);
 
   const visibleModulos = modulos;
 
@@ -160,11 +156,8 @@ export function AppSidebar() {
       <SidebarFooter className="border-t border-sidebar-border px-4 py-3">
         {!collapsed && (
           <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-pulse-glow rounded-full bg-success" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-success" />
-            </span>
-            Conectado a API
+            <ApiStatusDot online={health.data} />
+            {health.data === undefined ? "Verificando API..." : health.data ? "Conectado à API" : "API indisponível"}
           </div>
         )}
       </SidebarFooter>

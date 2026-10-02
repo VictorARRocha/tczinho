@@ -13,7 +13,7 @@ function pad(n: number, size = 2) {
 }
 
 function pickDate(r: Partial<Rodagem>): Date | null {
-  const raw = r.data_inicio_rodagem || (r as any).data_inicio || r.data_analise || r.created_at;
+  const raw = r.data_inicio_rodagem || (r as { data_inicio?: string }).data_inicio || r.data_analise || r.created_at;
   if (!raw) return null;
   const d = new Date(raw as string);
   return isNaN(d.getTime()) ? null : d;

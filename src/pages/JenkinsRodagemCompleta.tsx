@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayCircle, ChevronLeft, Copy, Server } from "lucide-react";
 import { createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr } from "@/services/data";
+import { invalidateRerunRequests } from "@/services/queries";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
@@ -106,9 +107,10 @@ export default function JenkinsRodagemCompleta() {
         branch: "",
       });
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
+      invalidateRerunRequests();
       setSVersao("");
-    } catch (e: any) {
-      toast.error("Falha ao criar solicitação", { description: e?.message });
+    } catch (e) {
+      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
     } finally {
       setSubmitting(false);
     }
@@ -133,14 +135,15 @@ export default function JenkinsRodagemCompleta() {
         branch: cBranch,
       });
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
-    } catch (e: any) {
-      toast.error("Falha ao criar solicitação", { description: e?.message });
+      invalidateRerunRequests();
+    } catch (e) {
+      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const copyJson = (obj: any) => {
+  const copyJson = (obj: unknown) => {
     navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
     toast.success("JSON copiado");
   };
@@ -217,7 +220,7 @@ export default function JenkinsRodagemCompleta() {
               </Field>
 
               <Field label="Agendamento">
-                <RadioGroup value={sAgora} onValueChange={(v) => setSAgora(v as any)} className="flex gap-6 mt-1">
+                <RadioGroup value={sAgora} onValueChange={(v) => setSAgora(v as "agora" | "agendar")} className="flex gap-6 mt-1">
                   <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
                     <RadioGroupItem value="agora" /> Agora
                   </label>
@@ -349,7 +352,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
-function JsonPreview({ title, data, onCopy }: { title: string; data: any; onCopy: () => void }) {
+function JsonPreview({ title, data, onCopy }: { title: string; data: unknown; onCopy: () => void }) {
   return (
     <Card className="glass-card p-4 sm:p-6">
       <div className="flex items-center justify-between mb-3">

@@ -1,25 +1,20 @@
 // =====================================================================
-// ApiQaDataSource — implementação REST (agente TC futuro).
+// ApiQaDataSource — cliente REST da API Agent TC.
 //
-// Endpoints previstos:
+// Endpoints usados:
+//   GET  /health
 //   GET  /modules
+//   GET  /modules/latest-runs
 //   GET  /modules/:slug/runs
-//   GET  /runs/:id
-//   GET  /runs/:id/failures
-//   GET  /runs/:id/evidences
-//   GET  /runs/:id/groups
-//   GET  /runs/:id/next-steps
-//   GET  /runs/:id/performance
+//   GET  /runs  |  /runs/:id  |  /runs/:id/{failures,evidences,groups,group-links,
+//                                  next-steps,performance,reexecutable-cases}
+//   GET  /failures/:id/evidences
 //   GET  /testcase-hierarchy?module=contabil
-//   GET  /rerun-requests
-//   POST /rerun-requests
+//   GET  /rerun-requests  |  POST /rerun-requests  |  POST /rerun-requests/:id/cancel
 //
-// NOTA: esta implementação é um esqueleto — os payloads da API real ainda
-// não estão definidos. Os métodos fazem fetch e retornam o JSON como está;
-// quando a API existir, adicionar normalização equivalente à de qa.ts.
-// Nunca use service_role key aqui — apenas o token público do agente.
+// Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
-import type { QaDataSource, CreateRerunPayload, RealtimeTable } from "./types";
+import type { QaDataSource, CreateRerunPayload, ModuleLatestRun } from "./types";
 import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
 } from "@/types/db";
@@ -42,16 +37,27 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (res.status === 401) notifySessionExpired();
-  if (!res.ok) throw new Error(`[api ${res.status}] ${path}`);
+  if (!res.ok) throw new ApiError(res.status, path);
   return (await res.json()) as T;
 }
 
-// As leituras devolvem vazio quando a API falha, para a tela nao quebrar;
+export class ApiError extends Error {
+  constructor(public readonly status: number, path: string) {
+    super(`[api ${status}] ${path}`);
+    this.name = "ApiError";
+  }
+}
+
+// Leituras de detalhe devolvem vazio quando a API falha, para a tela nao quebrar;
 // o motivo real fica no console. Sessao expirada (401) ja leva ao login em req().
+// Modulos, resumo e hierarquia propagam o erro: ficam em cache (React Query) e
+// um vazio guardado por engano esconderia dados por varios minutos.
 const logFallback = (name: string, error: unknown) => {
   console.warn(`[ApiQaDataSource.${name}] falhou, retornando vazio:`, (error as Error)?.message || error);
 };
 
+// JSON cru da API: normalizado nas funcoes abaixo antes de chegar as telas.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ApiRow = Record<string, any>;
 
 function asObject(value: unknown): ApiRow {
@@ -67,11 +73,11 @@ function asObject(value: unknown): ApiRow {
   return typeof value === "object" && !Array.isArray(value) ? value as ApiRow : {};
 }
 
-function firstValue(...values: any[]) {
+function firstValue<T>(...values: T[]): T | undefined {
   return values.find((v) => v !== null && v !== undefined);
 }
 
-function textValue(...values: any[]): string {
+function textValue(...values: unknown[]): string {
   const value = firstValue(...values);
   return value === null || value === undefined ? "" : String(value);
 }
@@ -112,12 +118,12 @@ function normalizeExecutionStatus(row: ApiRow): string {
   return map[raw] || raw || "solicitado";
 }
 
-function knownRequestType(value: any): string | null {
+function knownRequestType(value: unknown): string | null {
   const raw = textValue(value).toLowerCase().trim();
   return raw === "rodagem_completa" || raw === "reexecucao" ? raw : null;
 }
 
-function knownConfigurationMode(value: any): string | null {
+function knownConfigurationMode(value: unknown): string | null {
   const raw = textValue(value).toLowerCase().trim();
   return raw === "simplificada" || raw === "configurada" || raw === "casos_quebrados" ? raw : null;
 }
@@ -212,38 +218,58 @@ function caseIdFromArchiveName(name: string): string | null {
 // O analyzer às vezes devolve id_caso_teste = "ID invalido" quando não
 // consegue parsear o nome do arquivo (ex.: ID entre colchetes). Nesses
 // casos, recuperamos o ID a partir do nome do arquivo de origem.
-function normalizeFailure<T extends Partial<Falha> & Record<string, any>>(row: T): T {
+function normalizeFailure<T extends object>(row: T): T {
   if (!row) return row;
-  const raw = textValue((row as any).id_caso_teste).trim();
+  const rec = row as Record<string, unknown>;
+  const raw = textValue(rec.id_caso_teste).trim();
   if (!raw || !/\d/.test(raw)) {
     const recovered =
-      caseIdFromArchiveName(textValue((row as any).arquivo_origem)) ||
-      caseIdFromArchiveName(textValue((row as any).arquivo_zip)) ||
-      caseIdFromArchiveName(textValue((row as any).source_archive_name));
-    if (recovered) (row as any).id_caso_teste = recovered;
+      caseIdFromArchiveName(textValue(rec.arquivo_origem)) ||
+      caseIdFromArchiveName(textValue(rec.arquivo_zip)) ||
+      caseIdFromArchiveName(textValue(rec.source_archive_name));
+    if (recovered) rec.id_caso_teste = recovered;
   }
   return row;
 }
 
-function normalizeRun<T extends Partial<Rodagem> & Record<string, any>>(row: T | null): T | null {
+function normalizeRun<T extends object>(row: T | null): T | null {
   if (!row) return row;
-  const executed = (row as any).total_executed ?? (row as any).total_analisados ?? (row as any).total_casos;
-  if (executed != null) (row as any).total_analisados = Number(executed) || 0;
+  const rec = row as Record<string, unknown>;
+  const executed = rec.total_executed ?? rec.total_analisados ?? rec.total_casos;
+  if (executed != null) rec.total_analisados = Number(executed) || 0;
   return row;
 }
 
 export const ApiQaDataSource: QaDataSource = {
-  fetchModules: () => req<Modulo[]>("/modules").catch((e) => { logFallback("fetchModules", e); return []; }),
+  fetchModules: () => req<Modulo[]>("/modules"),
+
+  async fetchLatestRunsByModule() {
+    try {
+      const list = await req<ModuleLatestRun[]>("/modules/latest-runs");
+      return (list || []).map((item) => ({ modulo: item.modulo, rodagem: normalizeRun(item.rodagem) as Rodagem | null }));
+    } catch (e) {
+      // API anterior ao endpoint de resumo: monta o mesmo resultado modulo a modulo.
+      if (!(e instanceof ApiError) || (e.status !== 404 && e.status !== 501)) throw e;
+      const modulos = await this.fetchModules();
+      return Promise.all(
+        modulos.map(async (modulo) => ({ modulo, rodagem: (await this.fetchRunsByModule(modulo.slug))[0] || null })),
+      );
+    }
+  },
+
+  async fetchApiHealth() {
+    try {
+      const res = await req<{ ok?: boolean }>("/health");
+      return res?.ok === true;
+    } catch {
+      return false;
+    }
+  },
 
   fetchRunsByModule: (slug) =>
     req<Rodagem[]>(`/modules/${encodeURIComponent(slug)}/runs`)
       .then((list) => (list || []).map((r) => normalizeRun(r) as Rodagem))
       .catch((e) => { logFallback("fetchRunsByModule", e); return []; }),
-
-  async fetchLatestRunByModule(slug) {
-    const list = await this.fetchRunsByModule(slug);
-    return list[0] || null;
-  },
 
   fetchRunById: (id) =>
     req<Rodagem | null>(`/runs/${encodeURIComponent(id)}`)
@@ -275,14 +301,8 @@ export const ApiQaDataSource: QaDataSource = {
   fetchPerformanceByRun: (runId) =>
     req<AtrasoRodagem[]>(`/runs/${encodeURIComponent(runId)}/performance`).catch((e) => { logFallback("fetchPerformanceByRun", e); return []; }),
 
-  async listStorageFilesByRun(_runId, _slug, _pasta) {
-    // No provider REST local, as evidencias ja chegam por /runs/:id/evidences.
-    // A listagem direta de Storage fica vazia para evitar duplicidade no merge.
-    return [];
-  },
-
   fetchTestcaseHierarchy: (slug) =>
-    req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`).catch((e) => { logFallback("fetchTestcaseHierarchy", e); return []; }),
+    req<TestcaseHierarchyNode[]>(`/testcase-hierarchy?module=${encodeURIComponent(slug)}`),
 
   fetchCasosReexecutaveis: (runId) =>
     req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`)
@@ -294,14 +314,6 @@ export const ApiQaDataSource: QaDataSource = {
       .then((rows) => rows.map(normalizeRerunRequest))
       .catch((e) => { logFallback("fetchRerunRequests", e); return []; }),
 
-  fetchRerunRequestsByModule: (slug, moduleName, limit = 20) => {
-    const params = new URLSearchParams({ slug, limit: String(limit) });
-    if (moduleName) params.set("module_name", moduleName);
-    return req<ApiRow[]>(`/rerun-requests?${params.toString()}`)
-      .then((rows) => rows.map(normalizeRerunRequest))
-      .catch((e) => { logFallback("fetchRerunRequestsByModule", e); return []; });
-  },
-
   createRerunRequest: (payload: CreateRerunPayload) =>
     req<ApiRow>(`/rerun-requests`, { method: "POST", body: JSON.stringify(payload) }).then(normalizeRerunRequest),
 
@@ -309,25 +321,5 @@ export const ApiQaDataSource: QaDataSource = {
     req<ApiRow>(`/rerun-requests/${encodeURIComponent(id)}/cancel`, {
       method: "POST",
       body: JSON.stringify({ reason: reason || "Cancelamento solicitado pelo dashboard." }),
-    }).then((res) => normalizeRerunRequest((res && (res as any).rerun_request) ?? res)),
-
-  async fetchModuleDashboardData(slug) {
-    const [modulos, runs] = await Promise.all([this.fetchModules(), this.fetchRunsByModule(slug)]);
-    const modulo = modulos.find((m) => m.slug === slug) || null;
-    const rodagem = runs[0] || null;
-    if (!rodagem) return { modulo, rodagem: null, falhas: [], evidencias: [], grupos: [], passos: [], historico: runs };
-    const [falhas, evidencias, grupos, passos] = await Promise.all([
-      this.fetchFailuresByRun(rodagem.id),
-      this.fetchEvidenceByRun(rodagem.id),
-      this.fetchGroupsByRun(rodagem.id),
-      this.fetchNextStepsByRun(rodagem.id),
-    ]);
-    return { modulo, rodagem, falhas, evidencias, grupos, passos, historico: runs };
-  },
-
-  // REST não tem realtime — usamos polling leve (30s) como fallback.
-  subscribeToTable(_table: RealtimeTable, cb) {
-    const id = window.setInterval(() => cb({ eventType: "POLL" }), 30_000);
-    return () => window.clearInterval(id);
-  },
+    }).then((res) => normalizeRerunRequest((res && (res as ApiRow).rerun_request) ?? res)),
 };

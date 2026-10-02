@@ -1,8 +1,8 @@
 import { lazy, Suspense } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
-import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
 import { PageLoading } from "@/components/PageLoading";
@@ -22,16 +22,6 @@ const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta
 const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: 5 * 60_000,
-      refetchOnWindowFocus: false,
-      retry: 1,
-    },
-  },
-});
 
 const withSuspense = (node: React.ReactNode, message?: string, variant?: "spinner" | "skeleton-cards" | "skeleton-table") => (
   <Suspense fallback={<PageLoading message={message} variant={variant} />}>{node}</Suspense>
@@ -40,7 +30,6 @@ const withSuspense = (node: React.ReactNode, message?: string, variant?: "spinne
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
-      <Toaster />
       <Sonner />
       <BrowserRouter>
         <AuthProvider>

@@ -18,15 +18,6 @@ import type {
   CasoReexecutavel,
 } from "@/services/qa";
 
-export type RealtimeTable =
-  | "rodagens"
-  | "falhas"
-  | "evidencias"
-  | "agrupamentos"
-  | "proximos_passos"
-  | "modulos"
-  | "rerun_requests";
-
 export interface CreateRerunPayload {
   vm_name: string;
   versao: string;
@@ -37,13 +28,20 @@ export interface CreateRerunPayload {
   branch?: string;
 }
 
+/** Item de GET /modules/latest-runs: o modulo e sua rodagem mais recente (null se nunca rodou). */
+export interface ModuleLatestRun {
+  modulo: Modulo;
+  rodagem: Rodagem | null;
+}
+
 export interface QaDataSource {
-  // Módulos
+  // Módulos e visão geral
   fetchModules(): Promise<Modulo[]>;
+  fetchLatestRunsByModule(): Promise<ModuleLatestRun[]>;
+  fetchApiHealth(): Promise<boolean>;
 
   // Rodagens
   fetchRunsByModule(slug: string): Promise<Rodagem[]>;
-  fetchLatestRunByModule(slug: string): Promise<Rodagem | null>;
   fetchRunById(id: string): Promise<Rodagem | null>;
   fetchAllRuns(): Promise<RodagemListItem[]>;
 
@@ -56,13 +54,6 @@ export interface QaDataSource {
   fetchNextStepsByRun(runId: string): Promise<ProximoPasso[]>;
   fetchPerformanceByRun(runId: string): Promise<AtrasoRodagem[]>;
 
-  // Storage (arquivos brutos de evidências)
-  listStorageFilesByRun(
-    runId: string,
-    moduloSlug?: string,
-    pastaOrigem?: string | null,
-  ): Promise<Evidencia[]>;
-
   // Hierarquia de casos de teste
   fetchTestcaseHierarchy(slug: string): Promise<TestcaseHierarchyNode[]>;
 
@@ -71,25 +62,6 @@ export interface QaDataSource {
 
   // Rerun requests (Jenkins)
   fetchRerunRequests(limit?: number): Promise<RerunRequest[]>;
-  fetchRerunRequestsByModule(
-    slug: string,
-    moduleName?: string | null,
-    limit?: number,
-  ): Promise<RerunRequest[]>;
   createRerunRequest(payload: CreateRerunPayload): Promise<RerunRequest>;
   cancelRerunRequest(id: string, reason?: string): Promise<RerunRequest>;
-
-  // Dashboard agregado
-  fetchModuleDashboardData(slug: string): Promise<{
-    modulo: Modulo | null;
-    rodagem: Rodagem | null;
-    falhas: Falha[];
-    evidencias: Evidencia[];
-    grupos: Agrupamento[];
-    passos: ProximoPasso[];
-    historico: Rodagem[];
-  }>;
-
-  // Realtime (opcional para provider REST — pode ser polling)
-  subscribeToTable(table: RealtimeTable, cb: (payload: any) => void): () => void;
 }

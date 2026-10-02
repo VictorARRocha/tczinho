@@ -6,16 +6,16 @@ const QUEBRA_TOKENS = ["quebra", "quebra_teste", "quebras de testes", "quebras",
 const DIFF_TOKENS = ["diferenca", "diferença", "diferenca_arquivo", "comparacao", "diferença entre arquivos de comparação", "report_diff"];
 const HIBRID_TOKENS = ["quebra_com_diferenca", "diferenca_com_quebra", "diferenças entre arquivos com quebra de teste", "quebra+diferenca"];
 
-const norm = (s: any) =>
+const norm = (s: unknown) =>
   String(s ?? "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
 
-function pickFieldValue(f: any, keys: string[]): string {
+function pickFieldValue(f: object, keys: string[]): string {
   for (const k of keys) {
-    const v = f?.[k];
+    const v = (f as Record<string, unknown>)?.[k];
     if (v) return norm(v);
   }
   return "";
