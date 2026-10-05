@@ -19,6 +19,7 @@ const ModulePage = lazy(() => import("./pages/ModulePage"));
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
+const RegravarBases = lazy(() => import("./pages/RegravarBases"));
 const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -70,6 +71,10 @@ const App = () => (
               <Route
                 path="/jenkins/reexecutar"
                 element={withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
+              />
+              <Route
+                path="/jenkins/regravar"
+                element={withSuspense(<RegravarBases />, "Carregando regravação...", "skeleton-table")}
               />
               <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
 

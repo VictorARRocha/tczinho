@@ -16,6 +16,10 @@ import {
   fetchModules,
   fetchRerunRequests,
   fetchRunPresets,
+  fetchRegravacaoCandidatos,
+  fetchRegravacoes,
+  fetchEvidenceByRun,
+  type RegravacaoPedido,
   fetchTestcaseHierarchy,
   type RerunRequest,
 } from "@/services/data";
@@ -29,6 +33,9 @@ export const queryKeys = {
   runFailures: (runId: string) => ["run-failures", runId] as const,
   rerunRequests: ["rerun-requests"] as const,
   runPresets: ["run-presets"] as const,
+  regravacaoCandidatos: (runId: string) => ["regravacao-candidatos", runId] as const,
+  regravacoes: (runId: string) => ["regravacoes", runId] as const,
+  runEvidences: (runId: string) => ["run-evidences", runId] as const,
 };
 
 const MODULES_STALE_MS = 5 * 60_000;
@@ -92,6 +99,53 @@ export function useRunPresets() {
 
 export function invalidateRunPresets() {
   return queryClient.invalidateQueries({ queryKey: queryKeys.runPresets });
+}
+
+const ACTIVE_REGRAVACAO = new Set(["solicitado", "processando"]);
+
+/** Pedidos de regravacao da rodagem: 10s enquanto houver pedido ativo, senao 1 minuto. */
+export function regravacaoRefetchInterval(pedidos: RegravacaoPedido[] | undefined): number {
+  return (pedidos || []).some((p) => ACTIVE_REGRAVACAO.has(p.status)) ? 10_000 : 60_000;
+}
+
+export function useRegravacaoCandidatos(runId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.regravacaoCandidatos(runId || ""),
+    queryFn: () => fetchRegravacaoCandidatos(runId as string),
+    enabled: !!runId,
+    staleTime: 30_000,
+  });
+}
+
+export function useRegravacoes(runId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.regravacoes(runId || ""),
+    queryFn: () => fetchRegravacoes(runId as string),
+    enabled: !!runId,
+    refetchInterval: (query) => regravacaoRefetchInterval(query.state.data),
+  });
+}
+
+export function useRunEvidences(runId: string | null) {
+  return useQuery({
+    queryKey: queryKeys.runEvidences(runId || ""),
+    queryFn: () => fetchEvidenceByRun(runId as string),
+    enabled: !!runId,
+    staleTime: 5 * 60_000,
+  });
+}
+
+/** Pedido mudou de status (ex.: o Bridge terminou): a situacao dos arquivos muda junto. */
+export function invalidateRegravacaoCandidatos(runId: string) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.regravacaoCandidatos(runId) });
+}
+
+/** Depois de criar/cancelar: recarrega pedidos e a situacao dos arquivos da rodagem. */
+export function invalidateRegravacao(runId: string) {
+  return Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.regravacoes(runId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.regravacaoCandidatos(runId) }),
+  ]);
 }
 
 /** Para carregamentos imperativos (ModulePage): usa o cache se ainda estiver valido. */

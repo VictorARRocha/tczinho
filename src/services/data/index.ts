@@ -12,6 +12,7 @@ export const qaData: QaDataSource = ApiQaDataSource;
 
 export type {
   QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, RunPresetMode, SaveRunPresetPayload,
+  RegravacaoItem, RegravacaoCandidatos, RegravacaoPedido, RegravacaoResultadoItem, CreateRegravacaoPayload,
 } from "./types";
 export { ApiQaDataSource } from "./apiSource";
 export { getDataConfig } from "./config";
@@ -52,3 +53,7 @@ export const createRunPreset = (payload: import("./types").SaveRunPresetPayload)
 export const updateRunPreset = (id: string, payload: import("./types").SaveRunPresetPayload) =>
   qaData.updateRunPreset(id, payload);
 export const deleteRunPreset = (id: string) => qaData.deleteRunPreset(id);
+export const fetchRegravacaoCandidatos = (runId: string) => qaData.fetchRegravacaoCandidatos(runId);
+export const fetchRegravacoes = (runId?: string) => qaData.fetchRegravacoes(runId);
+export const createRegravacao = (payload: import("./types").CreateRegravacaoPayload) => qaData.createRegravacao(payload);
+export const cancelRegravacao = (id: string) => qaData.cancelRegravacao(id);

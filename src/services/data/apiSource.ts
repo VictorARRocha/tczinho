@@ -12,10 +12,14 @@
 //   GET  /testcase-hierarchy?module=contabil
 //   GET  /rerun-requests  |  POST /rerun-requests  |  POST /rerun-requests/:id/cancel
 //   GET  /run-presets  |  POST /run-presets  |  PATCH /run-presets/:id  |  POST /run-presets/:id/delete
+//   GET  /runs/:id/regravacao  |  GET /regravacoes?run_id=  |  POST /regravacoes  |  POST /regravacoes/:id/cancel
 //
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
-import type { QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload } from "./types";
+import type {
+  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload,
+  RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
+} from "./types";
 import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
 } from "@/types/db";
@@ -334,4 +338,16 @@ export const ApiQaDataSource: QaDataSource = {
 
   deleteRunPreset: (id: string) =>
     req<unknown>(`/run-presets/${encodeURIComponent(id)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
+
+  fetchRegravacaoCandidatos: (runId: string) =>
+    req<RegravacaoCandidatos>(`/runs/${encodeURIComponent(runId)}/regravacao`),
+
+  fetchRegravacoes: (runId?: string) =>
+    req<RegravacaoPedido[]>(`/regravacoes${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`),
+
+  createRegravacao: (payload: CreateRegravacaoPayload) =>
+    req<RegravacaoPedido>(`/regravacoes`, { method: "POST", body: JSON.stringify(payload) }),
+
+  cancelRegravacao: (id: string) =>
+    req<unknown>(`/regravacoes/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }).then(() => undefined),
 };

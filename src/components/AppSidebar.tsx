@@ -1,6 +1,6 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw,
+  Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw, Upload,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
   PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding, ShieldCheck,
   type LucideIcon,
@@ -107,6 +107,14 @@ export function AppSidebar() {
                       <NavLink to="/jenkins/reexecutar">
                         <RefreshCcw />
                         <span>Reexecutar rodagens</span>
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                  <SidebarMenuItem>
+                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/regravar"} className="pl-8">
+                      <NavLink to="/jenkins/regravar">
+                        <Upload />
+                        <span>Regravar arquivos</span>
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

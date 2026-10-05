@@ -48,6 +48,60 @@ export interface SaveRunPresetPayload {
   config?: Record<string, unknown>;
 }
 
+/** Diferenca de uma rodagem e se pode ser regravada (GET /runs/:id/regravacao). */
+export interface RegravacaoItem {
+  difference_id: string;
+  occurrence_id: string | null;
+  id_caso_teste: string | null;
+  arquivo_base: string | null;
+  arquivo_atual: string | null;
+  base_evidence_id: string | null;
+  current_evidence_id: string | null;
+  caminho_base: string | null;
+  linhas_alteradas: number | null;
+  regravavel: boolean;
+  motivo: string | null;
+  motivo_texto: string | null;
+}
+
+export interface RegravacaoCandidatos {
+  run_id: string;
+  repository_url: string | null;
+  repository_revision: string | null;
+  itens: RegravacaoItem[];
+}
+
+export interface RegravacaoResultadoItem {
+  difference_id: string;
+  arquivo_atual?: string | null;
+  caminho_base?: string | null;
+  status: string;
+  mensagem?: string | null;
+}
+
+/** Pedido de regravacao (executado pelo RegravacaoBridge na D01). */
+export interface RegravacaoPedido {
+  id: string;
+  run_id: string;
+  status: "solicitado" | "processando" | "concluido" | "erro" | "cancelado" | string;
+  requested_by: string | null;
+  repository_url: string;
+  commit_message: string | null;
+  items_json: { difference_id: string; id_caso_teste: string | null; arquivo_atual: string | null; caminho_base: string }[];
+  result_json: { itens?: RegravacaoResultadoItem[]; simulacao?: boolean; revisao_conferida?: string } | null;
+  svn_revision: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+}
+
+export interface CreateRegravacaoPayload {
+  run_id: string;
+  difference_ids: string[];
+  mensagem?: string;
+}
+
 /** Item de GET /modules/latest-runs: o modulo e sua rodagem mais recente (null se nunca rodou). */
 export interface ModuleLatestRun {
   modulo: Modulo;
@@ -90,4 +144,10 @@ export interface QaDataSource {
   createRunPreset(payload: SaveRunPresetPayload): Promise<RunPreset>;
   updateRunPreset(id: string, payload: SaveRunPresetPayload): Promise<RunPreset>;
   deleteRunPreset(id: string): Promise<void>;
+
+  // Regravacao de bases (SVN)
+  fetchRegravacaoCandidatos(runId: string): Promise<RegravacaoCandidatos>;
+  fetchRegravacoes(runId?: string): Promise<RegravacaoPedido[]>;
+  createRegravacao(payload: CreateRegravacaoPayload): Promise<RegravacaoPedido>;
+  cancelRegravacao(id: string): Promise<void>;
 }
