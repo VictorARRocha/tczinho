@@ -15,6 +15,7 @@ import {
   fetchLatestRunsByModule,
   fetchModules,
   fetchRerunRequests,
+  fetchRunPresets,
   fetchTestcaseHierarchy,
   type RerunRequest,
 } from "@/services/data";
@@ -27,6 +28,7 @@ export const queryKeys = {
   hierarchy: (slug: string) => ["testcase-hierarchy", slug] as const,
   runFailures: (runId: string) => ["run-failures", runId] as const,
   rerunRequests: ["rerun-requests"] as const,
+  runPresets: ["run-presets"] as const,
 };
 
 const MODULES_STALE_MS = 5 * 60_000;
@@ -81,6 +83,15 @@ export function useRerunRequests(limit = 50) {
 
 export function invalidateRerunRequests() {
   return queryClient.invalidateQueries({ queryKey: queryKeys.rerunRequests });
+}
+
+/** Pre-definicoes de rodagem Jenkins (compartilhadas): mudam pouco, recarregam ao salvar. */
+export function useRunPresets() {
+  return useQuery({ queryKey: queryKeys.runPresets, queryFn: fetchRunPresets, staleTime: 30_000 });
+}
+
+export function invalidateRunPresets() {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.runPresets });
 }
 
 /** Para carregamentos imperativos (ModulePage): usa o cache se ainda estiver valido. */

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,8 @@ import { Copy, ExternalLink, ChevronDown, ChevronUp, Info, XCircle } from "lucid
 import { cancelRerunRequest, type RerunRequest } from "@/services/data";
 import { invalidateRerunRequests, useRerunRequests } from "@/services/queries";
 import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
+import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
+import { HistoryClearControls } from "@/components/HistoryClearControls";
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -122,10 +124,20 @@ function safeError(s?: string | null): string | null {
   return s.replace(/(authorization|apikey|service[_-]?role|bearer\s+\S+|token=\S+)/gi, "[redacted]");
 }
 
-export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { title?: string; limit?: number }) {
+// memo: a tabela (ate `limit` linhas com tooltips) nao re-renderiza a cada tecla
+// digitada no formulario da pagina; so quando os dados ou o estado dela mudam.
+export const JenkinsHistory = memo(function JenkinsHistory({
+  title = "Histórico Jenkins",
+  limit = 50,
+  clearStorageKey = "agenttc.jenkins.historico.ocultas",
+}: { title?: string; limit?: number; clearStorageKey?: string }) {
   // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
-  const { data: history = [] } = useRerunRequests(limit);
-  const hasActive = hasActiveRerun(history);
+  const { data } = useRerunRequests(limit);
+  // A API pode devolver mais que o pedido; a tela mostra no maximo `limit`.
+  const allHistory = useMemo(() => (data || []).slice(0, limit), [data, limit]);
+  const hasActive = hasActiveRerun(allHistory);
+  const { hiddenIds, clear, restore } = useHistoryClear(clearStorageKey);
+  const history = useMemo(() => visibleAfterClear(allHistory, hiddenIds), [allHistory, hiddenIds]);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -147,16 +159,24 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
             </Badge>
           )}
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
-          {expanded ? (
-            <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Minimizar</>
-          ) : (
-            <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Expandir</>
-          )}
-        </Button>
+        <div className="flex items-center gap-1">
+          <HistoryClearControls
+            hiddenCount={allHistory.length - history.length}
+            canClear={canClearHistory(history)}
+            onClear={() => clear(history)}
+            onRestore={restore}
+          />
+          <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? (
+              <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Minimizar</>
+            ) : (
+              <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Expandir</>
+            )}
+          </Button>
+        </div>
       </div>
       {expanded && (
-        <Card className="glass-card overflow-hidden">
+        <Card className="glass-card backdrop-filter-none overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -175,7 +195,7 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">{allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}</TableCell></TableRow>
                 ) : history.map((r) => {
                   const status = resolveStatus(r);
                   const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
@@ -280,7 +300,7 @@ export function JenkinsHistory({ title = "Histórico Jenkins", limit = 50 }: { t
       <DetailDialog request={detail} onClose={() => setDetail(null)} />
     </TooltipProvider>
   );
-}
+});
 
 function FragmentRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (

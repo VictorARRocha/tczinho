@@ -28,6 +28,26 @@ export interface CreateRerunPayload {
   branch?: string;
 }
 
+export type RunPresetMode = "simplificada" | "configurada";
+
+/** Pre-definicao de rodagem Jenkins salva na API (compartilhada entre usuarios). */
+export interface RunPreset {
+  id: string;
+  name: string;
+  mode: RunPresetMode;
+  config_json: Record<string, unknown>;
+  created_by?: string | null;
+  updated_by?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SaveRunPresetPayload {
+  nome?: string;
+  modo?: RunPresetMode;
+  config?: Record<string, unknown>;
+}
+
 /** Item de GET /modules/latest-runs: o modulo e sua rodagem mais recente (null se nunca rodou). */
 export interface ModuleLatestRun {
   modulo: Modulo;
@@ -64,4 +84,10 @@ export interface QaDataSource {
   fetchRerunRequests(limit?: number): Promise<RerunRequest[]>;
   createRerunRequest(payload: CreateRerunPayload): Promise<RerunRequest>;
   cancelRerunRequest(id: string, reason?: string): Promise<RerunRequest>;
+
+  // Pre-definicoes de rodagem (Jenkins)
+  fetchRunPresets(): Promise<RunPreset[]>;
+  createRunPreset(payload: SaveRunPresetPayload): Promise<RunPreset>;
+  updateRunPreset(id: string, payload: SaveRunPresetPayload): Promise<RunPreset>;
+  deleteRunPreset(id: string): Promise<void>;
 }

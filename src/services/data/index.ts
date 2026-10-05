@@ -10,7 +10,9 @@ import type { QaDataSource } from "./types";
 
 export const qaData: QaDataSource = ApiQaDataSource;
 
-export type { QaDataSource, CreateRerunPayload, ModuleLatestRun } from "./types";
+export type {
+  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, RunPresetMode, SaveRunPresetPayload,
+} from "./types";
 export { ApiQaDataSource } from "./apiSource";
 export { getDataConfig } from "./config";
 export type {
@@ -45,3 +47,8 @@ export const createRerunRequest = (payload: import("./types").CreateRerunPayload
   qaData.createRerunRequest(payload);
 export const cancelRerunRequest = (id: string, reason?: string) =>
   qaData.cancelRerunRequest(id, reason);
+export const fetchRunPresets = () => qaData.fetchRunPresets();
+export const createRunPreset = (payload: import("./types").SaveRunPresetPayload) => qaData.createRunPreset(payload);
+export const updateRunPreset = (id: string, payload: import("./types").SaveRunPresetPayload) =>
+  qaData.updateRunPreset(id, payload);
+export const deleteRunPreset = (id: string) => qaData.deleteRunPreset(id);

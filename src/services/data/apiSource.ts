@@ -11,10 +11,11 @@
 //   GET  /failures/:id/evidences
 //   GET  /testcase-hierarchy?module=contabil
 //   GET  /rerun-requests  |  POST /rerun-requests  |  POST /rerun-requests/:id/cancel
+//   GET  /run-presets  |  POST /run-presets  |  PATCH /run-presets/:id  |  POST /run-presets/:id/delete
 //
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
-import type { QaDataSource, CreateRerunPayload, ModuleLatestRun } from "./types";
+import type { QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload } from "./types";
 import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
 } from "@/types/db";
@@ -322,4 +323,15 @@ export const ApiQaDataSource: QaDataSource = {
       method: "POST",
       body: JSON.stringify({ reason: reason || "Cancelamento solicitado pelo dashboard." }),
     }).then((res) => normalizeRerunRequest((res && (res as ApiRow).rerun_request) ?? res)),
+
+  fetchRunPresets: () => req<RunPreset[]>(`/run-presets`),
+
+  createRunPreset: (payload: SaveRunPresetPayload) =>
+    req<RunPreset>(`/run-presets`, { method: "POST", body: JSON.stringify(payload) }),
+
+  updateRunPreset: (id: string, payload: SaveRunPresetPayload) =>
+    req<RunPreset>(`/run-presets/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(payload) }),
+
+  deleteRunPreset: (id: string) =>
+    req<unknown>(`/run-presets/${encodeURIComponent(id)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
 };

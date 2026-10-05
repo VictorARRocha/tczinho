@@ -47,6 +47,8 @@ import {
   type CasoReexecutavel,
 } from "@/services/data";
 import { invalidateRerunRequests, useAllRuns, useRerunRequests } from "@/services/queries";
+import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
+import { HistoryClearControls } from "@/components/HistoryClearControls";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   solicitado: { label: "Solicitado", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },
@@ -74,7 +76,11 @@ export default function ReexecutarTestes() {
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   // Mesmo cache do JenkinsHistory: 10s com pedido ativo, 1 minuto sem.
-  const { data: history = [] } = useRerunRequests(50);
+  const { data: historyData } = useRerunRequests(50);
+  // A API pode devolver mais que o pedido; mostra no maximo 50, como na rodagem completa.
+  const allHistory = useMemo(() => (historyData || []).slice(0, 50), [historyData]);
+  const historyClear = useHistoryClear("agenttc.jenkins.reexecucoes.ocultas");
+  const history = useMemo(() => visibleAfterClear(allHistory, historyClear.hiddenIds), [allHistory, historyClear.hiddenIds]);
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -486,6 +492,12 @@ export default function ReexecutarTestes() {
               <h2 className="text-lg font-semibold">Histórico de reexecuções</h2>
             </Button>
           </CollapsibleTrigger>
+          <HistoryClearControls
+            hiddenCount={allHistory.length - history.length}
+            canClear={canClearHistory(history)}
+            onClear={() => historyClear.clear(history)}
+            onRestore={historyClear.restore}
+          />
         </div>
         <CollapsibleContent>
           <Card className="glass-card overflow-hidden">
@@ -505,7 +517,7 @@ export default function ReexecutarTestes() {
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">{allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}</TableCell></TableRow>
                 ) : (
                   history.map((r) => {
                     const meta = STATUS_META[r.status] || { label: r.status, className: "" };
