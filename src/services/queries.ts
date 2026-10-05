@@ -11,6 +11,7 @@ import { hasActiveRerun } from "@/lib/rerunStatus";
 import {
   fetchAllRuns,
   fetchApiHealth,
+  fetchFailuresByRun,
   fetchLatestRunsByModule,
   fetchModules,
   fetchRerunRequests,
@@ -24,6 +25,7 @@ export const queryKeys = {
   health: ["api-health"] as const,
   allRuns: ["all-runs"] as const,
   hierarchy: (slug: string) => ["testcase-hierarchy", slug] as const,
+  runFailures: (runId: string) => ["run-failures", runId] as const,
   rerunRequests: ["rerun-requests"] as const,
 };
 
@@ -48,6 +50,16 @@ export function useLatestRuns() {
 
 export function useApiHealth() {
   return useQuery({ queryKey: queryKeys.health, queryFn: fetchApiHealth, refetchInterval: 60_000, retry: 0 });
+}
+
+/** Falhas de uma rodagem (a lista de uma rodagem ja importada nao muda; cache de 5 min). */
+export function useRunFailures(runId: string | null | undefined) {
+  return useQuery({
+    queryKey: queryKeys.runFailures(runId || ""),
+    queryFn: () => fetchFailuresByRun(runId as string),
+    enabled: !!runId,
+    staleTime: 5 * 60_000,
+  });
 }
 
 export function useAllRuns() {

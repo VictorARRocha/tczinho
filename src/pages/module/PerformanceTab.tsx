@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, ChevronsUpDown, Gauge, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { useDebounce } from "@/hooks/useDebounce";
 
 // ============= Performance helpers =============
@@ -162,10 +161,6 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
     () => topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) })),
     [topSlow],
   );
-  const topFastChart = useMemo(
-    () => topFast.map((d) => ({ name: d.codigo_teste || d.id, value: Math.abs(d.delay_segundos), label: formatDuration(Math.abs(d.delay_segundos)) })),
-    [topFast],
-  );
 
   // O retorno antecipado fica depois de todos os hooks: trocar entre rodagens
   // com e sem performance nao pode mudar a quantidade de hooks chamados.
@@ -195,44 +190,6 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           </Card>
         ))}
       </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        {topFastChart.length > 0 && (
-          <Card className="glass-card p-6 md:col-span-3">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Top {topFastChart.length} maiores ganhos</h3>
-            <ResponsiveContainer width="100%" height={Math.max(220, topFastChart.length * 26)}>
-              <BarChart data={topFastChart} layout="vertical" margin={{ left: 10 }}>
-                <XAxis type="number" stroke="hsl(var(--muted-foreground))" fontSize={11} tickFormatter={(v) => formatDuration(Number(v))} />
-                <YAxis type="category" dataKey="name" stroke="hsl(var(--muted-foreground))" fontSize={10} width={90} />
-                <Tooltip contentStyle={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} formatter={(v: unknown) => formatDuration(Number(v))} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
-                <Bar dataKey="value" fill="hsl(var(--success))" radius={[0, 6, 6, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-      </div>
-
-
-      {topFast.length > 0 && (
-        <Card className="glass-card p-6">
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><TrendingDown className="h-4 w-4 text-success" />Top ganhos</h3>
-          <div className="space-y-2">
-            {topFast.map((d) => (
-              <div key={d.id} className="flex items-center gap-3 p-3 rounded-lg bg-secondary/40">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium truncate">{d.nome_teste || d.codigo_teste}</div>
-                  <div className="font-mono text-[11px] text-muted-foreground">{d.codigo_teste} · {d.tempo_padrao} → {d.tempo_atual}</div>
-                </div>
-                <div className="text-right">
-                  <div className="font-mono text-sm text-success">{formatDuration(d.delay_segundos)}</div>
-                  <PerfBadge status={d.status} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
 
       <Card className="glass-card p-4 space-y-3">
         <div className="flex items-center gap-2">

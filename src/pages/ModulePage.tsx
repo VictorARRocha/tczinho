@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab } from "./module/FalhasTab";
 import { HistoricoTab } from "./module/HistoricoTab";
+import { CompararTab } from "./module/CompararTab";
 import { ModuleHeader } from "./module/ModuleHeader";
 import { PerformanceTab } from "./module/PerformanceTab";
 import { ResumoTab } from "./module/ResumoTab";
@@ -115,9 +116,10 @@ export default function ModulePage() {
       setRodagem(r);
       if (r) {
         if (!runSlug) {
-          // reflete a rodagem aberta na URL (link compartilhável) sem empilhar histórico
+          // reflete a rodagem aberta na URL (link compartilhável) sem empilhar histórico;
+          // mantem os parametros (?tab=comparar&de=...&para=...) de um link compartilhado.
           initialRouteRef.current = true;
-          navigate(`/modulo/${targetSlug}/${rodagemSlugFor(runs, r)}`, { replace: true });
+          navigate(`/modulo/${targetSlug}/${rodagemSlugFor(runs, r)}${window.location.search}`, { replace: true });
         }
         await loadRunDetails(r, targetSlug, reqId);
       } else {
@@ -175,14 +177,20 @@ export default function ModulePage() {
     setNotFound(false);
 
     loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
-    if (tabParam === "falhas") setActiveTab("falhas");
+    if (tabParam === "falhas" || tabParam === "comparar") setActiveTab(tabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug]);
 
   // Rodagem selecionada derivada da rota (navegação/voltar do browser)
   const initialRouteRef = useRef(true);
+  const runEffectSlugRef = useRef(slug);
   useEffect(() => {
     if (initialRouteRef.current) { initialRouteRef.current = false; return; }
+    // Troca de modulo (ex.: Voltar do navegador de uma rodagem do Contabil para uma
+    // da Folha): o loadAll do novo modulo ja resolve a rodagem da URL. Trocar aqui,
+    // com o historico do modulo anterior, cancelava esse carregamento e a tela
+    // ficava presa em "Carregando modulo".
+    if (runEffectSlugRef.current !== slug) { runEffectSlugRef.current = slug; return; }
     if (loading || historico.length === 0) return;
     if (rodagemSlug) {
       const target = findRodagemBySlug(historico, rodagemSlug);
@@ -265,12 +273,13 @@ export default function ModulePage() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
-          <TabsList className="bg-card border border-border">
+          <TabsList className="bg-card border border-border max-w-full overflow-x-auto justify-start">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
             <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">({performance.length})</span>}</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
+            <TabsTrigger value="comparar">Comparar</TabsTrigger>
           </TabsList>
 
           {runLoading && (
@@ -284,6 +293,7 @@ export default function ModulePage() {
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={goToRunId} /></TabsContent>
+          <TabsContent value="comparar" className="mt-6"><CompararTab runs={historico} currentRunId={rodagem.id} onOpenFailure={setSelectedFalha} /></TabsContent>
 
         </Tabs>
       )}

@@ -7,13 +7,33 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Search, FolderTree } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, FolderTree, List, Network } from "lucide-react";
 import { ClassificationBadge, SeverityBadge } from "@/components/Badges";
 import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { useDebounce } from "@/hooks/useDebounce";
 import { withCaseMetadata, failureDescription, cleanFileName } from "./caseText";
+import { TipoBadge } from "./common";
 
 type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
+
+type FalhasView = "arvore" | "lista";
+const VIEW_STORAGE_KEY = "agenttc.falhas.view";
+
+function readStoredView(): FalhasView {
+  try {
+    return window.localStorage.getItem(VIEW_STORAGE_KEY) === "lista" ? "lista" : "arvore";
+  } catch {
+    return "arvore";
+  }
+}
+
+function storeView(view: FalhasView) {
+  try {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Preferencia so desta sessao quando o navegador bloqueia o armazenamento.
+  }
+}
 
 type TreeNode = {
   id: string;            // caminho completo: "1.3.7"
@@ -171,6 +191,8 @@ export function FalhasTab({
 }) {
   const [q, setQ] = useState("");
   const [extFilter, setExtFilter] = useState<string>("");
+  const [view, setView] = useState<FalhasView>(readStoredView);
+  const changeView = (v: FalhasView) => { setView(v); storeView(v); };
   const debouncedQ = useDebounce(q, 250);
 
   const hierMap = useMemo(() => {
@@ -304,9 +326,11 @@ export function FalhasTab({
         matchingIds.add(id);
       }
     });
-    if (matchingIds.size === 0) return enriched;
+    // Antes, sem nenhum nome de hierarquia correspondente, a busca devolvia tudo
+    // (buscar por uma mensagem de erro nao filtrava nada).
     return enriched.filter((it) => {
       if (itemMatches(it, debouncedQ)) return true;
+      if (matchingIds.size === 0) return false;
       const parts = extractCaseIdParts(it.f.id_caso_teste);
       if (!parts) return false;
       for (let i = 0; i < parts.length; i++) {
@@ -406,12 +430,38 @@ export function FalhasTab({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por ID, nome, descrição, arquivo ou extensão..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background flex-1 min-w-[220px]" />
+          <Input
+            placeholder="Buscar por ID, nome, mensagem de erro ou arquivo... (Esc limpa)"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
+            className="bg-background flex-1 min-w-[220px]"
+          />
           <div className="ml-auto flex gap-1">
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
-            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={collapseAll}>Recolher tudo</Button>
+            <ToggleChip label="Árvore" icon={<Network className="h-3.5 w-3.5" />} active={view === "arvore"} onClick={() => changeView("arvore")} />
+            <ToggleChip label="Lista" icon={<List className="h-3.5 w-3.5" />} active={view === "lista"} onClick={() => changeView("lista")} />
+            {view === "arvore" && (
+              <>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
+                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={collapseAll}>Recolher tudo</Button>
+              </>
+            )}
           </div>
         </div>
+        {(allExts.length > 1 || hasActiveFilter) && (
+          <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
+            {allExts.length > 1 && (
+              <>
+                <span>Arquivos de comparação:</span>
+                <ToggleChip label="Todos" active={!extFilter} onClick={() => setExtFilter("")} />
+                {allExts.map((ext) => (
+                  <ToggleChip key={ext} label={`.${ext.replace(/^\.+/, "")}`} active={extFilter === ext} onClick={() => setExtFilter(extFilter === ext ? "" : ext)} />
+                ))}
+              </>
+            )}
+            <span className="ml-auto">Mostrando {filtered.length} de {enriched.length} falhas</span>
+          </div>
+        )}
       </Card>
 
       {isEmpty ? (
@@ -420,6 +470,8 @@ export function FalhasTab({
             ? "Nenhum item encontrado para os filtros aplicados."
             : "Nenhuma falha encontrada neste módulo."}
         </Card>
+      ) : view === "lista" ? (
+        <FalhasLista items={filtered} onSelect={onSelect} onCompare={onCompare} />
       ) : (
         <Card className="p-2 md:p-3 bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
           <div className="space-y-0.5">
@@ -435,15 +487,6 @@ export function FalhasTab({
       )}
     </div>
   );
-}
-
-function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
-  const base = "text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full border";
-  if (tipo === "quebra")
-    return <Badge variant="outline" className={`${base} bg-rose-500/10 text-rose-300 border-rose-500/30`}>Quebra</Badge>;
-  if (tipo === "diferenca")
-    return <Badge variant="outline" className={`${base} bg-amber-900/25 text-amber-200/90 border-amber-700/40`}>Diferença</Badge>;
-  return <Badge variant="outline" className={`${base} bg-fuchsia-500/10 text-fuchsia-300 border-fuchsia-500/30`}>Quebra + Diferença</Badge>;
 }
 
 function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
@@ -670,8 +713,84 @@ function OrphanGroup({
   );
 }
 
-function ToggleChip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+function ToggleChip({ label, active, onClick, icon }: { label: string; active: boolean; onClick: () => void; icon?: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`h-8 px-3 rounded-md border text-xs transition-smooth ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}>{label}</button>
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`h-8 px-3 rounded-md border text-xs transition-smooth inline-flex items-center gap-1.5 ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
+    >
+      {icon}{label}
+    </button>
+  );
+}
+
+function compareCaseIds(a: string | null, b: string | null): number {
+  const pa = extractCaseIdParts(a);
+  const pb = extractCaseIdParts(b);
+  if (!pa && !pb) return 0;
+  if (!pa) return 1;
+  if (!pb) return -1;
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (Number(pa[i] ?? -1) || 0) - (Number(pb[i] ?? -1) || 0);
+    if (diff) return diff;
+  }
+  return 0;
+}
+
+/** Modo lista: uma linha por falha, ordenada pelo ID do caso. */
+function FalhasLista({
+  items, onSelect, onCompare,
+}: {
+  items: EnrichedItem[];
+  onSelect: (f: Falha) => void;
+  onCompare: (p: ComparisonPair, f: Falha) => void;
+}) {
+  const ordenados = useMemo(
+    () => [...items].sort((a, b) => compareCaseIds(a.f.id_caso_teste, b.f.id_caso_teste)),
+    [items],
+  );
+  return (
+    <Card className="glass-card divide-y divide-border/60 overflow-hidden">
+      {ordenados.map(({ f, tipo, pairs }) => {
+        const desc = failureDescription(f);
+        const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+        return (
+          <div
+            key={f.id}
+            className="flex flex-col gap-2 px-4 py-2.5 hover:bg-secondary/40 cursor-pointer md:flex-row md:items-center md:gap-4"
+            role="button"
+            tabIndex={0}
+            onClick={() => onSelect(f)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
+          >
+            <div className="flex items-center gap-2 shrink-0 md:w-52">
+              <TipoBadge tipo={tipo} />
+              {f.id_caso_teste && <Badge variant="outline" className="font-mono text-[11px]">#{f.id_caso_teste}</Badge>}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium truncate">{f.caso_teste_provavel || "Caso sem nome no MDS"}</div>
+              {desc && desc !== f.caso_teste_provavel && <div className="text-xs text-muted-foreground line-clamp-1">{desc}</div>}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {isDiff && pairs.length > 0 && (
+                <Button size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); onCompare(pairs[0], f); }}>
+                  Ver diferenças{pairs.length > 1 ? ` (${pairs.length})` : ""}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="secondary"
+                className="h-7 text-xs border border-border/60"
+                onClick={(e) => { e.stopPropagation(); onSelect(f); }}
+              >
+                Detalhes
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </Card>
   );
 }
