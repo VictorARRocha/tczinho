@@ -20,6 +20,7 @@ const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
 const RegravarBases = lazy(() => import("./pages/RegravarBases"));
+const MergeBranches = lazy(() => import("./pages/MergeBranches"));
 const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
@@ -77,6 +78,7 @@ const App = () => (
                 element={withSuspense(<RegravarBases />, "Carregando regravação...", "skeleton-table")}
               />
               <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
+              <Route path="/merge" element={withSuspense(<MergeBranches />, "Carregando merge...", "skeleton-table")} />
 
               <Route
                 path="/admin/usuarios"

@@ -3,7 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw, Upload,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding, ShieldCheck,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding, ShieldCheck, GitMerge,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -125,6 +125,15 @@ export function AppSidebar() {
                   </SidebarMenuItem>
                 </>
               )}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/merge"}>
+                  <NavLink to="/merge">
+                    <GitMerge />
+                    <span>Merge de branches</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
               {isAdmin && (
                 <SidebarMenuItem>

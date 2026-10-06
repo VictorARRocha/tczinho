@@ -102,6 +102,87 @@ export interface CreateRegravacaoPayload {
   mensagem?: string;
 }
 
+/** Branch do projeto do TC (lista enviada pelo MergeBridge). "trunk" = principal (Unico). */
+export interface SvnBranch {
+  name: string;
+  url: string;
+  kind: "trunk" | "branch";
+  last_revision?: string | null;
+  last_author?: string | null;
+  last_date?: string | null;
+}
+
+export interface MergeBranches {
+  branches: SvnBranch[];
+  updated_at: string | null;
+}
+
+export interface MergeRevisao {
+  revisao: string;
+  autor: string | null;
+  data: string | null;
+  mensagem: string;
+}
+
+export interface MergeArquivo {
+  caminho: string;
+  acao: string;
+}
+
+export interface MergeConflito {
+  caminho: string;
+  tipo: string;
+}
+
+/** Previa do merge (dry-run feito pelo MergeBridge). */
+export interface MergePreview {
+  source_revision?: string;
+  target_revision?: string;
+  gerada_em?: string;
+  revisoes?: MergeRevisao[];
+  total_revisoes?: number;
+  arquivos?: MergeArquivo[];
+  total_arquivos?: number;
+  conflitos?: MergeConflito[];
+  mensagem_padrao?: string;
+}
+
+/** Pedido de merge entre branches (executado pelo MergeBridge na D01). */
+export interface MergePedido {
+  id: string;
+  status: string;
+  requested_by: string | null;
+  source_url: string;
+  source_name: string | null;
+  target_url: string;
+  target_name: string | null;
+  target_kind: string | null;
+  commit_message: string | null;
+  preview_json: MergePreview | null;
+  result_json: { conflitos?: MergeConflito[]; arquivos?: MergeArquivo[]; total_arquivos?: number; simulacao?: boolean; retomado?: boolean } | null;
+  svn_revision: string | null;
+  error_message: string | null;
+  confirmed_by: string | null;
+  confirmed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+}
+
+/** Merge direto (sem previa): mensagem e confirmacao da principal vao junto com o pedido. */
+export interface CreateMergePayload {
+  source_url: string;
+  target_url: string;
+  direto?: boolean;
+  mensagem?: string;
+  confirma_trunk?: boolean;
+}
+
+export interface ConfirmMergePayload {
+  mensagem?: string;
+  confirma_trunk?: boolean;
+}
+
 /** Item de GET /modules/latest-runs: o modulo e sua rodagem mais recente (null se nunca rodou). */
 export interface ModuleLatestRun {
   modulo: Modulo;
@@ -150,4 +231,11 @@ export interface QaDataSource {
   fetchRegravacoes(runId?: string): Promise<RegravacaoPedido[]>;
   createRegravacao(payload: CreateRegravacaoPayload): Promise<RegravacaoPedido>;
   cancelRegravacao(id: string): Promise<void>;
+
+  // Merge entre branches do TC (SVN)
+  fetchMergeBranches(): Promise<MergeBranches>;
+  fetchMerges(): Promise<MergePedido[]>;
+  createMerge(payload: CreateMergePayload): Promise<MergePedido>;
+  confirmMerge(id: string, payload: ConfirmMergePayload): Promise<MergePedido>;
+  cancelMerge(id: string): Promise<void>;
 }

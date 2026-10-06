@@ -19,7 +19,8 @@ vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
   return {
     ...actual,
-    fetchAllRuns: async () => [{ id_rodagem: "rod_1", versao: "PROXIMA", vm_name: "a07", sistema: "Tarefas", data_inicio: null, caminho_logs: null, total_falhas: 3, total_clusters: 0, created_at: null }],
+    fetchAllRuns: async () => [{ id_rodagem: "rod_1", versao: "PROXIMA", vm_name: "a07", sistema: "Tarefas", data_inicio: null, caminho_logs: null, total_falhas: 3, total_clusters: 0, created_at: null,
+                                   repository_url: "https://svn/testcomplete/unico/ProjetoUnico/branches/minha-branch" }],
     fetchRegravacaoCandidatos: async () => api.candidatos,
     fetchRegravacoes: async () => api.pedidos,
     fetchEvidenceByRun: async () => [],
@@ -34,7 +35,7 @@ vi.mock("@/services/data", async (importOriginal) => {
 
 import { queryClient } from "@/lib/queryClient";
 import RegravarBases from "@/pages/RegravarBases";
-import { defaultCommitMessage, destinoLabel } from "@/lib/regravacao";
+import { branchTc, defaultCommitMessage, destinoLabel } from "@/lib/regravacao";
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -94,7 +95,13 @@ describe("mensagem padrao", () => {
 
   it("mostra o destino pela URL do SVN", () => {
     expect(destinoLabel("https://svn/x/ProjetoUnico/branches/minha%20branch")).toBe("branch minha branch");
-    expect(destinoLabel("https://svn/x/ProjetoUnico/Unico")).toBe("principal");
+    expect(destinoLabel("https://svn/x/ProjetoUnico/Unico")).toBe("principal (Unico)");
+  });
+
+  it("nome da branch do TC vem da URL do SVN, nao da versao testada", () => {
+    expect(branchTc("https://svn/x/ProjetoUnico/branches/Proxima%2010.0")).toBe("Proxima 10.0");
+    expect(branchTc("https://svn/x/ProjetoUnico/Unico/")).toBe("Unico");
+    expect(branchTc(null)).toBeNull();
   });
 });
 
@@ -105,6 +112,11 @@ describe("tela de regravacao", () => {
     expect(screen.getByLabelText("Selecionar d3_Atual.txt")).toBeDisabled();
     expect(screen.getByLabelText("Selecionar d1_Atual.txt")).not.toBeDisabled();
     expect(screen.getByText("branch minha-branch")).toBeInTheDocument();
+    // Versao testada (sistema) e branch do TC (SVN) aparecem separadas.
+    expect(screen.getByText("Versão testada:")).toBeInTheDocument();
+    expect(screen.getByText("PROXIMA")).toBeInTheDocument();
+    expect(screen.getByText("Branch do TC (destino):")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Rodagem" })).toHaveTextContent("TC: minha-branch");
     expect(screen.getByText(/2 de 3 regravável/)).toBeInTheDocument();
   });
 

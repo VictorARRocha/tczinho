@@ -13,12 +13,14 @@
 //   GET  /rerun-requests  |  POST /rerun-requests  |  POST /rerun-requests/:id/cancel
 //   GET  /run-presets  |  POST /run-presets  |  PATCH /run-presets/:id  |  POST /run-presets/:id/delete
 //   GET  /runs/:id/regravacao  |  GET /regravacoes?run_id=  |  POST /regravacoes  |  POST /regravacoes/:id/cancel
+//   GET  /merge/branches  |  GET /merges  |  POST /merges  |  POST /merges/:id/confirm  |  POST /merges/:id/cancel
 //
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
 import type {
   QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload,
   RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
+  MergeBranches, MergePedido, ConfirmMergePayload, CreateMergePayload,
 } from "./types";
 import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
@@ -42,12 +44,16 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (res.status === 401) notifySessionExpired();
-  if (!res.ok) throw new ApiError(res.status, path);
+  if (!res.ok) {
+    // "message" do corpo de erro da API (ex.: motivo de recusa), sem mudar a mensagem padrao do erro.
+    const detail = await res.json().then((b) => (typeof b?.message === "string" ? b.message : undefined), () => undefined);
+    throw new ApiError(res.status, path, detail);
+  }
   return (await res.json()) as T;
 }
 
 export class ApiError extends Error {
-  constructor(public readonly status: number, path: string) {
+  constructor(public readonly status: number, path: string, public readonly detail?: string) {
     super(`[api ${status}] ${path}`);
     this.name = "ApiError";
   }
@@ -350,4 +356,18 @@ export const ApiQaDataSource: QaDataSource = {
 
   cancelRegravacao: (id: string) =>
     req<unknown>(`/regravacoes/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }).then(() => undefined),
+
+  fetchMergeBranches: () => req<MergeBranches>(`/merge/branches`),
+
+  fetchMerges: () => req<MergePedido[]>(`/merges`),
+
+  createMerge: (payload: CreateMergePayload) =>
+    req<MergePedido>(`/merges`, { method: "POST", body: JSON.stringify(payload) }),
+
+  confirmMerge: (id: string, payload: ConfirmMergePayload) =>
+    req<{ merge: MergePedido }>(`/merges/${encodeURIComponent(id)}/confirm`, { method: "POST", body: JSON.stringify(payload) })
+      .then((r) => r.merge),
+
+  cancelMerge: (id: string) =>
+    req<unknown>(`/merges/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }).then(() => undefined),
 };

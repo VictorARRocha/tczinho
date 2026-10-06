@@ -18,6 +18,9 @@ import {
   fetchRunPresets,
   fetchRegravacaoCandidatos,
   fetchRegravacoes,
+  fetchMergeBranches,
+  fetchMerges,
+  type MergePedido,
   fetchEvidenceByRun,
   type RegravacaoPedido,
   fetchTestcaseHierarchy,
@@ -35,6 +38,8 @@ export const queryKeys = {
   runPresets: ["run-presets"] as const,
   regravacaoCandidatos: (runId: string) => ["regravacao-candidatos", runId] as const,
   regravacoes: (runId: string) => ["regravacoes", runId] as const,
+  mergeBranches: ["merge-branches"] as const,
+  merges: ["merges"] as const,
   runEvidences: (runId: string) => ["run-evidences", runId] as const,
 };
 
@@ -133,6 +138,30 @@ export function useRunEvidences(runId: string | null) {
     enabled: !!runId,
     staleTime: 5 * 60_000,
   });
+}
+
+const ACTIVE_MERGE = new Set(["previa_solicitada", "previa_processando", "solicitado", "processando"]);
+
+/** Merges: 5s enquanto houver previa ou merge em andamento, senao 30s. */
+export function mergeRefetchInterval(pedidos: MergePedido[] | undefined): number {
+  return (pedidos || []).some((p) => ACTIVE_MERGE.has(p.status)) ? 5_000 : 30_000;
+}
+
+/** Lista de branches do TC (o MergeBridge atualiza a cada ~2 minutos). */
+export function useMergeBranches() {
+  return useQuery({ queryKey: queryKeys.mergeBranches, queryFn: fetchMergeBranches, staleTime: 60_000, refetchInterval: 120_000 });
+}
+
+export function useMerges() {
+  return useQuery({
+    queryKey: queryKeys.merges,
+    queryFn: fetchMerges,
+    refetchInterval: (query) => mergeRefetchInterval(query.state.data),
+  });
+}
+
+export function invalidateMerges() {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.merges });
 }
 
 /** Pedido mudou de status (ex.: o Bridge terminou): a situacao dos arquivos muda junto. */

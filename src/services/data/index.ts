@@ -13,6 +13,7 @@ export const qaData: QaDataSource = ApiQaDataSource;
 export type {
   QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, RunPresetMode, SaveRunPresetPayload,
   RegravacaoItem, RegravacaoCandidatos, RegravacaoPedido, RegravacaoResultadoItem, CreateRegravacaoPayload,
+  SvnBranch, MergeBranches, MergePedido, MergePreview, MergeRevisao, MergeArquivo, MergeConflito, ConfirmMergePayload, CreateMergePayload,
 } from "./types";
 export { ApiQaDataSource } from "./apiSource";
 export { getDataConfig } from "./config";
@@ -57,3 +58,8 @@ export const fetchRegravacaoCandidatos = (runId: string) => qaData.fetchRegravac
 export const fetchRegravacoes = (runId?: string) => qaData.fetchRegravacoes(runId);
 export const createRegravacao = (payload: import("./types").CreateRegravacaoPayload) => qaData.createRegravacao(payload);
 export const cancelRegravacao = (id: string) => qaData.cancelRegravacao(id);
+export const fetchMergeBranches = () => qaData.fetchMergeBranches();
+export const fetchMerges = () => qaData.fetchMerges();
+export const createMerge = (payload: import("./types").CreateMergePayload) => qaData.createMerge(payload);
+export const confirmMerge = (id: string, payload: import("./types").ConfirmMergePayload) => qaData.confirmMerge(id, payload);
+export const cancelMerge = (id: string) => qaData.cancelMerge(id);

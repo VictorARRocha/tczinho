@@ -27,11 +27,23 @@ export function defaultCommitMessage(runId: string, requestedBy: string | null, 
   return lines.join("\n");
 }
 
-/** "branch minha-branch" ou "principal" a partir da URL da copia de trabalho da VM. */
+/**
+ * Nome da branch do TC (Tortoise) a partir da URL do SVN gravada na rodagem:
+ * ".../branches/Proxima%2010.0" -> "Proxima 10.0"; fora de branches, a ultima pasta (ex.: "Unico").
+ */
+export function branchTc(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const match = url.match(/\/branches\/([^/]+)/);
+  if (match) return decodeURIComponent(match[1]);
+  const last = url.replace(/\/+$/, "").split("/").pop();
+  return last ? decodeURIComponent(last) : null;
+}
+
+/** "branch Proxima 10.0" ou "principal (Unico)" a partir da URL da copia de trabalho da VM. */
 export function destinoLabel(url: string | null): string {
   if (!url) return "—";
-  const match = url.match(/\/branches\/([^/]+)/);
-  return match ? `branch ${decodeURIComponent(match[1])}` : "principal";
+  const nome = branchTc(url);
+  return /\/branches\//.test(url) ? `branch ${nome}` : `principal (${nome})`;
 }
 
 export const PEDIDO_STATUS: Record<string, { label: string; className: string }> = {

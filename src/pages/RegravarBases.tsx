@@ -23,7 +23,7 @@ import {
   useRunEvidences, useRunFailures,
 } from "@/services/queries";
 import {
-  caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_CONFLITO, ITEM_STATUS, MOTIVO_CURTO, pedidoStatus,
+  branchTc, caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_CONFLITO, ITEM_STATUS, MOTIVO_CURTO, pedidoStatus,
 } from "@/lib/regravacao";
 import type { ComparisonPair } from "@/lib/occurrence";
 import type { Falha } from "@/types/db";
@@ -72,6 +72,7 @@ export default function RegravarBases() {
   const [fModulo, setFModulo] = useState("all");
   const [fVersao, setFVersao] = useState("all");
   const runId = params.get("rodagem") || "";
+  const rodagemAtual = runs.find((r) => r.id_rodagem === runId) || null;
   const setRunId = (id: string) => setParams(id ? { rodagem: id } : {}, { replace: true });
 
   const vmOptions = useMemo(() => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(), [runs]);
@@ -265,6 +266,7 @@ export default function RegravarBases() {
               <SelectItem key={r.id_rodagem} value={r.id_rodagem} className="max-sm:whitespace-normal">
                 {r.versao || "—"} — {runVm(r) || "—"} — {runModulo(r) || "—"} —{" "}
                 {r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—"} — {r.total_falhas ?? 0} falhas
+                {" "}— TC: {branchTc(r.repository_url) || "sem branch registrada"}
               </SelectItem>
             ))}
             {filteredRuns.length === 0 && (
@@ -273,20 +275,24 @@ export default function RegravarBases() {
           </SelectContent>
         </Select>
         {candidatos && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            Destino no SVN:{" "}
-            {candidatos.repository_url ? (
-              <>
-                <strong className="text-foreground">{destinoLabel(candidatos.repository_url)}</strong>{" "}
-                <span className="font-mono break-all">{candidatos.repository_url}</span>
-                {candidatos.repository_revision && <> (rodagem na revisão {candidatos.repository_revision})</>}
-              </>
-            ) : (
-              <span className="text-amber-600 dark:text-amber-400">
-                esta rodagem não registrou a origem SVN da VM; não é possível regravar.
-              </span>
-            )}
-          </p>
+          <dl className="mt-3 grid gap-x-3 gap-y-1 text-xs text-muted-foreground sm:grid-cols-[auto_1fr]">
+            <dt>Versão testada:</dt>
+            <dd><strong className="text-foreground">{rodagemAtual?.versao || "—"}</strong></dd>
+            <dt>Branch do TC (destino):</dt>
+            <dd>
+              {candidatos.repository_url ? (
+                <>
+                  <strong className="text-foreground">{destinoLabel(candidatos.repository_url)}</strong>{" "}
+                  <span className="font-mono break-all">{candidatos.repository_url}</span>
+                  {candidatos.repository_revision && <> (rodagem na revisão {candidatos.repository_revision})</>}
+                </>
+              ) : (
+                <span className="text-amber-600 dark:text-amber-400">
+                  esta rodagem não registrou a branch do TC; não é possível regravar.
+                </span>
+              )}
+            </dd>
+          </dl>
         )}
       </Card>
 

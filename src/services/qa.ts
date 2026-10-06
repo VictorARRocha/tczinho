@@ -77,6 +77,8 @@ export interface RodagemListItem {
   total_clusters: number | null;
   created_at: string | null;
   modulo_slug?: string | null;
+  /** URL do SVN em que o projeto do TC estava na VM durante a rodagem (branch do TC). */
+  repository_url?: string | null;
 }
 
 export interface CasoReexecutavel {
