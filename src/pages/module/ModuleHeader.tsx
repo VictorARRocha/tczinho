@@ -22,12 +22,12 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { 
     { label: "Data", value: formatDateTime(rodagem.data_analise) },
   ].filter((f) => isMeaningful(f.value)) : [];
   return (
-    <Card className="glass-card p-6 lg:p-8 relative overflow-hidden">
+    <Card className="glass-card p-4 sm:p-6 lg:p-8 relative overflow-hidden">
       <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-gradient-primary opacity-10 blur-3xl" />
       <div className="flex flex-col lg:flex-row lg:items-start gap-6 justify-between relative">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
-            <h1 className="text-3xl font-bold tracking-tight">{modulo?.nome || "Módulo"}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{modulo?.nome || "Módulo"}</h1>
             {(rodagem && health.label !== "Sem dados") && (
               <Badge variant="outline" className={`${health.className} gap-1.5`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${health.dot}`} />{health.label}
@@ -45,7 +45,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { 
                     <ChevronsUpDown className="h-3.5 w-3.5" /> Trocar rodagem
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[420px] p-0" align="start">
+                <PopoverContent className="w-[420px] p-0 max-sm:w-[calc(100vw-2rem)]" align="start">
                   <div className="px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
                     {runs.length} rodagens disponíveis
                   </div>

@@ -83,14 +83,14 @@ export default function AdminUsuarios() {
   const filtered = useMemo(() => users.filter((u) => u.status === tab), [users, tab]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Usuarios</h1>
         <p className="text-sm text-muted-foreground">Aprove cadastros e gerencie roles.</p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as AppUserRow["status"])}>
-        <TabsList>
+        <TabsList className="max-sm:h-auto max-sm:flex-wrap max-sm:justify-start">
           {(["pending", "approved", "rejected", "disabled"] as const).map((s) => (
             <TabsTrigger key={s} value={s}>
               {STATUS_LABEL[s]} <Badge variant="secondary" className="ml-2">{users.filter((u) => u.status === s).length}</Badge>

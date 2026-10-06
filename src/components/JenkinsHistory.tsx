@@ -18,6 +18,7 @@ import { invalidateRerunRequests, useRerunRequests } from "@/services/queries";
 import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
 import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
 import { HistoryClearControls } from "@/components/HistoryClearControls";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -118,6 +119,20 @@ function formatDuration(ms?: number | null): string {
   return rm ? `${h}h ${rm}min` : `${h}h`;
 }
 
+async function cancelar(r: RerunRequest) {
+  if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
+  try {
+    await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
+    toast.success("Cancelamento solicitado", {
+      description: "O Bridge irá confirmar o cancelamento no Jenkins.",
+    });
+    invalidateRerunRequests();
+  } catch (err) {
+    console.error(err);
+    toast.error("Falha ao solicitar cancelamento");
+  }
+}
+
 function safeError(s?: string | null): string | null {
   if (!s) return null;
   // Não expor tokens/secrets
@@ -140,6 +155,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   const history = useMemo(() => visibleAfterClear(allHistory, hiddenIds), [allHistory, hiddenIds]);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const isMobile = useIsMobile();
 
 
   return (
@@ -175,7 +191,64 @@ export const JenkinsHistory = memo(function JenkinsHistory({
           </Button>
         </div>
       </div>
-      {expanded && (
+      {expanded && isMobile && (
+        <Card className="glass-card backdrop-filter-none overflow-hidden">
+          {history.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/60">
+              {history.map((r) => {
+                const status = resolveStatus(r);
+                const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
+                const prog = resolveProgress(r, status);
+                return (
+                  <li key={r.id} className="space-y-2 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
+                      <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+                    </div>
+                    <p className="text-sm">
+                      <span className="font-mono">{r.vm_name}</span> · {r.versao} · {r.modulo_nome || r.modulo_codigo || "—"}
+                    </p>
+                    {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
+                    {r.data_hora && <p className="text-[11px] text-muted-foreground">Agendado: <span className="font-mono">{r.data_hora}</span></p>}
+                    <div className="flex flex-col gap-1">
+                      <ProgressBar value={prog.value} color={meta.bar} indeterminate={prog.indeterminate} />
+                      <div className="text-[10px] text-muted-foreground">
+                        {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetail(r)}>
+                        <Info className="h-3.5 w-3.5 mr-1" /> Detalhes
+                      </Button>
+                      {r.build_url && (
+                        <Button size="sm" variant="outline" className="h-8 flex-1" asChild>
+                          <a href={r.build_url} target="_blank" rel="noreferrer">
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> Build
+                          </a>
+                        </Button>
+                      )}
+                      {CANCELABLE_STATUSES.has(status) ? (
+                        <Button size="sm" variant="outline" className="h-8 flex-1 text-red-400 border-red-500/30" onClick={() => cancelar(r)}>
+                          <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                        </Button>
+                      ) : CANCEL_PENDING_STATUSES.has(status) ? (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
+                          <XCircle className="h-3.5 w-3.5" /> Cancelando…
+                        </span>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
+      )}
+      {expanded && !isMobile && (
         <Card className="glass-card backdrop-filter-none overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
@@ -228,19 +301,9 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                             size="sm"
                             variant="outline"
                             className="h-7 px-2 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
-                            onClick={async (e) => {
+                            onClick={(e) => {
                               e.stopPropagation();
-                              if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
-                              try {
-                                await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
-                                toast.success("Cancelamento solicitado", {
-                                  description: "O Bridge irá confirmar o cancelamento no Jenkins.",
-                                });
-                                invalidateRerunRequests();
-                              } catch (err) {
-                                console.error(err);
-                                toast.error("Falha ao solicitar cancelamento");
-                              }
+                              cancelar(r);
                             }}
                           >
                             <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar

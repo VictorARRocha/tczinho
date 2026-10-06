@@ -170,7 +170,7 @@ export function CompararTab({
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
-                className="bg-background flex-1 min-w-[220px]"
+                className="bg-background flex-1 min-w-[220px] max-sm:min-w-0"
               />
               <span className="text-xs text-muted-foreground">
                 {visiveis.length} de {comparacao.itens.length} casos
@@ -203,12 +203,12 @@ function RunSelect({ label, value, runs, onChange }: { label: string; value: str
     <div className="space-y-1 min-w-0">
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="bg-background" aria-label={`Rodagem ${label}`}>
+        <SelectTrigger className="bg-background max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2" aria-label={`Rodagem ${label}`}>
           <SelectValue placeholder="Escolha a rodagem" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent className="max-sm:max-w-[var(--radix-select-trigger-width)]">
           {runs.map((r) => (
-            <SelectItem key={r.id} value={r.id}>{runLabel(r)}</SelectItem>
+            <SelectItem key={r.id} value={r.id} className="max-sm:whitespace-normal">{runLabel(r)}</SelectItem>
           ))}
         </SelectContent>
       </Select>

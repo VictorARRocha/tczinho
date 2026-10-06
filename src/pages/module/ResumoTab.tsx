@@ -13,9 +13,9 @@ import { isMeaningful, StatCard, Empty } from "./common";
 function OccCard({ label, value, tone, onClick }: { label: string; value: number; tone: string; onClick: () => void }) {
   return (
     <button onClick={onClick} className="text-left">
-      <Card className="glass-card p-5 hover:border-primary/40 transition-smooth h-full">
+      <Card className="glass-card p-3 sm:p-5 hover:border-primary/40 transition-smooth h-full">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className={`text-3xl font-bold font-mono mt-1 ${tone}`}>{value}</div>
+        <div className={`text-2xl sm:text-3xl font-bold font-mono mt-1 ${tone}`}>{value}</div>
         <div className="text-xs text-primary mt-2 inline-flex items-center gap-1">Abrir <ArrowRight className="h-3 w-3" /></div>
       </Card>
     </button>
@@ -62,7 +62,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
   return (
     <div className="space-y-6">
       {hasDiagText && (
-        <Card className="glass-card p-6">
+        <Card className="glass-card p-4 sm:p-6">
           <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
           {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
           {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
@@ -79,7 +79,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
         {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
         <OccCard label="Quebras de teste" value={occCounts.quebra} tone="text-destructive" onClick={() => onOpenFalhas("quebra")} />
         <OccCard label="Diferenças de arquivos" value={occCounts.diferenca} tone="text-warning" onClick={() => onOpenFalhas("diferenca")} />
         <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />

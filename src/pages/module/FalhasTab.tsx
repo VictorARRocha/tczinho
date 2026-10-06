@@ -435,9 +435,9 @@ export function FalhasTab({
             value={q}
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
-            className="bg-background flex-1 min-w-[220px]"
+            className="bg-background flex-1 min-w-[220px] max-sm:min-w-0"
           />
-          <div className="ml-auto flex gap-1">
+          <div className="ml-auto flex gap-1 max-sm:ml-0 max-sm:w-full max-sm:flex-wrap">
             <ToggleChip label="Árvore" icon={<Network className="h-3.5 w-3.5" />} active={view === "arvore"} onClick={() => changeView("arvore")} />
             <ToggleChip label="Lista" icon={<List className="h-3.5 w-3.5" />} active={view === "lista"} onClick={() => changeView("lista")} />
             {view === "arvore" && (
@@ -459,7 +459,7 @@ export function FalhasTab({
                 ))}
               </>
             )}
-            <span className="ml-auto">Mostrando {filtered.length} de {enriched.length} falhas</span>
+            <span className="ml-auto max-sm:ml-0">Mostrando {filtered.length} de {enriched.length} falhas</span>
           </div>
         )}
       </Card>
@@ -473,7 +473,7 @@ export function FalhasTab({
       ) : view === "lista" ? (
         <FalhasLista items={filtered} onSelect={onSelect} onCompare={onCompare} />
       ) : (
-        <Card className="p-2 md:p-3 bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
+        <Card className="p-2 md:p-3 max-sm:[--tree-step:8px] bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
           <div className="space-y-0.5">
             {rootChildren.map((c) => (
               <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSmartOpen={smartOpen} onSelect={onSelect} onCompare={onCompare} />
@@ -536,14 +536,15 @@ function TreeNodeView({
 }) {
   const hasChildren = node.children.size > 0 || node.items.length > 0;
   const open = expanded.has(node.id);
-  const indent = depth * 16;
+  // Passo do recuo vem de --tree-step (menor no celular).
+  const indent = `var(--tree-step, 16px) * ${depth}`;
   const style = nodeStyleForDepth(depth, open);
 
   return (
     <div>
       <div
         className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
-        style={{ paddingLeft: indent + 8 }}
+        style={{ paddingLeft: `calc(${indent} + 8px)` }}
         onClick={() => hasChildren && onSmartOpen(node, depth)}
       >
 
@@ -560,7 +561,7 @@ function TreeNodeView({
           {/* Linha guia sutil */}
           <div
             className="absolute top-0 bottom-0 w-px bg-border/70"
-            style={{ left: indent + 15 }}
+            style={{ left: `calc(${indent} + 15px)` }}
             aria-hidden
           />
           {node.items.map((it) => (
@@ -588,7 +589,7 @@ function LeafItemCard({
   const desc = failureDescription(f);
   const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
   const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
-  const indent = depth * 16 + 20;
+  const indent = `calc(var(--tree-step, 16px) * ${depth} + 20px)`;
   const classificacaoKey = (f.classificacao || "").toLowerCase().replace(/\s+/g, "_").replace(/\//g, "_");
   const showClassification = !!f.classificacao && !["test_break", "file_difference", "test_break_file_difference", "break", "difference", "report_difference", "report_diff"].includes(classificacaoKey);
 

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ChevronLeft, FileDiff, GitCommitHorizontal, RotateCcw, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, FileDiff, GitCommitHorizontal, RotateCcw, Upload, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
 } from "@/services/data";
@@ -22,7 +23,7 @@ import {
   useRunEvidences, useRunFailures,
 } from "@/services/queries";
 import {
-  caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_STATUS, MOTIVO_CURTO, PEDIDO_STATUS,
+  caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_CONFLITO, ITEM_STATUS, MOTIVO_CURTO, pedidoStatus,
 } from "@/lib/regravacao";
 import type { ComparisonPair } from "@/lib/occurrence";
 import type { Falha } from "@/types/db";
@@ -38,6 +39,24 @@ const runVm = (r: RodagemListItem) =>
   (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "").toLowerCase();
 const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toString();
 
+type SortKey = "caso" | "atual" | "base";
+type SortDir = "asc" | "desc";
+
+// Caso 2.5.1.1.12 depois de 2.5.1.1.5 (cada parte comparada como numero).
+function compareCaso(a: string, b: string): number {
+  const pa = a.split("."), pb = b.split(".");
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    if (pa[i] === undefined) return -1;
+    if (pb[i] === undefined) return 1;
+    const c = pa[i].localeCompare(pb[i], "pt-BR", { numeric: true });
+    if (c) return c;
+  }
+  return 0;
+}
+
+const sortValue = (item: RegravacaoItem, key: SortKey) =>
+  key === "caso" ? item.id_caso_teste || "" : key === "atual" ? item.arquivo_atual || "" : item.caminho_base ? caminhoBridge(item.caminho_base) : "";
+
 function apiMessage(e: unknown): string {
   if (e instanceof ApiError && e.status === 403) return "Somente administradores podem regravar bases.";
   if (e instanceof ApiError && e.status === 409) return "Algum arquivo já está num pedido em andamento.";
@@ -46,6 +65,7 @@ function apiMessage(e: unknown): string {
 
 export default function RegravarBases() {
   const { isAdmin, profile } = useAuth();
+  const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const { data: runs = [] } = useAllRuns();
   const [fVm, setFVm] = useState("all");
@@ -84,6 +104,8 @@ export default function RegravarBases() {
     setCasoAberto(falha);
   };
   const itens = useMemo(() => candidatos?.itens || [], [candidatos]);
+  // Pedido mais recente que terminou em conflito no SVN (os pedidos vem do mais novo ao mais antigo).
+  const pedidoConflito = pedidos.find((p) => p.status === "erro" && p.result_json?.conflito) || null;
   const regravaveis = useMemo(() => itens.filter((i) => i.regravavel), [itens]);
 
   // Quando um pedido muda de status (o Bridge pegou/terminou), recarrega a situacao dos arquivos.
@@ -101,7 +123,9 @@ export default function RegravarBases() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [detalhe, setDetalhe] = useState<RegravacaoPedido | null>(null);
+  const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
   const [comparar, setComparar] = useState<ComparisonPair | null>(null);
+  const envioRef = useRef<HTMLDivElement>(null);
 
   // Troca de rodagem limpa a selecao e volta a mensagem para o padrao.
   useEffect(() => {
@@ -127,7 +151,27 @@ export default function RegravarBases() {
     if (!mensagemEditada) setMensagem(padrao);
   }, [padrao, mensagemEditada]);
 
-  const visiveis = soRegravaveis ? regravaveis : itens;
+  // Sem ordenacao escolhida, fica na ordem da API.
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  };
+  const visiveis = useMemo(() => {
+    const lista = soRegravaveis ? regravaveis : itens;
+    if (!sortKey) return lista;
+    const dir = sortDir === "asc" ? 1 : -1;
+    return [...lista].sort((a, b) => {
+      const va = sortValue(a, sortKey), vb = sortValue(b, sortKey);
+      if (!va || !vb) return va ? -1 : vb ? 1 : 0; // sem valor sempre no fim
+      const c = sortKey === "caso" ? compareCaso(va, vb) : va.localeCompare(vb, "pt-BR", { numeric: true });
+      return (c || compareCaso(a.id_caso_teste || "", b.id_caso_teste || "")) * dir;
+    });
+  }, [soRegravaveis, regravaveis, itens, sortKey, sortDir]);
   const toggle = (id: string) =>
     setMarcados((prev) => {
       const next = new Set(prev);
@@ -212,12 +256,13 @@ export default function RegravarBases() {
           ))}
         </div>
         <Select value={runId} onValueChange={setRunId}>
-          <SelectTrigger className="w-full" aria-label="Rodagem">
+          {/* No celular o texto da rodagem quebra linha em vez de ser cortado. */}
+          <SelectTrigger className="w-full max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2" aria-label="Rodagem">
             <SelectValue placeholder="Selecione uma rodagem analisada" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-sm:max-w-[var(--radix-select-trigger-width)]">
             {filteredRuns.map((r) => (
-              <SelectItem key={r.id_rodagem} value={r.id_rodagem}>
+              <SelectItem key={r.id_rodagem} value={r.id_rodagem} className="max-sm:whitespace-normal">
                 {r.versao || "—"} — {runVm(r) || "—"} — {runModulo(r) || "—"} —{" "}
                 {r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—"} — {r.total_falhas ?? 0} falhas
               </SelectItem>
@@ -266,14 +311,88 @@ export default function RegravarBases() {
               {marcados.size} selecionado(s) · {regravaveis.length} de {itens.length} regravável(is)
             </span>
           </div>
+          {isMobile ? (
+            <>
+              <div className="flex items-center gap-2 border-b border-border/60 p-3">
+                <Select
+                  value={sortKey ?? "none"}
+                  onValueChange={(v) => { setSortKey(v === "none" ? null : (v as SortKey)); setSortDir("asc"); }}
+                >
+                  <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Ordem original</SelectItem>
+                    {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                      <SelectItem key={k} value={k}>Ordenar por {SORT_LABEL[k].toLowerCase()}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  size="icon" variant="outline" className="h-9 w-9 shrink-0" disabled={!sortKey}
+                  aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                  onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                >
+                  {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                </Button>
+              </div>
+              {loadingItens ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
+              ) : itensError ? (
+                <p className="py-8 text-center text-sm text-red-500">Não foi possível carregar as diferenças desta rodagem.</p>
+              ) : visiveis.length === 0 ? (
+                <p className="py-8 px-4 text-center text-sm text-muted-foreground">
+                  {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {visiveis.map((item) => (
+                    <li key={item.difference_id} className={`flex gap-3 p-3 ${item.regravavel ? "" : "opacity-70"}`}>
+                      {/* area de toque maior que a caixa */}
+                      <label className="-m-2 flex h-10 w-10 shrink-0 items-center justify-center">
+                        <Checkbox
+                          aria-label={`Selecionar ${item.arquivo_atual}`}
+                          disabled={!item.regravavel}
+                          checked={marcados.has(item.difference_id)}
+                          onCheckedChange={() => toggle(item.difference_id)}
+                          className="h-5 w-5"
+                        />
+                      </label>
+                      <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <button type="button" className="font-mono text-xs text-primary hover:underline" onClick={() => abrirCaso(item)}>
+                            {item.id_caso_teste}
+                          </button>
+                          <SituacaoBadge item={item} />
+                        </div>
+                        <p className="break-all text-sm">{item.arquivo_atual}</p>
+                        <p className="break-all font-mono text-[11px] text-muted-foreground">
+                          {item.caminho_base ? caminhoBridge(item.caminho_base) : "Sem base no repositório"}
+                        </p>
+                        {!item.regravavel && item.motivo_texto && (
+                          <p className="text-[11px] text-amber-700 dark:text-amber-400">{item.motivo_texto}</p>
+                        )}
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-foreground">
+                            {item.linhas_alteradas ?? "—"} linha(s) alterada(s)
+                          </span>
+                          <Button size="sm" variant="outline" className="h-8" onClick={() => abrirComparacao(item)}>
+                            <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
+                          </Button>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          ) : (
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-10" />
-                  <TableHead>Caso</TableHead>
-                  <TableHead>Arquivo atual</TableHead>
-                  <TableHead>Base no repositório</TableHead>
+                  <SortableHead label="Caso" sortKey="caso" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="Arquivo atual" sortKey="atual" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                  <SortableHead label="Base no repositório" sortKey="base" active={sortKey} dir={sortDir} onSort={toggleSort} />
                   <TableHead className="text-right">Linhas</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead className="w-24 text-right" />
@@ -313,15 +432,7 @@ export default function RegravarBases() {
                       {item.caminho_base ? caminhoBridge(item.caminho_base) : "—"}
                     </TableCell>
                     <TableCell className="text-xs text-right">{item.linhas_alteradas ?? "—"}</TableCell>
-                    <TableCell>
-                      {item.regravavel ? (
-                        <Badge variant="outline" className="border-green-500/40 text-green-600 dark:text-green-400">Regravável</Badge>
-                      ) : (
-                        <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400" title={item.motivo_texto || ""}>
-                          {MOTIVO_CURTO[item.motivo || ""] || item.motivo}
-                        </Badge>
-                      )}
-                    </TableCell>
+                    <TableCell><SituacaoBadge item={item} /></TableCell>
                     <TableCell className="text-right">
                       <Button size="sm" variant="ghost" onClick={() => abrirComparacao(item)}>
                         <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
@@ -332,12 +443,13 @@ export default function RegravarBases() {
               </TableBody>
             </Table>
           </div>
+          )}
         </Card>
       )}
 
       {/* Mensagem + envio */}
       {runId && regravaveis.length > 0 && (
-        <Card className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5 space-y-3">
+        <Card ref={envioRef} className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5 space-y-3 scroll-mt-20">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Mensagem do commit</h2>
             <div className="flex items-center gap-2">
@@ -378,7 +490,48 @@ export default function RegravarBases() {
       {runId && (
         <div>
           <h2 className="mb-3 text-base sm:text-lg font-semibold">Pedidos de regravação desta rodagem</h2>
+          {pedidoConflito && avisoOculto !== pedidoConflito.id && (
+            <ConflitoAviso
+              pedido={pedidoConflito}
+              destino={pedidoConflito.repository_url || candidatos?.repository_url || null}
+              onOcultar={() => setAvisoOculto(pedidoConflito.id)}
+            />
+          )}
           <Card className="glass-card backdrop-filter-none overflow-hidden">
+            {isMobile ? (
+              pedidos.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">Nenhum pedido ainda.</p>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {pedidos.map((p) => {
+                    const meta = pedidoStatus(p);
+                    return (
+                      <li key={p.id} className="space-y-2 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs">{new Date(p.created_at).toLocaleString("pt-BR")}</span>
+                          <div className="flex items-center gap-2">
+                            {p.result_json?.simulacao && <span className="text-[10px] text-muted-foreground">simulação</span>}
+                            <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {p.requested_by || "—"} · {p.items_json?.length ?? 0} arquivo(s)
+                          {p.svn_revision && <> · <span className="font-mono text-foreground">r{p.svn_revision}</span></>}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetalhe(p)}>Detalhes</Button>
+                          {isAdmin && p.status === "solicitado" && (
+                            <Button size="sm" variant="outline" className="h-8 flex-1 text-red-500" onClick={() => cancelar(p)}>
+                              <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                            </Button>
+                          )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -395,7 +548,7 @@ export default function RegravarBases() {
                   {pedidos.length === 0 ? (
                     <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">Nenhum pedido ainda.</TableCell></TableRow>
                   ) : pedidos.map((p) => {
-                    const meta = PEDIDO_STATUS[p.status] || { label: p.status, className: "" };
+                    const meta = pedidoStatus(p);
                     return (
                       <TableRow key={p.id}>
                         <TableCell className="text-xs">{new Date(p.created_at).toLocaleString("pt-BR")}</TableCell>
@@ -422,8 +575,23 @@ export default function RegravarBases() {
                 </TableBody>
               </Table>
             </div>
+            )}
           </Card>
         </div>
+      )}
+
+      {/* Celular: o botao de regravar fica longe da lista; barra fixa leva ate ele. */}
+      {isMobile && marcados.size > 0 && (
+        <>
+          <div className="h-16" />
+          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 py-3">
+            <span className="text-sm">{marcados.size} selecionado(s)</span>
+            <Button size="sm" className="bg-gradient-primary"
+              onClick={() => envioRef.current?.scrollIntoView({ block: "start" })}>
+              <GitCommitHorizontal className="h-4 w-4 mr-1" /> Ir para regravar
+            </Button>
+          </div>
+        </>
       )}
 
       {/* Confirmacao */}
@@ -464,10 +632,14 @@ export default function RegravarBases() {
           {detalhe && (
             <div className="space-y-3 text-sm">
               <p>
-                Status: <strong>{PEDIDO_STATUS[detalhe.status]?.label || detalhe.status}</strong>
+                Status: <strong>{pedidoStatus(detalhe).label}</strong>
                 {detalhe.svn_revision && <> · revisão <span className="font-mono">r{detalhe.svn_revision}</span></>}
               </p>
-              {detalhe.error_message && <p className="text-red-500 text-xs">{detalhe.error_message}</p>}
+              {detalhe.result_json?.conflito ? (
+                <ConflitoAviso pedido={detalhe} destino={detalhe.repository_url || candidatos?.repository_url || null} />
+              ) : (
+                detalhe.error_message && <p className="text-red-500 text-xs">{detalhe.error_message}</p>
+              )}
               <ul className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
                 {(detalhe.items_json || []).map((item) => {
                   const resultado = detalhe.result_json?.itens?.find((r) => r.difference_id === item.difference_id);
@@ -512,5 +684,80 @@ export default function RegravarBases() {
         </Suspense>
       )}
     </div>
+  );
+}
+
+/** Conflito no SVN: nada foi gravado; orienta a regravacao manual pelo TortoiseSVN. */
+function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedido; destino: string | null; onOcultar?: () => void }) {
+  const arquivos = (pedido.result_json?.itens || []).filter((r) => ITEM_CONFLITO.includes(r.status));
+  return (
+    <div role="alert" className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 sm:p-4 text-sm space-y-2">
+      <div className="flex items-start justify-between gap-2">
+        <p className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" /> Conflito no SVN: faça a regravação manualmente
+        </p>
+        {onOcultar && (
+          <Button size="sm" variant="ghost" className="h-7 shrink-0 text-xs" onClick={onOcultar}>Ocultar</Button>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Pedido de {new Date(pedido.created_at).toLocaleString("pt-BR")}: a base mudou no SVN depois da rodagem (outra pessoa
+        gravou o arquivo). Para não sobrescrever o trabalho de ninguém, <strong>nada foi gravado</strong>.
+      </p>
+      {arquivos.length > 0 && (
+        <ul className="rounded-md border border-amber-500/30 bg-background/60 px-3 py-2 text-xs space-y-1">
+          {arquivos.map((r) => (
+            <li key={r.difference_id} className="break-all font-mono">{caminhoBridge(r.caminho_base || "")}</li>
+          ))}
+        </ul>
+      )}
+      <ol className="list-decimal pl-5 text-xs space-y-1">
+        <li>
+          No TortoiseSVN, abra a sua cópia do projeto do TC na <strong>{destinoLabel(destino)}</strong> e faça <strong>SVN Update</strong>.
+          {destino && <span className="block break-all font-mono text-[11px] text-muted-foreground">{destino}</span>}
+        </li>
+        <li>Em cada arquivo acima, use <strong>Show log</strong> para ver quem alterou e se a regravação ainda é necessária.</li>
+        <li>Se for, substitua o arquivo pelo atual da rodagem (botão <strong>Comparar</strong> &gt; <strong>Baixar arquivos</strong>) e faça o <strong>commit</strong>.</li>
+      </ol>
+    </div>
+  );
+}
+
+function SituacaoBadge({ item }: { item: RegravacaoItem }) {
+  return item.regravavel ? (
+    <Badge variant="outline" className="border-green-500/40 text-green-600 dark:text-green-400">Regravável</Badge>
+  ) : (
+    <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400" title={item.motivo_texto || ""}>
+      {MOTIVO_CURTO[item.motivo || ""] || item.motivo}
+    </Badge>
+  );
+}
+
+const SORT_LABEL: Record<SortKey, string> = { caso: "Caso", atual: "Arquivo atual", base: "Base no repositório" };
+
+function SortableHead({
+  label, sortKey, active, dir, onSort,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: SortKey | null;
+  dir: SortDir;
+  onSort: (k: SortKey) => void;
+}) {
+  const isActive = active === sortKey;
+  const Icon = !isActive ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead aria-sort={isActive ? (dir === "asc" ? "ascending" : "descending") : undefined}>
+      <button
+        type="button"
+        onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 select-none hover:text-foreground transition-colors ${
+          isActive ? "text-foreground" : "text-muted-foreground"
+        }`}
+      >
+        {label}
+        <Icon className="h-3 w-3 opacity-70" />
+      </button>
+    </TableHead>
   );
 }

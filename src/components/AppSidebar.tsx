@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
   Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw, Upload,
@@ -46,9 +47,13 @@ import { useApiHealth, useModules } from "@/services/queries";
 import { ApiStatusDot } from "./ApiStatus";
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const { pathname } = useLocation();
+  // No celular o menu cobre a tela: fecha ao trocar de pagina.
+  useEffect(() => {
+    if (isMobile) setOpenMobile(false);
+  }, [pathname, isMobile, setOpenMobile]);
   const { data: modulos = [] } = useModules();
   const health = useApiHealth();
   const { isAdmin } = useAuth();

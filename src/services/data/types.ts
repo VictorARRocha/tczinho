@@ -88,7 +88,7 @@ export interface RegravacaoPedido {
   repository_url: string;
   commit_message: string | null;
   items_json: { difference_id: string; id_caso_teste: string | null; arquivo_atual: string | null; caminho_base: string }[];
-  result_json: { itens?: RegravacaoResultadoItem[]; simulacao?: boolean; revisao_conferida?: string } | null;
+  result_json: { itens?: RegravacaoResultadoItem[]; simulacao?: boolean; revisao_conferida?: string; conflito?: boolean } | null;
   svn_revision: string | null;
   error_message: string | null;
   created_at: string;

@@ -19,6 +19,7 @@ import type { Evidencia, Falha } from "@/types/db";
 import { fetchEvidenceBlob } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 function countReplacementChars(text: string): number {
   return (text.match(/\uFFFD/g) || []).length;
@@ -97,6 +98,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [baseText, setBaseText] = useState<string | null>(null);
   const [atualText, setAtualText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const isMobile = useIsMobile();
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [tooLarge, setTooLarge] = useState(false);
   const [binary, setBinary] = useState(false);
@@ -268,7 +270,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[96vw] w-[1320px] h-[92vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 py-3 border-b border-border">
+        <DialogHeader className="px-6 py-3 border-b border-border max-sm:px-4">
           <DialogTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" /> Comparação de arquivos
           </DialogTitle>
@@ -352,12 +354,12 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
           {loading ? (
             <div className="p-12 text-center text-sm text-muted-foreground">{loadingStage || "Carregando..."}</div>
           ) : isImg ? (
-            <div className="grid grid-cols-2 gap-2 p-4 h-full overflow-auto">
+            <div className="grid grid-cols-2 gap-2 p-4 h-full overflow-auto max-sm:grid-cols-1 max-sm:p-2">
               <ImagePane label="Baseline" url={baseUrl} />
               <ImagePane label="Checked" url={atualUrl} />
             </div>
           ) : isPdf ? (
-            <div className="grid grid-cols-2 gap-2 p-4 h-full">
+            <div className="grid grid-cols-2 gap-2 p-4 h-full max-sm:grid-cols-1 max-sm:p-2 max-sm:overflow-auto">
               <PdfPane label="Baseline" url={baseUrl} />
               <PdfPane label="Checked" url={atualUrl} />
             </div>
@@ -396,9 +398,10 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                       renderSideBySide: true,
                       ignoreTrimWhitespace: false,
                       automaticLayout: true,
-                      minimap: { enabled: true },
+                      // No celular o Monaco ja mostra o diff em linha; sem minimapa e com quebra de linha.
+                      minimap: { enabled: !isMobile },
                       scrollBeyondLastLine: false,
-                      wordWrap: "off",
+                      wordWrap: isMobile ? "on" : "off",
                       renderWhitespace: "boundary",
                       fontSize: 12,
                       originalEditable: false,

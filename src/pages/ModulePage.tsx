@@ -203,7 +203,7 @@ export default function ModulePage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in space-y-6">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in space-y-6">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
@@ -225,7 +225,7 @@ export default function ModulePage() {
 
   if (loadError) {
     return (
-      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
         <Card className="glass-card p-12 text-center">
           <h3 className="text-lg font-semibold">Não foi possível carregar os dados deste módulo</h3>
           <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
@@ -239,7 +239,7 @@ export default function ModulePage() {
 
 
   return (
-    <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
       <Link to="/" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
         <ChevronLeft className="h-3 w-3" /> Visão geral
       </Link>
@@ -272,8 +272,8 @@ export default function ModulePage() {
           <p className="mt-2 text-sm text-muted-foreground">Este módulo ainda não recebeu análise do Codex/Python.</p>
         </Card>
       ) : (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
-          <TabsList className="bg-card border border-border max-w-full overflow-x-auto justify-start">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6 sm:mt-8">
+          <TabsList className="bg-card border border-border max-w-full overflow-x-auto justify-start max-sm:h-auto max-sm:flex-wrap max-sm:overflow-x-visible">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>

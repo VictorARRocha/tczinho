@@ -169,8 +169,53 @@ describe("tela de regravacao", () => {
     renderPage();
     const links = await screen.findAllByRole("button", { name: "9.1.4.2.5" });
     fireEvent.click(links[0]);
-    expect(await screen.findByRole("dialog")).toBeInTheDocument();
-    expect(await screen.findByText(/Baixa automática de tarefas/)).toBeInTheDocument();
+    // O painel e carregado sob demanda (lazy); com a suite em paralelo pode passar de 1s.
+    expect(await screen.findByRole("dialog", {}, { timeout: 10000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Baixa automática de tarefas/, {}, { timeout: 10000 })).toBeInTheDocument();
+  });
+
+  it("ordena por caso, arquivo atual e base clicando no cabecalho", async () => {
+    api.candidatos!.itens = [
+      item("b_lanc", "2.5.1.1.12", "Files\\Fiscal\\c.txt", true),
+      item("a_serv", "2.5.1.1.5", "Files\\Fiscal\\a.txt", true),
+      item("c_outro", "2.5.2.1.13", null, false, "sem_manifesto"),
+    ];
+    renderPage();
+    await screen.findByLabelText("Selecionar a_serv_Atual.txt");
+    const ordem = () =>
+      screen.getAllByRole("checkbox", { name: /^Selecionar / }).map((c) => c.getAttribute("aria-label")!.replace("Selecionar ", ""));
+
+    fireEvent.click(screen.getByRole("button", { name: "Caso" }));
+    expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]);
+    fireEvent.click(screen.getByRole("button", { name: "Caso" }));
+    expect(ordem()).toEqual(["c_outro_Atual.txt", "b_lanc_Atual.txt", "a_serv_Atual.txt"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Arquivo atual" }));
+    expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Base no repositório" }));
+    expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]); // sem base fica no fim
+  });
+
+  it("no celular mostra cartoes (sem tabela), ordena pela lista e a barra leva ao botao de regravar", async () => {
+    const largura = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    try {
+      api.candidatos!.itens = [
+        item("b_lanc", "2.5.1.1.12", "Files\\Fiscal\\c.txt", true),
+        item("a_serv", "2.5.1.1.5", "Files\\Fiscal\\a.txt", true),
+      ];
+      renderPage();
+      await screen.findByLabelText("Selecionar a_serv_Atual.txt");
+      expect(screen.queryByRole("table")).toBeNull();
+      expect(screen.getByLabelText("Ordenar por")).toBeInTheDocument();
+      expect(screen.queryByText(/Ir para regravar/)).toBeNull();
+
+      fireEvent.click(screen.getByLabelText("Selecionar a_serv_Atual.txt"));
+      expect(screen.getByRole("button", { name: /Ir para regravar/ })).toBeInTheDocument();
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: largura });
+    }
   });
 
   it("quem nao e administrador ve tudo mas nao consegue regravar", async () => {
@@ -178,6 +223,42 @@ describe("tela de regravacao", () => {
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
     expect(screen.getByRole("button", { name: /Somente administradores/ })).toBeDisabled();
+  });
+
+  it("conflito no SVN: status Conflito, aviso com o passo a passo manual e o arquivo bloqueado", async () => {
+    api.pedidos = [{
+      id: "p1", run_id: "rod_1", requested_by: "ana", status: "erro", commit_message: null, svn_revision: null,
+      repository_url: "https://svn/testcomplete/unico/ProjetoUnico/branches/Proxima%2010.0",
+      error_message: "Conflito no SVN: a base mudou depois da rodagem e nada foi gravado.",
+      created_at: "2026-10-05T12:00:00Z", updated_at: "", finished_at: null,
+      items_json: [{ difference_id: "d1", id_caso_teste: "9.1.4.2.5", arquivo_atual: "d1_Atual.txt", caminho_base: "Files/Tarefas/A.txt" }],
+      result_json: { conflito: true, itens: [{ difference_id: "d1", caminho_base: "Files/Tarefas/A.txt", status: "base_mudou" }] },
+    }];
+    api.candidatos!.itens[0] = { ...api.candidatos!.itens[0], regravavel: false, motivo: "conflito_svn" };
+    renderPage();
+
+    const aviso = await screen.findByRole("alert");
+    expect(within(aviso).getByText(/faça a regravação manualmente/)).toBeInTheDocument();
+    expect(within(aviso).getByText("Files/Tarefas/A.txt")).toBeInTheDocument();
+    expect(within(aviso).getByText("branch Proxima 10.0")).toBeInTheDocument();
+    expect(within(aviso).getByText("SVN Update")).toBeInTheDocument();
+    expect(screen.getAllByText("Conflito").length).toBeGreaterThan(0); // status do pedido
+    expect(screen.getByText("Conflito no SVN")).toBeInTheDocument(); // situacao do arquivo
+    expect(screen.getByLabelText("Selecionar d1_Atual.txt")).toBeDisabled();
+
+    fireEvent.click(within(aviso).getByRole("button", { name: "Ocultar" }));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("erro que nao e conflito continua aparecendo como Erro, sem o aviso", async () => {
+    api.pedidos = [{
+      id: "p1", run_id: "rod_1", requested_by: "ana", status: "erro", commit_message: null, svn_revision: null,
+      repository_url: "u", error_message: "Nao foi possivel baixar o arquivo atual", created_at: "2026-10-05T12:00:00Z",
+      updated_at: "", finished_at: null, items_json: [], result_json: { conflito: false, itens: [] },
+    }];
+    renderPage();
+    expect(await screen.findByText("Erro")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("mostra os pedidos da rodagem e cancela o que esta na fila", async () => {

@@ -255,7 +255,7 @@ function AgrupamentoCard({ g, onSelect }: { g: AgrupamentoCardItem; onSelect: (f
 
   return (
     <Card
-      className="glass-card p-5 cursor-pointer hover:bg-secondary/20 transition-smooth"
+      className="glass-card p-4 sm:p-5 cursor-pointer hover:bg-secondary/20 transition-smooth"
       onClick={() => g.casos.length > 0 && setOpen((v) => !v)}
     >
       <div className="flex items-start justify-between mb-3 gap-3">

@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, ChevronsUpDown, Gauge, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ============= Performance helpers =============
 export function formatDuration(seconds: number): string {
@@ -39,6 +40,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [sortKey, setSortKey] = useState<SortKey>("diff");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const debouncedQ = useDebounce(q, 250);
+  const isMobile = useIsMobile();
 
   const groupOf = (codigo?: string | null) => {
     const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
@@ -198,7 +200,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="h-9 w-[180px] text-xs bg-background max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Status: todos</SelectItem>
               <SelectItem value="mais_lento">Mais lento</SelectItem>
@@ -208,7 +210,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           </Select>
           {groups.length > 0 && (
             <Select value={groupFilter} onValueChange={setGroupFilter}>
-              <SelectTrigger className="h-9 w-[180px] text-xs bg-background"><SelectValue placeholder="Grupo" /></SelectTrigger>
+              <SelectTrigger className="h-9 w-[180px] text-xs bg-background max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Grupo" /></SelectTrigger>
               <SelectContent className="max-h-[320px]">
                 <SelectItem value="all">Grupo: todos</SelectItem>
                 {groups.map((g) => <SelectItem key={g} value={g}>[{g}]</SelectItem>)}
@@ -220,6 +222,56 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       </Card>
 
       <Card className="glass-card overflow-hidden">
+        {isMobile ? (
+          <>
+            <div className="flex items-center gap-2 border-b border-border/60 p-3">
+              <Select value={sortKey} onValueChange={(v) => toggleSort(v as SortKey)}>
+                <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="codigo">Ordenar por código</SelectItem>
+                  {hasName && <SelectItem value="nome">Ordenar por caso de teste</SelectItem>}
+                  <SelectItem value="status">Ordenar por status</SelectItem>
+                  <SelectItem value="base">Ordenar por tempo base</SelectItem>
+                  <SelectItem value="atual">Ordenar por tempo atual</SelectItem>
+                  <SelectItem value="diff">Ordenar por diferença</SelectItem>
+                  <SelectItem value="var">Ordenar por variação</SelectItem>
+                </SelectContent>
+              </Select>
+              <button
+                type="button"
+                className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-input"
+                aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+              >
+                {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              </button>
+            </div>
+            {filtered.length === 0 ? (
+              <p className="py-12 text-center text-sm text-muted-foreground">Nenhum registro corresponde aos filtros.</p>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {filtered.map((d) => {
+                  const tone = d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : "";
+                  return (
+                    <li key={d.id} className="space-y-1.5 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-xs">{d.codigo_teste || "—"}</span>
+                        <PerfBadge status={d.status} />
+                      </div>
+                      {hasName && d.nome_teste && <p className="text-sm break-words">{d.nome_teste}</p>}
+                      <div className="grid grid-cols-4 gap-2 text-[11px]">
+                        <div><div className="text-muted-foreground">Base</div><div className="font-mono">{d.tempo_padrao || "—"}</div></div>
+                        <div><div className="text-muted-foreground">Atual</div><div className="font-mono">{d.tempo_atual || "—"}</div></div>
+                        <div><div className="text-muted-foreground">Diferença</div><div className={`font-mono ${tone}`}>{d.status === "mais_lento" ? "+" : ""}{formatDuration(d.delay_segundos)}</div></div>
+                        <div><div className="text-muted-foreground">Variação</div><div className={`font-mono ${tone}`}>{d.variacao_pct > 0 ? "+" : ""}{d.variacao_pct.toFixed(1)}%</div></div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        ) : (
         <Table>
           <TableHeader>
             <TableRow className="border-border hover:bg-transparent">
@@ -252,6 +304,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
             ))}
           </TableBody>
         </Table>
+        )}
       </Card>
 
     </div>

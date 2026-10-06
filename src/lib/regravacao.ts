@@ -42,12 +42,23 @@ export const PEDIDO_STATUS: Record<string, { label: string; className: string }>
   cancelado: { label: "Cancelado", className: "border-orange-500/40 text-orange-600 dark:text-orange-400" },
 };
 
+const CONFLITO_STATUS = { label: "Conflito", className: "border-amber-500/50 text-amber-700 dark:text-amber-400" };
+
+/** Status para mostrar: erro por conflito no SVN aparece como "Conflito". */
+export function pedidoStatus(p: { status: string; result_json?: { conflito?: boolean } | null }) {
+  if (p.status === "erro" && p.result_json?.conflito) return CONFLITO_STATUS;
+  return PEDIDO_STATUS[p.status] || { label: p.status, className: "" };
+}
+
+/** Arquivos do pedido que deram conflito (a base no SVN nao e mais a da rodagem). */
+export const ITEM_CONFLITO = ["base_mudou", "base_inexistente"];
+
 export const ITEM_STATUS: Record<string, string> = {
   gravado: "Gravado",
   ja_gravado: "Já estava gravado",
   simulado: "Simulado (nada gravado)",
-  base_mudou: "Base mudou no SVN",
-  base_inexistente: "Base não existe no SVN",
+  base_mudou: "Conflito: a base mudou no SVN",
+  base_inexistente: "Conflito: a base não existe mais no SVN",
   nao_gravado: "Não gravado",
   erro: "Erro",
 };
@@ -62,4 +73,5 @@ export const MOTIVO_CURTO: Record<string, string> = {
   sem_diferenca: "Sem diferença",
   em_andamento: "Pedido em andamento",
   ja_regravado: "Já regravado",
+  conflito_svn: "Conflito no SVN",
 };

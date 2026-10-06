@@ -49,6 +49,7 @@ import {
 import { invalidateRerunRequests, useAllRuns, useRerunRequests } from "@/services/queries";
 import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
 import { HistoryClearControls } from "@/components/HistoryClearControls";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const STATUS_META: Record<string, { label: string; className: string }> = {
   solicitado: { label: "Solicitado", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },
@@ -70,8 +71,13 @@ function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
 type SortKey = "id_caso_teste" | "nome_mds" | "grupo" | "tipo_ocorrencia" | "cluster_titulo" | "arquivo_origem";
 type SortDir = "asc" | "desc";
 
+const SORT_LABEL: Partial<Record<SortKey, string>> = {
+  id_caso_teste: "ID", nome_mds: "Nome", tipo_ocorrencia: "Tipo", grupo: "Grupo",
+};
+
 export default function ReexecutarTestes() {
   const { data: runs = [] } = useAllRuns();
+  const isMobile = useIsMobile();
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
@@ -266,13 +272,13 @@ export default function ReexecutarTestes() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
-      <div className="mb-8">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
+      <div className="mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
           <PlayCircle className="h-3 w-3" />
           Reexecutar Testes
         </div>
-        <h1 className="text-3xl lg:text-4xl font-bold tracking-tight">
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
           Solicitar nova execução no <span className="gradient-text">Jenkins</span>
         </h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
@@ -282,7 +288,7 @@ export default function ReexecutarTestes() {
       </div>
 
       {/* Seletor de rodagem */}
-      <Card className="glass-card p-5 mb-5">
+      <Card className="glass-card p-4 sm:p-5 mb-5">
         <div className="mb-3">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Rodagem
@@ -322,15 +328,16 @@ export default function ReexecutarTestes() {
         </div>
 
         <Select value={selectedRunId} onValueChange={setSelectedRunId}>
-          <SelectTrigger className="w-full">
+          {/* No celular o texto da rodagem quebra linha em vez de ser cortado. */}
+          <SelectTrigger className="w-full max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2">
             <SelectValue placeholder="Selecione uma rodagem analisada" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-sm:max-w-[var(--radix-select-trigger-width)]">
             {filteredRuns.map((r) => {
               const vm = (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "—").toLowerCase();
               const dt = r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—";
               return (
-                <SelectItem key={r.id_rodagem} value={r.id_rodagem}>
+                <SelectItem key={r.id_rodagem} value={r.id_rodagem} className="max-sm:whitespace-normal">
                   {(r.versao || "—")} — {vm} — {r.modulo_slug || r.sistema || "—"} — {dt} — {r.total_falhas ?? 0} falhas
                 </SelectItem>
               );
@@ -385,11 +392,11 @@ export default function ReexecutarTestes() {
       </Card>
 
       {/* Filtros */}
-      <Card className="glass-card p-5 mb-5">
+      <Card className="glass-card p-4 sm:p-5 mb-5">
         <div className="flex flex-wrap gap-2 items-center">
           <Button size="sm" variant="outline" onClick={() => toggleAll(true)}>Marcar todos</Button>
           <Button size="sm" variant="outline" onClick={() => toggleAll(false)}>Desmarcar todos</Button>
-          <span className="w-px h-5 bg-border mx-1" />
+          <span className="w-px h-5 bg-border mx-1 max-sm:hidden" />
           <Button size="sm" variant="outline" onClick={() => toggleByTipo("diferenca")}>
             <GitCompare className="h-3.5 w-3.5 mr-1" /> Apenas diferenças
           </Button>
@@ -405,8 +412,62 @@ export default function ReexecutarTestes() {
         </div>
       </Card>
 
-      {/* Tabela de casos */}
+      {/* Tabela de casos (cartoes no celular) */}
       <Card className="glass-card mb-5 overflow-hidden">
+        {isMobile ? (
+          <>
+            <div className="flex items-center gap-2 border-b border-border/60 p-3">
+              <Select value={sortKey} onValueChange={(v) => { setSortKey(v as SortKey); setSortDir("asc"); }}>
+                <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                    <SelectItem key={k} value={k}>Ordenar por {SORT_LABEL[k]!.toLowerCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="icon" variant="outline" className="h-9 w-9 shrink-0"
+                aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
+                {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+              </Button>
+            </div>
+            {loadingCasos ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">Carregando casos…</p>
+            ) : casos.length === 0 ? (
+              <p className="py-8 px-4 text-center text-sm text-muted-foreground">Nenhum caso disponível para esta rodagem.</p>
+            ) : (
+              <ul className="divide-y divide-border/60">
+                {sortedCasos.map((c) => {
+                  const checked = marcados.has(c.id_falha);
+                  return (
+                    <li
+                      key={c.id_falha}
+                      onClick={() => c.id_caso_teste && toggleOne(c.id_falha, !checked)}
+                      className={`flex gap-3 p-3 ${checked ? "bg-muted/40" : ""} ${c.id_caso_teste ? "cursor-pointer" : "cursor-not-allowed opacity-70"}`}
+                    >
+                      <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          className="h-5 w-5"
+                          checked={checked}
+                          onCheckedChange={(v) => toggleOne(c.id_falha, !!v)}
+                          disabled={!c.id_caso_teste}
+                        />
+                      </div>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-mono text-xs">{c.id_caso_teste || "—"}</span>
+                          <TipoBadge tipo={c.tipo_ocorrencia} />
+                        </div>
+                        <p className="text-sm break-words">{c.nome_mds || "—"}</p>
+                        {c.grupo && <p className="text-[11px] text-muted-foreground">{c.grupo}</p>}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        ) : (
         <Table>
           <TableHeader>
             <TableRow>
@@ -449,16 +510,17 @@ export default function ReexecutarTestes() {
             )}
           </TableBody>
         </Table>
+        )}
       </Card>
 
       {/* Rodapé: preview + botão */}
-      <Card className="glass-card p-5 mb-8">
+      <Card className="glass-card p-4 sm:p-5 mb-8">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             size="lg"
             onClick={handleSubmit}
             disabled={!canSubmit || submitting}
-            className="bg-gradient-primary"
+            className="bg-gradient-primary max-sm:w-full"
           >
             <PlayCircle className="h-4 w-4 mr-2" />
             {submitting ? "Enviando…" : "Rodar novamente"}
@@ -485,11 +547,11 @@ export default function ReexecutarTestes() {
 
       {/* Histórico */}
       <Collapsible>
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm" className="group -ml-2">
               <ChevronDown className="h-4 w-4 mr-1 transition-transform group-data-[state=open]:rotate-180" />
-              <h2 className="text-lg font-semibold">Histórico de reexecuções</h2>
+              <h2 className="text-base sm:text-lg font-semibold">Histórico de reexecuções</h2>
             </Button>
           </CollapsibleTrigger>
           <HistoryClearControls
@@ -501,6 +563,48 @@ export default function ReexecutarTestes() {
         </div>
         <CollapsibleContent>
           <Card className="glass-card overflow-hidden">
+            {isMobile ? (
+              history.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  {allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}
+                </p>
+              ) : (
+                <ul className="divide-y divide-border/60">
+                  {history.map((r) => {
+                    const meta = STATUS_META[r.status] || { label: r.status, className: "" };
+                    return (
+                      <li key={r.id} className="space-y-1.5 p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
+                          <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+                        </div>
+                        <p className="text-sm">
+                          <span className="font-mono">{r.vm_name}</span> · {r.versao}
+                          {r.jenkins_build_number && <> · build <span className="font-mono">{r.jenkins_build_number}</span></>}
+                        </p>
+                        {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
+                        {r.erro && <p className="break-words text-[11px] text-red-400">{r.erro}</p>}
+                        <div className="flex gap-2">
+                          {r.jenkins_queue_url && (
+                            <Button size="sm" variant="outline" className="h-8 flex-1" asChild>
+                              <a href={r.jenkins_queue_url} target="_blank" rel="noreferrer">
+                                <ExternalLink className="h-3.5 w-3.5 mr-1" /> Queue
+                              </a>
+                            </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => {
+                            navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
+                            toast.success("CONFIG_JSON copiado");
+                          }}>
+                            <Copy className="h-3.5 w-3.5 mr-1" /> Copiar JSON
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : (
             <Table>
               <TableHeader>
                 <TableRow>
@@ -555,6 +659,7 @@ export default function ReexecutarTestes() {
                 )}
               </TableBody>
             </Table>
+            )}
           </Card>
         </CollapsibleContent>
       </Collapsible>
