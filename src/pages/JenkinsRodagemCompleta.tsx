@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, ChevronLeft, Copy, Server, Clock, Braces } from "lucide-react";
+import { PlayCircle, ChevronLeft, Copy, Server, Clock } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
 } from "@/services/data";
@@ -106,11 +106,6 @@ export default function JenkinsRodagemCompleta() {
   const setConfiguredNow = () => {
     if (!cParsed.config) return toast.error("Corrija o JSON antes", { description: cParsed.error });
     setCText(configToText(withDataHora(cParsed.config, formatNowMinusOneMinuteBr())));
-  };
-
-  const formatConfigured = () => {
-    if (!cParsed.config) return toast.error("Corrija o JSON antes", { description: cParsed.error });
-    setCText(configToText(cParsed.config));
   };
 
   const [submitting, setSubmitting] = useState(false);
@@ -232,13 +227,10 @@ export default function JenkinsRodagemCompleta() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  casos_teste enviado: <code className="text-xs">{sModuloObj.codigo}</code>
-                </p>
               </Field>
 
               <Field label="Versão">
-                <Input value={sVersao} onChange={(e) => setSVersao(e.target.value)} placeholder="ex.: pre-cliente" />
+                <Input aria-label="Versão" value={sVersao} onChange={(e) => setSVersao(e.target.value)} />
               </Field>
 
               <Field label="Agendamento">
@@ -305,12 +297,6 @@ export default function JenkinsRodagemCompleta() {
                 <div className="flex flex-wrap items-center gap-1">
                   <Button size="sm" variant="ghost" onClick={setConfiguredNow} title="data_hora = agora − 1 min (dispara imediatamente)">
                     <Clock className="h-3.5 w-3.5 mr-1" /> Data/hora agora
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={formatConfigured}>
-                    <Braces className="h-3.5 w-3.5 mr-1" /> Formatar
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => copyJson(cParsed.config ?? cText)}>
-                    <Copy className="h-3.5 w-3.5 mr-1" /> Copiar
                   </Button>
                 </div>
               </div>

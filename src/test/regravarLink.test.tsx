@@ -58,5 +58,8 @@ describe("Regravar arquivos fora do Jenkins", () => {
     expect(screen.getByText("Rodagem completa")).toBeInTheDocument();
     expect(screen.getByText("Reexecutar rodagens")).toBeInTheDocument();
     expect(screen.queryByText("Regravar arquivos")).toBeNull();
+    // So o titulo e os cards: sem o selo "Jenkins" e sem a descricao.
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Disparar execuções no Jenkins");
+    expect(screen.queryByText(/JenkinsBridge|Lovable|O pedido entra na fila/)).toBeNull();
   });
 });

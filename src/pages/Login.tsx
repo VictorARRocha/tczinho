@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 export default function Login() {
   const { session, signIn, loading } = useAuth();
@@ -35,10 +35,8 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary glow-primary">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
-          </div>
-          <CardTitle className="font-display">Agent TC</CardTitle>
+          <img src="/sci-logo.png" alt="SCI Sistemas" className="mx-auto h-16 w-16 object-contain" />
+          <CardTitle className="font-display">AgenteTC</CardTitle>
           <CardDescription>Entre com seu usuário e senha</CardDescription>
         </CardHeader>
         <CardContent>

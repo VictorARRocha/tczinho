@@ -171,7 +171,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
       <Card className="glass-card p-12 text-center">
         <Gauge className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
         <h3 className="text-base font-semibold">Nenhum dado de performance encontrado para esta rodagem.</h3>
-        <p className="text-sm text-muted-foreground mt-1">Quando o Agent TC enviar dados de performance, eles aparecerão aqui.</p>
+        <p className="text-sm text-muted-foreground mt-1">Os tempos de execução dos casos aparecem aqui quando a rodagem trouxer essa informação.</p>
       </Card>
     );
   }

@@ -289,6 +289,19 @@ describe("rodagem completa", () => {
     expect(await screen.findByText("Nenhuma pré-definição salva")).toBeInTheDocument();
   });
 
+  it("telas sem os textos de apoio antigos: sem casos_teste enviado, sem exemplo na versao, sem Formatar/Copiar no JSON", () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(screen.queryByText(/casos_teste enviado/)).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Versão" })).not.toHaveAttribute("placeholder");
+    const tab = screen.getByRole("tab", { name: "Configurada" });
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    expect(screen.getByRole("button", { name: /Data\/hora agora/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Formatar/ })).toBeNull();
+    // O unico "Copiar" que sobra e o da previa da simplificada, que nao fica visivel nesta aba.
+    expect(screen.queryByRole("button", { name: /^Copiar$/ })).toBeNull();
+  });
+
   it("abas: minhas (editar/excluir) e de outros usuarios agrupadas por quem criou (usar/copiar)", async () => {
     api.presets = [
       nfe(),
@@ -362,7 +375,7 @@ describe("rodagem completa", () => {
       return created;
     });
     renderPage(<JenkinsRodagemCompleta />);
-    fireEvent.change(screen.getByPlaceholderText("ex.: pre-cliente"), { target: { value: "PROXIMA" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
 
     await openPresetList();
     fireEvent.click(screen.getByRole("button", { name: /Nova a partir da tela atual/ }));
@@ -379,7 +392,7 @@ describe("rodagem completa", () => {
     });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
-    fireEvent.change(screen.getByPlaceholderText("ex.: pre-cliente"), { target: { value: "OUTRA" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "OUTRA" } });
     expect(await screen.findByText(/PROXIMA → OUTRA/)).toBeInTheDocument();
 
     // Pelo aviso de alteracao tambem da para salvar como uma nova.
@@ -416,7 +429,7 @@ describe("rodagem completa", () => {
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(51));
 
     historyRenders.count = 0;
-    const input = screen.getByPlaceholderText("ex.: pre-cliente");
+    const input = screen.getByRole("textbox", { name: "Versão" });
     for (const v of ["P", "PR", "PRO", "PROX"]) fireEvent.change(input, { target: { value: v } });
     expect((input as HTMLInputElement).value).toBe("PROX");
     expect(historyRenders.count).toBe(0);

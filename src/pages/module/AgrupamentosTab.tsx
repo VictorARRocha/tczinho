@@ -210,9 +210,9 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
         setErrorMsg("Agrupamento já está em andamento.");
         await refreshStatus();
       } else if (status === 503 && (code === "ai_provider_not_configured" || code === "openai_not_configured")) {
-        setErrorMsg("IA de agrupamento não está configurada no backend.");
+        setErrorMsg("O agrupamento por IA não está disponível no momento. Avise a equipe de automação.");
       } else if (status === 422 || code === "invalid_ai_response") {
-        setErrorMsg("A resposta da IA foi recusada pelo backend. Tente novamente.");
+        setErrorMsg("Não foi possível agrupar as falhas agora. Tente novamente.");
       } else {
         setErrorMsg((e as Error)?.message || "Não foi possível solicitar o agrupamento.");
       }
@@ -233,8 +233,8 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
         <p className="text-sm font-medium">Agrupamento por IA</p>
         {errorMsg && <p className="text-xs text-destructive mt-0.5 truncate" title={errorMsg}>{errorMsg}</p>}
         {!errorMsg && grouped && <p className="text-xs text-muted-foreground mt-0.5">As falhas desta rodagem já foram agrupadas.</p>}
-        {!errorMsg && !grouped && !running && <p className="text-xs text-muted-foreground mt-0.5">Solicite ao Agent TC agrupar as falhas semelhantes.</p>}
-        {!errorMsg && running && <p className="text-xs text-muted-foreground mt-0.5">Processando no backend, isso pode levar alguns instantes.</p>}
+        {!errorMsg && !grouped && !running && <p className="text-xs text-muted-foreground mt-0.5">Junta as falhas parecidas para você analisar cada problema uma vez só.</p>}
+        {!errorMsg && running && <p className="text-xs text-muted-foreground mt-0.5">Agrupando as falhas. Isso pode levar alguns instantes.</p>}
       </div>
       <Button size="sm" onClick={handleClick} disabled={disabled}>
         {running && <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />}
@@ -278,7 +278,7 @@ function AgrupamentoCard({ g, onSelect }: { g: AgrupamentoCardItem; onSelect: (f
         <GroupCasesList casos={g.casos} onSelect={onSelect} open={open} setOpen={setOpen} />
       ) : g.semVinculo ? (
         <p className="text-xs text-muted-foreground italic">
-          Este agrupamento ainda não possui vínculos gravados. O Codex precisa preencher a tabela <code>agrupamentos_falhas</code>.
+          Os casos deste grupo ainda não foram vinculados.
         </p>
       ) : null}
     </Card>

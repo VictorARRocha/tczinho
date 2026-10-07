@@ -269,11 +269,11 @@ export default function ModulePage() {
       ) : !rodagem ? (
         <Card className="glass-card p-12 text-center mt-8">
           <h3 className="text-lg font-semibold">Nenhuma rodagem encontrada</h3>
-          <p className="mt-2 text-sm text-muted-foreground">Este módulo ainda não recebeu análise do Codex/Python.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Os resultados deste módulo aparecem aqui assim que a primeira rodagem de testes terminar.</p>
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6 sm:mt-8">
-          <TabsList className="bg-card border border-border max-w-full overflow-x-auto justify-start max-sm:h-auto max-sm:flex-wrap max-sm:overflow-x-visible">
+          <TabsList className="bg-card border border-border max-w-full overflow-x-auto sm:overflow-y-hidden justify-start max-sm:h-auto max-sm:flex-wrap max-sm:overflow-x-visible">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>

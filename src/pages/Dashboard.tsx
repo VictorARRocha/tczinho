@@ -36,10 +36,11 @@ export default function Dashboard() {
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
       <div className="mb-8 sm:mb-10">
         <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-          <span className="gradient-text">TC SCI</span>
+          <span className="gradient-text">AgenteTC</span>
         </h1>
         <p className="mt-3 text-sm sm:text-base text-muted-foreground max-w-2xl">
-          Monitoramento inteligente de rodagens automatizadas do TestComplete. Acompanhe falhas, evidências e prioridades em tempo real.
+          Acompanhe os resultados dos testes automáticos do Único em cada módulo: o que passou, o que falhou e por quê, com os prints e
+          arquivos de cada caso.
         </p>
       </div>
 
@@ -55,7 +56,7 @@ export default function Dashboard() {
       ) : isError && data.length === 0 ? (
         <Card className="glass-card p-12 text-center">
           <h3 className="text-lg font-semibold">Não foi possível carregar os módulos</h3>
-          <p className="mt-2 text-sm text-muted-foreground">{(error as Error)?.message || "A API não respondeu."}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{(error as Error)?.message || "O sistema não respondeu. Tente de novo em alguns instantes."}</p>
           <Button className="mt-4" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? "animate-spin" : ""}`} /> Tentar novamente
           </Button>
@@ -149,9 +150,9 @@ function EmptyState() {
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Database className="h-5 w-5 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold">Sem dados reais ainda</h3>
+      <h3 className="text-lg font-semibold">Nenhum resultado de teste ainda</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-        Nenhum modulo encontrado. Verifique se a API esta apontando para o banco correto.
+        Os módulos aparecem aqui assim que a primeira rodagem de testes terminar.
       </p>
     </Card>
   );

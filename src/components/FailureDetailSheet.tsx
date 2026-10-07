@@ -538,7 +538,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
             <div className="p-6 text-center text-xs text-muted-foreground">
               {imgError ? "Não foi possível carregar esta evidência."
                 : !visible && ev.storage_path ? "Imagem será carregada quando visível…"
-                : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado no Storage."}
+                : ev.storage_path ? "Carregando imagem…" : "Arquivo não encontrado."}
             </div>
           )}
           

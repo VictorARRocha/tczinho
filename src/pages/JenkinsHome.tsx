@@ -1,23 +1,13 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { PlayCircle, RefreshCcw, ChevronRight, Server } from "lucide-react";
+import { PlayCircle, RefreshCcw, ChevronRight } from "lucide-react";
 
 export default function JenkinsHome() {
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
-          <Server className="h-3 w-3" />
-          Jenkins
-        </div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-          Disparar execuções no <span className="gradient-text">Jenkins</span>
-        </h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-          Crie solicitações que o <strong>JenkinsBridge</strong> local consome e envia ao pipeline.
-          A Lovable nunca chama o Jenkins diretamente.
-        </p>
-      </div>
+      <h1 className="mb-6 sm:mb-8 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
+        Disparar execuções no <span className="gradient-text">Jenkins</span>
+      </h1>
 
       <div className="grid gap-4 sm:gap-5 sm:grid-cols-2">
         <JenkinsCard

@@ -1,7 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { ApiStatusDot } from "./ApiStatus";
-import { useApiHealth } from "@/services/queries";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
@@ -13,7 +11,6 @@ import { LogOut, User as UserIcon, ShieldCheck } from "lucide-react";
 export function AppLayout() {
   const { profile, isAdmin, signOut } = useAuth();
   const { pathname } = useLocation();
-  const health = useApiHealth();
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -21,16 +18,7 @@ export function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl">
             <SidebarTrigger />
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="font-mono">testcomplete</span>
-              <span>/</span>
-              <span className="font-mono">sistema-unico</span>
-            </div>
             <div className="ml-auto flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-1.5 rounded-full border border-border/60 bg-card/60 px-3 py-1 text-[11px] text-muted-foreground">
-                <ApiStatusDot online={health.data} />
-                {health.data === false ? "API indisponível" : "Atualização automática"}
-              </div>
               <ThemeToggle />
               {profile && (
                 <DropdownMenu>

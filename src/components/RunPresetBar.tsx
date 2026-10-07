@@ -261,7 +261,7 @@ export const RunPresetBar = memo(function RunPresetBar({
   );
 
   return (
-    <div className="rounded-lg border border-border/60 bg-secondary/20 p-3 space-y-2">
+    <div className="rounded-lg border border-primary/40 bg-primary/[0.06] p-3 space-y-2 shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.45)]">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pré-definição</Label>
       <Popover open={open} onOpenChange={openList}>
         <PopoverTrigger asChild>

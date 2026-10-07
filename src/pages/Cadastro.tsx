@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 const schema = z.object({
   username: z.string().trim().min(3, "Mínimo 3 caracteres").max(40).regex(/^[a-zA-Z0-9._-]+$/, "Só letras, números, . _ -"),
@@ -45,9 +45,7 @@ export default function Cadastro() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-primary glow-primary">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img src="/sci-logo.png" alt="SCI Sistemas" className="mx-auto h-16 w-16 object-contain" />
           <CardTitle className="font-display">Criar conta</CardTitle>
           <CardDescription>Sua conta ficará pendente até aprovação do admin</CardDescription>
         </CardHeader>

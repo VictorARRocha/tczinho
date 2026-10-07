@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Activity, LayoutDashboard, History, Sparkles, PlayCircle, Server, RefreshCcw, Upload,
+  Activity, LayoutDashboard, History, PlayCircle, Server, RefreshCcw, Upload,
   Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, PersonStanding, ShieldCheck, GitMerge,
+  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, ShieldCheck, GitMerge,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -65,12 +65,10 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <NavLink to="/" className="flex items-center gap-2.5">
-          <div className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary glow-primary">
-            <Sparkles className="h-4 w-4 text-primary-foreground" />
-          </div>
+          <img src="/sci-logo.png" alt="SCI Sistemas" className="h-9 w-9 shrink-0 object-contain" />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
-              <span className="font-display text-sm font-bold tracking-tight">TC SCI</span>
+              <span className="font-display text-sm font-bold tracking-tight">AgenteTC</span>
             </div>
           )}
         </NavLink>
@@ -92,7 +90,7 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
                   <NavLink to="/jenkins">
-                    <PersonStanding />
+                    <img src="/jenkins-logo.webp" alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
                     <span>Jenkins</span>
                   </NavLink>
                 </SidebarMenuButton>
