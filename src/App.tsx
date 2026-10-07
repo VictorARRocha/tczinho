@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/AppLayout";
@@ -28,6 +28,12 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const withSuspense = (node: React.ReactNode, message?: string, variant?: "spinner" | "skeleton-cards" | "skeleton-table") => (
   <Suspense fallback={<PageLoading message={message} variant={variant} />}>{node}</Suspense>
 );
+
+/** Redireciona mantendo a busca (ex.: links antigos /jenkins/regravar?rodagem=...). */
+function RedirecionaComBusca({ to }: { to: string }) {
+  const { search } = useLocation();
+  return <Navigate to={to + search} replace />;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -74,9 +80,10 @@ const App = () => (
                 element={withSuspense(<ReexecutarTestes />, "Carregando reexecução...", "skeleton-table")}
               />
               <Route
-                path="/jenkins/regravar"
+                path="/regravar"
                 element={withSuspense(<RegravarBases />, "Carregando regravação...", "skeleton-table")}
               />
+              <Route path="/jenkins/regravar" element={<RedirecionaComBusca to="/regravar" />} />
               <Route path="/reexecutar" element={<Navigate to="/jenkins/reexecutar" replace />} />
               <Route path="/merge" element={withSuspense(<MergeBranches />, "Carregando merge...", "skeleton-table")} />
 

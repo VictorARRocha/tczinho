@@ -304,6 +304,7 @@ export default function ModulePage() {
             falha={selectedFalha}
             open={!!selectedFalha}
             onClose={() => setSelectedFalha(null)}
+            linkRegravar
             evidencias={evidencias.filter((e) => {
               if (e.falha_id && e.falha_id === selectedFalha.id) return true;
               // falhas sintéticas: id "storage:{folder}" → evidências cujo path está dentro do folder

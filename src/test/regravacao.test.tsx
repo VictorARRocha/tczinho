@@ -57,7 +57,7 @@ const item = (id: string, ct: string, caminho: string | null, regravavel: boolea
 function renderPage() {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={["/jenkins/regravar?rodagem=rod_1"]}>
+      <MemoryRouter initialEntries={["/regravar?rodagem=rod_1"]}>
         <RegravarBases />
       </MemoryRouter>
     </QueryClientProvider>,

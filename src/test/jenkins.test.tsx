@@ -7,6 +7,9 @@ import type { RunPreset } from "@/services/data";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+const auth = { isAdmin: false, profile: { username: "ana" } };
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
+
 const api = {
   requests: [] as RerunRequest[],
   presets: [] as RunPreset[],
@@ -98,6 +101,8 @@ beforeEach(() => {
   api.requests = [];
   api.presets = [];
   api.failPresets = false;
+  auth.isAdmin = false;
+  auth.profile = { username: "ana" };
   for (const fn of [api.createRerunRequest, api.createRunPreset, api.updateRunPreset, api.deleteRunPreset]) fn.mockReset();
   vi.mocked(toast.error).mockReset();
 });
@@ -284,6 +289,72 @@ describe("rodagem completa", () => {
     expect(await screen.findByText("Nenhuma pré-definição salva")).toBeInTheDocument();
   });
 
+  it("abas: minhas (editar/excluir) e de outros usuarios agrupadas por quem criou (usar/copiar)", async () => {
+    api.presets = [
+      nfe(),
+      { ...preset("p2", "NFe do Joao", "configurada", { vm_name: "a02" }), created_by: "joao", updated_by: "joao" },
+      { ...preset("p3", "Antiga", "configurada", { vm_name: "a03" }), created_by: null, updated_by: null },
+    ];
+    const editor = openConfigurada();
+    await openPresetList();
+    expect(screen.getByRole("tab", { name: "Minhas (1)" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Editar Casos NFe" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "NFe do Joao" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("tab", { name: "De outros usuários (2)" }));
+    const joao = screen.getByRole("group", { name: "joao" });
+    expect(within(joao).getByRole("button", { name: "NFe do Joao" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "Sem dono (todos)" })).getByRole("button", { name: "Antiga" })).toBeInTheDocument();
+    // De outro usuario: sem lapis e sem lixeira (nao e admin); so usar ou copiar.
+    expect(screen.queryByRole("button", { name: "Editar NFe do Joao" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Excluir NFe do Joao" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Copiar NFe do Joao para as minhas" })).toBeInTheDocument();
+
+    fireEvent.click(within(joao).getByRole("button", { name: "NFe do Joao" }));
+    expect(JSON.parse(editor.value).vm_name).toBe("a02");
+    expect(screen.getByRole("button", { name: "Pré-definição" })).toHaveTextContent("de joao");
+    expect(screen.getByText(/só quem criou altera/)).toBeInTheDocument();
+    // Alterou a tela: nao oferece salvar na do outro, so como nova.
+    fireEvent.change(editor, { target: { value: JSON.stringify({ ...JSON.parse(editor.value), vm_name: "a05" }) } });
+    expect(screen.queryByRole("button", { name: /Salvar em/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Salvar como nova/ })).toBeInTheDocument();
+  });
+
+  it("copiar para as minhas cria uma copia com a configuracao do outro usuario e aplica", async () => {
+    const doJoao = { ...preset("p2", "NFe do Joao", "configurada", { vm_name: "a02", casos_teste: "[2]" }), created_by: "joao" };
+    api.presets = [doJoao];
+    api.createRunPreset.mockImplementation(async (payload: { nome: string; modo: "configurada"; config: Record<string, unknown> }) => {
+      const created = preset("copia", payload.nome, payload.modo, payload.config);
+      api.presets = [doJoao, created];
+      return created;
+    });
+    const editor = openConfigurada();
+    await openPresetList();
+    expect(screen.getByRole("tab", { name: "De outros usuários (1)" })).toHaveAttribute("aria-selected", "true"); // nao tenho nenhuma
+    fireEvent.click(screen.getByRole("button", { name: "Copiar NFe do Joao para as minhas" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Será copiado de joao")).toBeInTheDocument();
+    expect((within(dialog).getByLabelText("Nome") as HTMLInputElement).value).toBe("NFe do Joao");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(api.createRunPreset).toHaveBeenCalledWith({
+      nome: "NFe do Joao", modo: "configurada", config: { vm_name: "a02", casos_teste: "[2]" },
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(JSON.parse(editor.value).vm_name).toBe("a02");
+  });
+
+  it("admin ve a lixeira nas pre-definicoes dos outros", async () => {
+    auth.isAdmin = true;
+    api.presets = [{ ...preset("p2", "NFe do Joao", "configurada", { vm_name: "a02" }), created_by: "joao" }];
+    api.deleteRunPreset.mockResolvedValue(undefined);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    openConfigurada();
+    await openPresetList();
+    fireEvent.click(screen.getByRole("button", { name: "Excluir NFe do Joao" }));
+    expect(confirm.mock.calls[0][0]).toMatch(/de joao/);
+    await waitFor(() => expect(api.deleteRunPreset).toHaveBeenCalledWith("p2"));
+  });
+
   it("simplificada: cria pela lista com VM, modulo e versao e mostra o que mudou depois", async () => {
     api.createRunPreset.mockImplementation(async (payload: { nome: string; modo: "simplificada"; config: Record<string, unknown> }) => {
       const created = preset("novo", payload.nome, payload.modo, payload.config);
@@ -333,7 +404,7 @@ describe("rodagem completa", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: "Salvar" }));
     });
     await waitFor(() =>
-      expect(toast.error).toHaveBeenCalledWith(expect.any(String), { description: "Já existe uma pré-definição com esse nome." }),
+      expect(toast.error).toHaveBeenCalledWith(expect.any(String), { description: "Você já tem uma pré-definição com esse nome." }),
     );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });

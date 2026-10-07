@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
@@ -12,7 +13,7 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
   Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
-  GitCompare, X, ChevronDown, ChevronRight,
+  GitCompare, X, ChevronDown, ChevronRight, Upload,
 } from "lucide-react";
 
 import { toast } from "sonner";
@@ -211,9 +212,11 @@ interface Props {
   open: boolean;
   onClose: () => void;
   evidencias?: Evidencia[];
+  /** Mostra o link "Regravar arquivos" (fora da propria tela de regravacao). */
+  linkRegravar?: boolean;
 }
 
-export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp }: Props) {
+export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp, linkRegravar = false }: Props) {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
 
@@ -307,6 +310,13 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 
           {realPairs.length > 0 && (
             <Section title={`Comparações (${realPairs.length})`}>
+              {linkRegravar && falha.rodagem_id && (
+                <Button asChild size="sm" variant="outline" className="mb-3 max-sm:w-full">
+                  <Link to={`/regravar?rodagem=${encodeURIComponent(falha.rodagem_id)}`} onClick={onClose}>
+                    <Upload className="h-3.5 w-3.5 mr-1" /> Regravar arquivos desta rodagem
+                  </Link>
+                </Button>
+              )}
               <div className="space-y-2">
                 {realPairs.map((p) => (
                   <Card key={p.key} className="p-3.5 flex items-center gap-3 flex-wrap bg-card/60">

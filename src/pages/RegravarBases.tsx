@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, FileDiff, GitCommitHorizontal, RotateCcw, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, FileDiff, GitCommitHorizontal, RotateCcw, Upload, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -217,11 +217,6 @@ export default function RegravarBases() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-4 sm:mb-6 flex items-center gap-2 text-xs text-muted-foreground">
-        <Link to="/jenkins" className="inline-flex items-center gap-1 hover:text-foreground">
-          <ChevronLeft className="h-3.5 w-3.5" /> Jenkins
-        </Link>
-      </div>
       <div className="mb-6 sm:mb-8">
         <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
           <Upload className="h-3 w-3" /> Regravar arquivos

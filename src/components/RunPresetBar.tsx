@@ -1,6 +1,6 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Check, ChevronDown, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Pencil, Plus, Trash2, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,25 +14,32 @@ import {
 } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateRunPresets, useRunPresets } from "@/services/queries";
+import { useAuth } from "@/contexts/AuthContext";
 import { diffConfig, type ConfigChange, type JenkinsConfig } from "@/lib/jenkinsConfig";
 import { cn } from "@/lib/utils";
 
 const MAX_NAME = 80;
+/** Grupo das pre-definicoes antigas, criadas antes de cada uma ter dono. */
+const SEM_DONO = "Sem dono (todos)";
 
 function errorMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status === 409) return "Já existe uma pré-definição com esse nome.";
+  if (e instanceof ApiError && e.status === 409) return "Você já tem uma pré-definição com esse nome.";
   if (e instanceof ApiError && e.status === 404) return "A pré-definição não existe mais (talvez outra pessoa a excluiu).";
+  if (e instanceof ApiError && e.status === 403) return e.detail || "Só quem criou pode alterar esta pré-definição.";
   return (e as Error)?.message || "Erro desconhecido";
 }
 
 type DialogState =
   | { kind: "create"; name: string }
+  | { kind: "copy"; preset: RunPreset; name: string }
   | { kind: "edit"; preset: RunPreset; name: string; replaceConfig: boolean };
 
+type Aba = "minhas" | "outros";
+
 /**
- * Pre-definicoes de rodagem salvas na API. A lista concentra escolher, editar,
- * excluir e criar; o aviso de alteracao so aparece quando ha algo a salvar.
- * `current` null = configuracao da tela invalida (nao pode ser salva).
+ * Pre-definicoes de rodagem salvas na API. Cada usuario tem as suas (aba "Minhas": usar,
+ * editar, excluir); as dos outros ficam na aba "De outros usuários" (usar ou copiar para as
+ * minhas). Admin tambem exclui as dos outros. `current` null = configuracao da tela invalida.
  */
 export const RunPresetBar = memo(function RunPresetBar({
   mode,
@@ -48,17 +55,36 @@ export const RunPresetBar = memo(function RunPresetBar({
   labels?: Record<string, string>;
   onApply: (preset: RunPreset) => void;
 }) {
+  const { profile, isAdmin } = useAuth();
+  const username = profile?.username || "";
   const { data, isError: queryError, isLoading } = useRunPresets();
   const allPresets = useMemo(() => data || [], [data]);
   // Falha num recarregamento mantem a lista ja carregada; so desliga sem nada.
   const isError = queryError && !data;
   const presets = useMemo(() => allPresets.filter((p) => p.mode === mode), [allPresets, mode]);
+  const isMine = useCallback((p: RunPreset) => !!username && p.created_by === username, [username]);
+  const minhas = useMemo(() => presets.filter(isMine), [presets, isMine]);
+  // De outros usuarios, agrupadas por quem criou (as sem dono ficam num grupo proprio, no fim).
+  const grupos = useMemo(() => {
+    const porDono = new Map<string, RunPreset[]>();
+    for (const p of presets) {
+      if (isMine(p)) continue;
+      const dono = p.created_by || SEM_DONO;
+      porDono.set(dono, [...(porDono.get(dono) || []), p]);
+    }
+    return [...porDono.entries()].sort(([a], [b]) =>
+      a === SEM_DONO ? 1 : b === SEM_DONO ? -1 : a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+  }, [presets, isMine]);
+  const totalOutros = presets.length - minhas.length;
+
   const [selectedId, setSelectedId] = useState<string>("");
   const [open, setOpen] = useState(false);
+  const [aba, setAba] = useState<Aba>("minhas");
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [busy, setBusy] = useState(false);
 
   const selected = presets.find((p) => p.id === selectedId) || null;
+  const selectedMine = !!selected && isMine(selected);
   // Pre-definicao excluida (aqui ou por outra pessoa): volta para "nenhuma".
   useEffect(() => {
     if (selectedId && !isLoading && !selected) setSelectedId("");
@@ -81,6 +107,12 @@ export const RunPresetBar = memo(function RunPresetBar({
     }
   };
 
+  const openList = (o: boolean) => {
+    // Abre na aba da pre-definicao escolhida (ou em "Minhas").
+    if (o) setAba(selected && !selectedMine ? "outros" : minhas.length === 0 && totalOutros > 0 ? "outros" : "minhas");
+    setOpen(o);
+  };
+
   const choose = (preset: RunPreset) => {
     setSelectedId(preset.id);
     setOpen(false);
@@ -98,7 +130,10 @@ export const RunPresetBar = memo(function RunPresetBar({
 
   const remove = (preset: RunPreset) => {
     setOpen(false);
-    if (!window.confirm(`Excluir a pré-definição "${preset.name}"? Ela some para todos os usuários.`)) return;
+    const pergunta = isMine(preset)
+      ? `Excluir a sua pré-definição "${preset.name}"?`
+      : `Excluir a pré-definição "${preset.name}" de ${preset.created_by || "todos (sem dono)"}? Ela some para todos os usuários.`;
+    if (!window.confirm(pergunta)) return;
     void run(async () => {
       await deleteRunPreset(preset.id);
       if (preset.id === selectedId) setSelectedId("");
@@ -111,6 +146,11 @@ export const RunPresetBar = memo(function RunPresetBar({
     setOpen(false);
     if (!current) return toast.error("Corrija a configuração antes de salvar", { description: invalidReason || undefined });
     setDialog({ kind: "create", name: "" });
+  };
+
+  const openCopy = (preset: RunPreset) => {
+    setOpen(false);
+    setDialog({ kind: "copy", preset, name: preset.name });
   };
 
   const openEdit = (preset: RunPreset) => {
@@ -131,6 +171,12 @@ export const RunPresetBar = memo(function RunPresetBar({
         await invalidateRunPresets();
         setSelectedId(created.id);
         toast.success(`Pré-definição "${created.name}" salva`);
+      } else if (dialog.kind === "copy") {
+        const created = await createRunPreset({ nome: name, modo: mode, config: dialog.preset.config_json || {} });
+        await invalidateRunPresets();
+        setSelectedId(created.id);
+        onApply(created);
+        toast.success(`"${created.name}" copiada para as suas pré-definições`);
       } else {
         const payload = dialog.replaceConfig && current ? { nome: name, config: current } : { nome: name };
         await updateRunPreset(dialog.preset.id, payload);
@@ -151,10 +197,73 @@ export const RunPresetBar = memo(function RunPresetBar({
       ? "Nenhuma pré-definição salva"
       : "Escolher pré-definição…";
 
+  const linha = (p: RunPreset) => {
+    const mine = isMine(p);
+    return (
+      <div key={p.id} className="group flex items-center gap-1 rounded-sm hover:bg-accent/60">
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
+          onClick={() => choose(p)}
+        >
+          <Check className={cn("h-3.5 w-3.5 shrink-0", p.id === selectedId ? "opacity-100" : "opacity-0")} />
+          <span className="truncate">{p.name}</span>
+        </button>
+        {mine ? (
+          <button
+            type="button"
+            aria-label={`Editar ${p.name}`}
+            title="Editar"
+            className="rounded p-1.5 text-muted-foreground opacity-60 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => openEdit(p)}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label={`Copiar ${p.name} para as minhas`}
+            title="Copiar para as minhas"
+            className="rounded p-1.5 text-muted-foreground opacity-60 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => openCopy(p)}
+          >
+            <Copy className="h-3.5 w-3.5" />
+          </button>
+        )}
+        {(mine || isAdmin) && (
+          <button
+            type="button"
+            aria-label={`Excluir ${p.name}`}
+            title={mine ? "Excluir" : "Excluir (administrador)"}
+            className="mr-1 rounded p-1.5 text-muted-foreground opacity-60 hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
+            onClick={() => remove(p)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const abaBotao = (valor: Aba, texto: string, total: number) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={aba === valor}
+      onClick={() => setAba(valor)}
+      className={cn(
+        "flex-1 rounded-sm px-2 py-1 text-xs font-medium transition-colors",
+        aba === valor ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+      )}
+    >
+      {texto} ({total})
+    </button>
+  );
+
   return (
     <div className="rounded-lg border border-border/60 bg-secondary/20 p-3 space-y-2">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pré-definição</Label>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={openList}>
         <PopoverTrigger asChild>
           <button
             type="button"
@@ -162,45 +271,43 @@ export const RunPresetBar = memo(function RunPresetBar({
             disabled={isError}
             className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <span className={cn("truncate", !selected && "text-muted-foreground")}>{selected ? selected.name : placeholder}</span>
+            <span className={cn("truncate", !selected && "text-muted-foreground")}>
+              {selected ? selected.name : placeholder}
+              {selected && !selectedMine && (
+                <span className="ml-2 text-[11px] text-muted-foreground">de {selected.created_by || "todos"}</span>
+              )}
+            </span>
             <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[260px] p-1">
-          <div className="max-h-72 overflow-y-auto">
-            {presets.length === 0 && (
-              <p className="px-3 py-2 text-xs text-muted-foreground">Nenhuma pré-definição salva ainda.</p>
+          <div role="tablist" aria-label="Pré-definições" className="mb-1 flex gap-1 rounded-md bg-muted p-1">
+            {abaBotao("minhas", "Minhas", minhas.length)}
+            {abaBotao("outros", "De outros usuários", totalOutros)}
+          </div>
+          <div className="max-h-72 overflow-y-auto" role="tabpanel">
+            {aba === "minhas" ? (
+              <>
+                {minhas.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">
+                    Você ainda não tem pré-definições. Salve a tela atual ou copie uma de outro usuário.
+                  </p>
+                )}
+                {minhas.map(linha)}
+              </>
+            ) : (
+              <>
+                {grupos.length === 0 && (
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhuma pré-definição de outros usuários.</p>
+                )}
+                {grupos.map(([dono, lista]) => (
+                  <div key={dono} role="group" aria-label={dono}>
+                    <p className="px-2 pt-2 pb-0.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{dono}</p>
+                    {lista.map(linha)}
+                  </div>
+                ))}
+              </>
             )}
-            {presets.map((p) => (
-              <div key={p.id} className="group flex items-center gap-1 rounded-sm hover:bg-accent/60">
-                <button
-                  type="button"
-                  className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
-                  onClick={() => choose(p)}
-                >
-                  <Check className={cn("h-3.5 w-3.5 shrink-0", p.id === selectedId ? "opacity-100" : "opacity-0")} />
-                  <span className="truncate">{p.name}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Editar ${p.name}`}
-                  title="Editar"
-                  className="rounded p-1.5 text-muted-foreground opacity-60 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
-                  onClick={() => openEdit(p)}
-                >
-                  <Pencil className="h-3.5 w-3.5" />
-                </button>
-                <button
-                  type="button"
-                  aria-label={`Excluir ${p.name}`}
-                  title="Excluir"
-                  className="mr-1 rounded p-1.5 text-muted-foreground opacity-60 hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
-                  onClick={() => remove(p)}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            ))}
           </div>
           <div className="my-1 h-px bg-border" />
           <button
@@ -224,9 +331,11 @@ export const RunPresetBar = memo(function RunPresetBar({
             {changes.length > 4 && <li>e mais {changes.length - 4} alteração(ões)</li>}
           </ul>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={saveIntoSelected}>
-              Salvar em "{selected.name}"
-            </Button>
+            {selectedMine && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={saveIntoSelected}>
+                Salvar em "{selected.name}"
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={openCreate}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Salvar como nova
             </Button>
@@ -236,18 +345,23 @@ export const RunPresetBar = memo(function RunPresetBar({
           </div>
         </div>
       )}
-      {selected && changes.length === 0 && selected.updated_by && (
+      {selected && changes.length === 0 && (selectedMine ? !!selected.updated_by : true) && (
         <p className="text-[11px] text-muted-foreground">
-          Última alteração por {selected.updated_by} em {new Date(selected.updated_at).toLocaleString("pt-BR")}
+          {selectedMine
+            ? `Última alteração por ${selected.updated_by} em ${new Date(selected.updated_at).toLocaleString("pt-BR")}`
+            : `Pré-definição de ${selected.created_by || "todos (sem dono)"}: só quem criou altera. Para ajustar, copie para as suas.`}
         </p>
       )}
 
       <Dialog open={!!dialog} onOpenChange={(o) => !o && !busy && setDialog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>{dialog?.kind === "edit" ? "Editar pré-definição" : "Nova pré-definição"}</DialogTitle>
+            <DialogTitle>
+              {dialog?.kind === "edit" ? "Editar pré-definição" : dialog?.kind === "copy" ? "Copiar para as minhas" : "Nova pré-definição"}
+            </DialogTitle>
             <DialogDescription>
-              Vale para todos os usuários. A data/hora não é salva: é definida no envio.
+              Fica nas suas pré-definições: os outros usuários podem usar e copiar, mas só você altera. A data/hora não é salva:
+              é definida no envio.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -271,6 +385,13 @@ export const RunPresetBar = memo(function RunPresetBar({
 
             {dialog?.kind === "create" && current && (
               <ConfigSummary title="Será salvo" config={current} label={label} />
+            )}
+            {dialog?.kind === "copy" && (
+              <ConfigSummary
+                title={`Será copiado de ${dialog.preset.created_by || "todos (sem dono)"}`}
+                config={(dialog.preset.config_json || {}) as JenkinsConfig}
+                label={label}
+              />
             )}
 
             {dialog?.kind === "edit" && (

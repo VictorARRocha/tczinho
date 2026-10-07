@@ -115,16 +115,17 @@ export function AppSidebar() {
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild isActive={pathname === "/jenkins/regravar"} className="pl-8">
-                      <NavLink to="/jenkins/regravar">
-                        <Upload />
-                        <span>Regravar arquivos</span>
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
                 </>
               )}
+
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/regravar"}>
+                  <NavLink to="/regravar">
+                    <Upload />
+                    <span>Regravar arquivos</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
 
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/merge"}>

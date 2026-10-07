@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
-import { PlayCircle, RefreshCcw, ChevronRight, Server, Upload } from "lucide-react";
+import { PlayCircle, RefreshCcw, ChevronRight, Server } from "lucide-react";
 
 export default function JenkinsHome() {
   return (
@@ -19,7 +19,7 @@ export default function JenkinsHome() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2">
         <JenkinsCard
           to="/jenkins/rodagem-completa"
           icon={<PlayCircle className="h-8 w-8" />}
@@ -31,12 +31,6 @@ export default function JenkinsHome() {
           icon={<RefreshCcw className="h-8 w-8" />}
           title="Reexecutar rodagens"
           description="Selecionar casos quebrados de uma rodagem já analisada e enviar novamente ao Jenkins."
-        />
-        <JenkinsCard
-          to="/jenkins/regravar"
-          icon={<Upload className="h-8 w-8" />}
-          title="Regravar arquivos"
-          description="Substituir no SVN o arquivo base pelo atual em diferenças esperadas de uma rodagem."
         />
       </div>
     </div>
