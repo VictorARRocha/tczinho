@@ -15,6 +15,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
+import { podeNoModulo, SEM_MODULO } from "@/lib/permissoes";
 import { SemPermissao } from "@/components/SemPermissao";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
@@ -72,12 +73,19 @@ export default function RegravarBases() {
   const podeCancelar = (p: RegravacaoPedido) => podeRegravar && (isAdmin || p.requested_by === profile?.username);
   const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
-  const { data: runs = [] } = useAllRuns();
+  const { data: todasRodagens = [] } = useAllRuns();
+  // So as rodagens dos modulos da pessoa (a API confere de novo no envio).
+  const runs = useMemo(
+    () => todasRodagens.filter((r) => podeNoModulo(profile, isAdmin, r.modulo_slug)),
+    [todasRodagens, profile, isAdmin],
+  );
   const [fVm, setFVm] = useState("all");
   const [fModulo, setFModulo] = useState("all");
   const [fVersao, setFVersao] = useState("all");
   const runId = params.get("rodagem") || "";
   const rodagemAtual = runs.find((r) => r.id_rodagem === runId) || null;
+  // Aberta por link (ex.: detalhe da falha) numa rodagem de modulo sem acesso: ve, mas nao regrava.
+  const foraDoModulo = !!runId && !rodagemAtual && todasRodagens.some((r) => r.id_rodagem === runId);
   const setRunId = (id: string) => setParams(id ? { rodagem: id } : {}, { replace: true });
 
   const vmOptions = useMemo(() => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(), [runs]);
@@ -482,13 +490,14 @@ export default function RegravarBases() {
           <Button
             size="lg"
             className="w-full bg-gradient-primary"
-            disabled={!podeRegravar || !marcados.size || !mensagem.trim()}
+            disabled={!podeRegravar || foraDoModulo || !marcados.size || !mensagem.trim()}
             onClick={() => setConfirmOpen(true)}
           >
             <GitCommitHorizontal className="h-4 w-4 mr-2" />
             {`Regravar ${marcados.size} arquivo(s)`}
           </Button>
           {!podeRegravar && <SemPermissao permissao="regravar" />}
+          {podeRegravar && foraDoModulo && <SemPermissao mensagem={SEM_MODULO} />}
         </Card>
       )}
 

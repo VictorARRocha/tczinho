@@ -418,6 +418,33 @@ describe("rodagem completa", () => {
     expect(screen.queryByRole("note")).toBeNull();
   });
 
+  it("modulos: a simplificada so oferece os modulos da pessoa e o historico mostra so os pedidos deles", async () => {
+    auth.profile = { username: "ana", permissions: ["rodagem"], modules: ["folha", "contabil"] } as typeof auth.profile;
+    api.createRerunRequest.mockResolvedValue({});
+    api.requests = [
+      { ...request("rf", "2026-10-01T10:00:00Z", "solicitado"), casos_teste: "[1]" },
+      { ...request("rx", "2026-10-01T11:00:00Z", "solicitado"), casos_teste: "[2.1.3]" },
+      { ...request("rg", "2026-10-01T12:00:00Z", "solicitado"), casos_teste: "[0.4]" },
+    ];
+    renderPage(<JenkinsRodagemCompleta />);
+    // Fiscal (padrao da tela) nao e da ana: troca para o primeiro modulo dela.
+    await waitFor(() => expect(screen.getByText(/"casos_teste": "\[1\]"/)).toBeInTheDocument());
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledWith(expect.objectContaining({ casos_teste: "[1]" })));
+
+    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(3)); // cabecalho + Folha + rotina geral
+    expect(screen.queryByText("[2.1.3]")).toBeNull();
+  });
+
+  it("modulos: sem nenhum modulo, o envio fica bloqueado com o aviso", async () => {
+    auth.profile = { username: "ana", permissions: ["rodagem"], modules: [] } as typeof auth.profile;
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent("Você não tem acesso a nenhum módulo");
+  });
+
   it("simplificada: cria pela lista com VM, modulo e versao e mostra o que mudou depois", async () => {
     api.createRunPreset.mockImplementation(async (payload: { nome: string; modo: "simplificada"; config: Record<string, unknown> }) => {
       const created = preset("novo", payload.nome, payload.modo, payload.config);

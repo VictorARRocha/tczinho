@@ -2,6 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { SemPermissao } from "@/components/SemPermissao";
 import { usePermissao } from "@/hooks/use-permissao";
+import { useAuth } from "@/contexts/AuthContext";
+import { mensagemDaApi } from "@/lib/apiErro";
+import { podeNoModulo } from "@/lib/permissoes";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,7 +82,13 @@ const SORT_LABEL: Partial<Record<SortKey, string>> = {
 
 export default function ReexecutarTestes() {
   const podeSolicitar = usePermissao("rodagem");
-  const { data: runs = [] } = useAllRuns();
+  const { data: todasRodagens = [] } = useAllRuns();
+  // So as rodagens dos modulos da pessoa (a API confere de novo no envio).
+  const { profile, isAdmin } = useAuth();
+  const runs = useMemo(
+    () => todasRodagens.filter((r) => podeNoModulo(profile, isAdmin, r.modulo_slug)),
+    [todasRodagens, profile, isAdmin],
+  );
   const isMobile = useIsMobile();
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
@@ -268,7 +277,7 @@ export default function ReexecutarTestes() {
       setMarcados(new Set());
       invalidateRerunRequests();
     } catch (e) {
-      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
+      toast.error("Falha ao criar solicitação", { description: mensagemDaApi(e) });
     } finally {
       setSubmitting(false);
     }

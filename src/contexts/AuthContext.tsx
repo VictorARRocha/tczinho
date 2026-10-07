@@ -39,7 +39,7 @@ interface AuthContextValue {
   isAdmin: boolean;
   isApproved: boolean;
   signIn: (username: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (data: { username: string; first_name: string; last_name: string; password: string }) => Promise<{ error: string | null }>;
+  signUp: (data: { username: string; first_name: string; last_name: string; password: string; modules?: string[] }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -173,10 +173,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applySession, clearSession]);
 
-  const signUp = useCallback<AuthContextValue["signUp"]>(async ({ username, first_name, last_name, password }) => {
+  const signUp = useCallback<AuthContextValue["signUp"]>(async ({ username, first_name, last_name, password, modules }) => {
     try {
       const normalizedUsername = normalizeUsername(username);
-      await authApi.register({ username: normalizedUsername, first_name, last_name, password });
+      await authApi.register({ username: normalizedUsername, first_name, last_name, password, modules });
 
       try {
         const result = await authApi.login(normalizedUsername, password);

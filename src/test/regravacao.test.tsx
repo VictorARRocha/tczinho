@@ -240,6 +240,15 @@ describe("tela de regravacao", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para regravar arquivos");
   });
 
+  it("rodagem de modulo sem acesso, aberta pelo link: ve os arquivos, mas nao regrava", async () => {
+    auth.isAdmin = false;
+    auth.profile = { username: "ana", permissions: ["regravar"], modules: ["folha"] } as typeof auth.profile;
+    renderPage();
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent("Você não tem acesso a este módulo");
+  });
+
   it("usuario comum com a permissao de regravar consegue (antes era so admin)", async () => {
     auth.isAdmin = false;
     auth.profile = { username: "ana", permissions: ["regravar"] };

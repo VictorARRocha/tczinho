@@ -20,6 +20,9 @@ import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/histo
 import { HistoryClearControls } from "@/components/HistoryClearControls";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
+import { useAuth } from "@/contexts/AuthContext";
+import { mensagemDaApi } from "@/lib/apiErro";
+import { modulosDosCasos, podeNoModulo } from "@/lib/permissoes";
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -130,7 +133,7 @@ async function cancelar(r: RerunRequest) {
     invalidateRerunRequests();
   } catch (err) {
     console.error(err);
-    toast.error("Falha ao solicitar cancelamento");
+    toast.error("Falha ao solicitar cancelamento", { description: mensagemDaApi(err) });
   }
 }
 
@@ -150,7 +153,14 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
   const { data } = useRerunRequests(limit);
   // A API pode devolver mais que o pedido; a tela mostra no maximo `limit`.
-  const allHistory = useMemo(() => (data || []).slice(0, limit), [data, limit]);
+  // Cada um ve os pedidos dos seus modulos (pedido so com rotinas gerais [0.x] aparece para todos).
+  const { profile, isAdmin } = useAuth();
+  const allHistory = useMemo(
+    () => (data || [])
+      .filter((r) => modulosDosCasos(r.casos_teste).every((slug) => podeNoModulo(profile, isAdmin, slug)))
+      .slice(0, limit),
+    [data, limit, profile, isAdmin],
+  );
   const hasActive = hasActiveRerun(allHistory);
   const { hiddenIds, clear, restore } = useHistoryClear(clearStorageKey);
   const history = useMemo(() => visibleAfterClear(allHistory, hiddenIds), [allHistory, hiddenIds]);

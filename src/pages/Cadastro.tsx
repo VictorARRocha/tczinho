@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { ModulosChecklist } from "@/components/ModulosChecklist";
 
 const schema = z.object({
   username: z.string().trim().min(3, "Mínimo 3 caracteres").max(40).regex(/^[a-zA-Z0-9._-]+$/, "Só letras, números, . _ -"),
@@ -19,6 +20,7 @@ export default function Cadastro() {
   const { signUp } = useAuth();
   const nav = useNavigate();
   const [form, setForm] = useState({ username: "", first_name: "", last_name: "", password: "" });
+  const [modulos, setModulos] = useState<string[]>([]);
   const [err, setErr] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,8 +36,15 @@ export default function Cadastro() {
       setErr(parsed.error.errors[0]?.message ?? "Dados inválidos");
       return;
     }
+    if (modulos.length === 0) {
+      setErr("Escolha pelo menos um módulo");
+      return;
+    }
     setSubmitting(true);
-    const { error } = await signUp(parsed.data as { username: string; first_name: string; last_name: string; password: string });
+    const { error } = await signUp({
+      ...(parsed.data as { username: string; first_name: string; last_name: string; password: string }),
+      modules: modulos,
+    });
     setSubmitting(false);
     if (error) setErr(error);
     else nav("/aguardando-aprovacao", { replace: true });
@@ -64,6 +73,11 @@ export default function Cadastro() {
                 <Label>Sobrenome</Label>
                 <Input value={form.last_name} onChange={(e) => upd("last_name", e.target.value)} required />
               </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cadastro-modulos">Módulos que você usa</Label>
+              <ModulosChecklist id="cadastro-modulos" value={modulos} onChange={setModulos} />
+              <p className="text-[11px] text-muted-foreground">O administrador confere na aprovação.</p>
             </div>
             <div className="space-y-2">
               <Label>Senha</Label>

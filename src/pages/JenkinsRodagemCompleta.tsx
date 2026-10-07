@@ -17,7 +17,8 @@ import { invalidateRerunRequests } from "@/services/queries";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { RunPresetBar } from "@/components/RunPresetBar";
 import { SemPermissao } from "@/components/SemPermissao";
-import { usePermissao } from "@/hooks/use-permissao";
+import { useModulos, usePermissao } from "@/hooks/use-permissao";
+import { mensagemDaApi } from "@/lib/apiErro";
 import {
   casosTesteValido, configToText, parseConfigText, trimConfigStrings, validateConfigForSubmit, withDataHora,
 } from "@/lib/jenkinsConfig";
@@ -27,16 +28,17 @@ const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "te
 const SIMPLIFIED_LABELS = { vm_name: "VM", modulo: "Módulo", versao: "Versão" };
 
 const MODULOS = [
-  { nome: "Folha", codigo: "[1]" },
-  { nome: "Fiscal", codigo: "[2]" },
-  { nome: "Contábil", codigo: "[3], [4], [7]" },
-  { nome: "Financeiro", codigo: "[5]" },
-  { nome: "Geral", codigo: "[6]" },
-  { nome: "Gestão", codigo: "[9]" },
+  { nome: "Folha", codigo: "[1]", slug: "folha" },
+  { nome: "Fiscal", codigo: "[2]", slug: "fiscal" },
+  { nome: "Contábil", codigo: "[3], [4], [7]", slug: "contabil" },
+  { nome: "Financeiro", codigo: "[5]", slug: "financeiro" },
+  { nome: "Geral", codigo: "[6]", slug: "geral" },
+  { nome: "Gestão", codigo: "[9]", slug: "gestao" },
 ];
 
 export default function JenkinsRodagemCompleta() {
   const podeSolicitar = usePermissao("rodagem");
+  const acessoModulos = useModulos();
   // ---- Simplificada ----
   const [sVm, setSVm] = useState("a07");
   const [sModulo, setSModulo] = useState(MODULOS[1].nome); // Fiscal default
@@ -55,6 +57,13 @@ export default function JenkinsRodagemCompleta() {
   }, [sAgora]);
 
   const sModuloObj = useMemo(() => MODULOS.find((m) => m.nome === sModulo) || MODULOS[0], [sModulo]);
+  // So os modulos em que a pessoa pode pedir rodagem (a API confere de novo no envio).
+  const modulosLiberados = MODULOS.filter((m) => acessoModulos.pode(m.slug));
+  const moduloLiberado = modulosLiberados.some((m) => m.nome === sModulo);
+  const primeiroLiberado = modulosLiberados[0]?.nome;
+  useEffect(() => {
+    if (!moduloLiberado && primeiroLiberado) setSModulo(primeiroLiberado);
+  }, [moduloLiberado, primeiroLiberado]);
   const sDataHora = useMemo(() => {
     if (sAgora === "agora") return formatNowMinusOneMinuteBr();
     return sData;
@@ -134,7 +143,7 @@ export default function JenkinsRodagemCompleta() {
       invalidateRerunRequests();
       if (!sFromPreset) setSVersao("");
     } catch (e) {
-      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
+      toast.error("Falha ao criar solicitação", { description: mensagemDaApi(e) });
     } finally {
       setSubmitting(false);
     }
@@ -150,7 +159,7 @@ export default function JenkinsRodagemCompleta() {
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
       invalidateRerunRequests();
     } catch (e) {
-      toast.error("Falha ao criar solicitação", { description: (e as Error)?.message });
+      toast.error("Falha ao criar solicitação", { description: mensagemDaApi(e) });
     } finally {
       setSubmitting(false);
     }
@@ -223,7 +232,7 @@ export default function JenkinsRodagemCompleta() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {MODULOS.map((m) => (
+                    {modulosLiberados.map((m) => (
                       <SelectItem key={m.nome} value={m.nome}>
                         {m.nome} — <span className="font-mono text-xs">{m.codigo}</span>
                       </SelectItem>
@@ -271,12 +280,15 @@ export default function JenkinsRodagemCompleta() {
                 size="lg"
                 className="w-full bg-gradient-primary"
                 onClick={submitSimplificada}
-                disabled={submitting || !podeSolicitar}
+                disabled={submitting || !podeSolicitar || !moduloLiberado}
               >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 {submitting ? "Enviando…" : "Enviar rodagem para Jenkins"}
               </Button>
               {!podeSolicitar && <SemPermissao permissao="rodagem" />}
+              {podeSolicitar && modulosLiberados.length === 0 && (
+                <SemPermissao mensagem="Você não tem acesso a nenhum módulo. Peça a um administrador." />
+              )}
             </Card>
 
             <JsonPreview title="Preview do CONFIG_JSON" data={sConfig} onCopy={() => copyJson(sConfig)} />

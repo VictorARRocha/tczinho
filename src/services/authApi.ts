@@ -27,6 +27,8 @@ export interface AppUserProfile {
   failed_login_attempts?: number | null;
   /** Acoes liberadas pelo admin: "rodagem", "merge", "regravar" (admin pode tudo, sem depender da lista). */
   permissions?: string[];
+  /** Modulos em que pode agir: slugs ("folha", ...) ou ["*"] = todos. Ausente (API antiga) = todos. */
+  modules?: string[];
 }
 
 export interface LocalAuthSession {
@@ -127,7 +129,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const authApi = {
-  register(data: { username: string; first_name: string; last_name: string; password: string }) {
+  register(data: { username: string; first_name: string; last_name: string; password: string; modules?: string[] }) {
     return request<{ ok?: boolean; user: AppUserProfile }>("/auth/register", {
       method: "POST",
       body: JSON.stringify({ ...data, username: normalizeUsername(data.username) }),
@@ -160,7 +162,7 @@ export const authApi = {
     });
   },
 
-  updateUser(userId: string, data: Partial<Pick<AppUserProfile, "role" | "status" | "first_name" | "last_name" | "email" | "rejection_reason" | "permissions">>) {
+  updateUser(userId: string, data: Partial<Pick<AppUserProfile, "role" | "status" | "first_name" | "last_name" | "email" | "rejection_reason" | "permissions" | "modules">>) {
     return request<{ ok?: boolean; user: AppUserProfile }>(`/auth/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
       headers: getAuthHeader(),
