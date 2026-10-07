@@ -6,7 +6,7 @@ import type { MergeBranches, MergePedido } from "@/services/data";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const auth = { isAdmin: false, profile: { username: "ana" } };
+const auth = { isAdmin: false, profile: { username: "ana", permissions: ["rodagem", "merge", "regravar"] as string[] } };
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
 const ROOT = "https://svn/testcomplete/unico/ProjetoUnico";
@@ -74,6 +74,7 @@ async function escolher(label: RegExp, busca: string, opcao: RegExp) {
 beforeEach(() => {
   queryClient.clear();
   auth.isAdmin = false;
+  auth.profile = { username: "ana", permissions: ["rodagem", "merge", "regravar"] as string[] };
   api.merges = [];
   api.branches = {
     updated_at: "2026-10-06T12:00:00Z",
@@ -255,6 +256,19 @@ describe("tela de merge", () => {
     expect(within(tabela).getByText("Merge realizado")).toBeInTheDocument();
     expect(within(tabela).getByText("Conflito")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Abrir" })).toBeNull();
+  });
+
+  it("sem a permissao de merge: ve a tela e o historico, mas nao faz nem cancela", async () => {
+    auth.profile = { username: "ana", permissions: ["rodagem"] };
+    api.merges = [pedido({ status: "solicitado" })];
+    renderPage();
+    await escolher(/Destino/, "proxima", /Proxima10_0/);
+    expect(screen.getByRole("button", { name: /Fazer merge de Unico → Proxima10_0/ })).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para fazer merge");
+    expect(await screen.findByLabelText("Merge aberto")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Cancelar/ })).toBeNull();
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(api.createMerge).not.toHaveBeenCalled();
   });
 
   it("cancelar: quem pediu cancela o que ainda esta na fila", async () => {

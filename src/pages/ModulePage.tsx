@@ -244,7 +244,7 @@ export default function ModulePage() {
         <ChevronLeft className="h-3 w-3" /> Visão geral
       </Link>
 
-      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} onRefresh={() => loadAll(rodagem?.id)} />
+      <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} />
 
       {newerRunAvailable && (
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-primary/40 bg-primary/10 px-4 py-3 text-sm">

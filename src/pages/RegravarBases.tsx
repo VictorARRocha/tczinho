@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissao } from "@/hooks/use-permissao";
+import { SemPermissao } from "@/components/SemPermissao";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
 } from "@/services/data";
@@ -65,6 +67,9 @@ function apiMessage(e: unknown): string {
 
 export default function RegravarBases() {
   const { isAdmin, profile } = useAuth();
+  const podeRegravar = usePermissao("regravar");
+  // Cancelar: quem pediu (com a permissao) ou um administrador.
+  const podeCancelar = (p: RegravacaoPedido) => podeRegravar && (isAdmin || p.requested_by === profile?.username);
   const isMobile = useIsMobile();
   const [params, setParams] = useSearchParams();
   const { data: runs = [] } = useAllRuns();
@@ -477,13 +482,13 @@ export default function RegravarBases() {
           <Button
             size="lg"
             className="w-full bg-gradient-primary"
-            disabled={!isAdmin || !marcados.size || !mensagem.trim()}
-            title={!isAdmin ? "Somente administradores podem regravar bases." : undefined}
+            disabled={!podeRegravar || !marcados.size || !mensagem.trim()}
             onClick={() => setConfirmOpen(true)}
           >
             <GitCommitHorizontal className="h-4 w-4 mr-2" />
-            {isAdmin ? `Regravar ${marcados.size} arquivo(s)` : "Somente administradores podem regravar"}
+            {`Regravar ${marcados.size} arquivo(s)`}
           </Button>
+          {!podeRegravar && <SemPermissao permissao="regravar" />}
         </Card>
       )}
 
@@ -521,7 +526,7 @@ export default function RegravarBases() {
                         </p>
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetalhe(p)}>Detalhes</Button>
-                          {isAdmin && p.status === "solicitado" && (
+                          {podeCancelar(p) && p.status === "solicitado" && (
                             <Button size="sm" variant="outline" className="h-8 flex-1 text-red-500" onClick={() => cancelar(p)}>
                               <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
                             </Button>
@@ -563,7 +568,7 @@ export default function RegravarBases() {
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button size="sm" variant="ghost" onClick={() => setDetalhe(p)}>Detalhes</Button>
-                            {isAdmin && p.status === "solicitado" && (
+                            {podeCancelar(p) && p.status === "solicitado" && (
                               <Button size="sm" variant="ghost" className="text-red-500" onClick={() => cancelar(p)}>
                                 <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
                               </Button>

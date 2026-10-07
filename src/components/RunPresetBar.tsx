@@ -15,6 +15,7 @@ import {
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateRunPresets, useRunPresets } from "@/services/queries";
 import { useAuth } from "@/contexts/AuthContext";
+import { temPermissao } from "@/lib/permissoes";
 import { diffConfig, type ConfigChange, type JenkinsConfig } from "@/lib/jenkinsConfig";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,8 @@ export const RunPresetBar = memo(function RunPresetBar({
 }) {
   const { profile, isAdmin } = useAuth();
   const username = profile?.username || "";
+  // Criar, editar, copiar e excluir as suas exigem "solicitar rodagem"; usar uma salva, nao.
+  const podeSalvar = temPermissao(profile, isAdmin, "rodagem");
   const { data, isError: queryError, isLoading } = useRunPresets();
   const allPresets = useMemo(() => data || [], [data]);
   // Falha num recarregamento mantem a lista ja carregada; so desliga sem nada.
@@ -209,7 +212,7 @@ export const RunPresetBar = memo(function RunPresetBar({
           <Check className={cn("h-3.5 w-3.5 shrink-0", p.id === selectedId ? "opacity-100" : "opacity-0")} />
           <span className="truncate">{p.name}</span>
         </button>
-        {mine ? (
+        {!podeSalvar ? null : mine ? (
           <button
             type="button"
             aria-label={`Editar ${p.name}`}
@@ -230,7 +233,7 @@ export const RunPresetBar = memo(function RunPresetBar({
             <Copy className="h-3.5 w-3.5" />
           </button>
         )}
-        {(mine || isAdmin) && (
+        {((mine && podeSalvar) || isAdmin) && (
           <button
             type="button"
             aria-label={`Excluir ${p.name}`}
@@ -290,7 +293,9 @@ export const RunPresetBar = memo(function RunPresetBar({
               <>
                 {minhas.length === 0 && (
                   <p className="px-3 py-2 text-xs text-muted-foreground">
-                    Você ainda não tem pré-definições. Salve a tela atual ou copie uma de outro usuário.
+                    {podeSalvar
+                      ? "Você ainda não tem pré-definições. Salve a tela atual ou copie uma de outro usuário."
+                      : "Você ainda não tem pré-definições."}
                   </p>
                 )}
                 {minhas.map(linha)}
@@ -309,14 +314,18 @@ export const RunPresetBar = memo(function RunPresetBar({
               </>
             )}
           </div>
-          <div className="my-1 h-px bg-border" />
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-primary hover:bg-accent/60"
-            onClick={openCreate}
-          >
-            <Plus className="h-3.5 w-3.5" /> Nova a partir da tela atual…
-          </button>
+          {podeSalvar && (
+            <>
+              <div className="my-1 h-px bg-border" />
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-primary hover:bg-accent/60"
+                onClick={openCreate}
+              >
+                <Plus className="h-3.5 w-3.5" /> Nova a partir da tela atual…
+              </button>
+            </>
+          )}
         </PopoverContent>
       </Popover>
 
@@ -331,14 +340,16 @@ export const RunPresetBar = memo(function RunPresetBar({
             {changes.length > 4 && <li>e mais {changes.length - 4} alteração(ões)</li>}
           </ul>
           <div className="mt-2 flex flex-wrap gap-2">
-            {selectedMine && (
+            {selectedMine && podeSalvar && (
               <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={saveIntoSelected}>
                 Salvar em "{selected.name}"
               </Button>
             )}
-            <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={openCreate}>
-              <Plus className="h-3.5 w-3.5 mr-1" /> Salvar como nova
-            </Button>
+            {podeSalvar && (
+              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={openCreate}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Salvar como nova
+              </Button>
+            )}
             <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} onClick={() => onApply(selected)}>
               <Undo2 className="h-3.5 w-3.5 mr-1" /> Desfazer
             </Button>
@@ -349,7 +360,7 @@ export const RunPresetBar = memo(function RunPresetBar({
         <p className="text-[11px] text-muted-foreground">
           {selectedMine
             ? `Última alteração por ${selected.updated_by} em ${new Date(selected.updated_at).toLocaleString("pt-BR")}`
-            : `Pré-definição de ${selected.created_by || "todos (sem dono)"}: só quem criou altera. Para ajustar, copie para as suas.`}
+            : `Pré-definição de ${selected.created_by || "todos (sem dono)"}: só quem criou altera.${podeSalvar ? " Para ajustar, copie para as suas." : ""}`}
         </p>
       )}
 

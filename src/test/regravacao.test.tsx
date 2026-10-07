@@ -6,7 +6,7 @@ import type { RegravacaoCandidatos, RegravacaoPedido } from "@/services/data";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const auth = { isAdmin: true, profile: { username: "ana" } };
+const auth = { isAdmin: true, profile: { username: "ana", permissions: [] as string[] } };
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
 const api = {
@@ -69,6 +69,7 @@ const textarea = () => screen.getByLabelText("Mensagem do commit") as HTMLTextAr
 beforeEach(() => {
   queryClient.clear();
   auth.isAdmin = true;
+  auth.profile = { username: "ana", permissions: [] };
   api.pedidos = [];
   api.createRegravacao.mockReset();
   api.cancelRegravacao.mockReset();
@@ -230,11 +231,22 @@ describe("tela de regravacao", () => {
     }
   });
 
-  it("quem nao e administrador ve tudo mas nao consegue regravar", async () => {
+  it("sem a permissao de regravar: ve tudo, mas o botao fica bloqueado com o aviso", async () => {
     auth.isAdmin = false;
+    auth.profile = { username: "ana", permissions: ["rodagem", "merge"] };
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
-    expect(screen.getByRole("button", { name: /Somente administradores/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para regravar arquivos");
+  });
+
+  it("usuario comum com a permissao de regravar consegue (antes era so admin)", async () => {
+    auth.isAdmin = false;
+    auth.profile = { username: "ana", permissions: ["regravar"] };
+    renderPage();
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).not.toBeDisabled();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("conflito no SVN: status Conflito, aviso com o passo a passo manual e o arquivo bloqueado", async () => {

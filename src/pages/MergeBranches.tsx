@@ -13,6 +13,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissao } from "@/hooks/use-permissao";
+import { SemPermissao } from "@/components/SemPermissao";
 import { cancelMerge, createMerge, type MergePedido, type SvnBranch } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateMerges, useMergeBranches, useMerges } from "@/services/queries";
@@ -39,6 +41,7 @@ const MAX_ABERTOS = 10;
 
 export default function MergeBranches() {
   const { isAdmin, profile } = useAuth();
+  const podeMerge = usePermissao("merge");
   const isMobile = useIsMobile();
   const { data: branchData, isLoading: loadingBranches } = useMergeBranches();
   const { data: merges = [] } = useMerges();
@@ -69,7 +72,7 @@ export default function MergeBranches() {
   const repetidas = new Set(linhas.map(chave).filter((k, i, all) => all.indexOf(k) !== i));
   const linhaValida = (l: Linha) => !!l.origem && !!l.destino && l.origem !== l.destino && !repetidas.has(chave(l)) && !!mensagemDe(l).trim();
   const temTrunk = linhas.some((l) => l.destino && l.destino === trunk?.url);
-  const podeFazer = linhas.length > 0 && linhas.every(linhaValida) && (!temTrunk || confirmaTrunk) && !enviando;
+  const podeFazer = podeMerge && linhas.length > 0 && linhas.every(linhaValida) && (!temTrunk || confirmaTrunk) && !enviando;
 
   // Abre sozinho so o que a pessoa ainda tem na fila/em andamento; continua aberto ate o fim nesta visita.
   // Merges ja terminados nao abrem ao voltar para a tela: o resultado fica no historico.
@@ -141,11 +144,6 @@ export default function MergeBranches() {
         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
           Merge de <span className="gradient-text">branches</span>
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-          Atualiza branches do TC com outras (normalmente com a Unico) sem precisar do TortoiseSVN. O MergeBridge da D01 pega a origem
-          atualizada direto do servidor SVN, faz o merge e o commit. Se um merge tiver conflito, só ele é barrado (nada é gravado nele)
-          e a tela pede o merge manual.
-        </p>
       </div>
 
       {/* Novos merges */}
@@ -236,13 +234,14 @@ export default function MergeBranches() {
             {rotuloBotao}
           </Button>
         </div>
+        {!podeMerge && <SemPermissao permissao="merge" className="mt-3 sm:justify-end" />}
       </Card>
 
       {abertos.map((m) => (
         <PedidoPainel
           key={m.id}
           pedido={m}
-          podeCancelar={MERGE_CANCELAVEL.has(m.status) && (isAdmin || m.requested_by === profile?.username)}
+          podeCancelar={podeMerge && MERGE_CANCELAVEL.has(m.status) && (isAdmin || m.requested_by === profile?.username)}
           onFechar={() => fechar(m.id)}
         />
       ))}

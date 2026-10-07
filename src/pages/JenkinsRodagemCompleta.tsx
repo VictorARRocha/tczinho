@@ -16,6 +16,8 @@ import {
 import { invalidateRerunRequests } from "@/services/queries";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { RunPresetBar } from "@/components/RunPresetBar";
+import { SemPermissao } from "@/components/SemPermissao";
+import { usePermissao } from "@/hooks/use-permissao";
 import {
   casosTesteValido, configToText, parseConfigText, trimConfigStrings, validateConfigForSubmit, withDataHora,
 } from "@/lib/jenkinsConfig";
@@ -34,6 +36,7 @@ const MODULOS = [
 ];
 
 export default function JenkinsRodagemCompleta() {
+  const podeSolicitar = usePermissao("rodagem");
   // ---- Simplificada ----
   const [sVm, setSVm] = useState("a07");
   const [sModulo, setSModulo] = useState(MODULOS[1].nome); // Fiscal default
@@ -268,11 +271,12 @@ export default function JenkinsRodagemCompleta() {
                 size="lg"
                 className="w-full bg-gradient-primary"
                 onClick={submitSimplificada}
-                disabled={submitting}
+                disabled={submitting || !podeSolicitar}
               >
                 <PlayCircle className="h-4 w-4 mr-2" />
                 {submitting ? "Enviando…" : "Enviar rodagem para Jenkins"}
               </Button>
+              {!podeSolicitar && <SemPermissao permissao="rodagem" />}
             </Card>
 
             <JsonPreview title="Preview do CONFIG_JSON" data={sConfig} onCopy={() => copyJson(sConfig)} />
@@ -323,11 +327,12 @@ export default function JenkinsRodagemCompleta() {
               size="lg"
               className="w-full bg-gradient-primary"
               onClick={submitConfigurada}
-              disabled={submitting}
+              disabled={submitting || !podeSolicitar}
             >
               <PlayCircle className="h-4 w-4 mr-2" />
               {submitting ? "Enviando…" : "Enviar rodagem para Jenkins"}
             </Button>
+            {!podeSolicitar && <SemPermissao permissao="rodagem" />}
           </Card>
         </TabsContent>
       </Tabs>

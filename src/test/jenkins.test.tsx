@@ -7,7 +7,7 @@ import type { RunPreset } from "@/services/data";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-const auth = { isAdmin: false, profile: { username: "ana" } };
+const auth = { isAdmin: false, profile: { username: "ana", permissions: ["rodagem", "merge", "regravar"] as string[] } };
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
 const api = {
@@ -102,7 +102,7 @@ beforeEach(() => {
   api.presets = [];
   api.failPresets = false;
   auth.isAdmin = false;
-  auth.profile = { username: "ana" };
+  auth.profile = { username: "ana", permissions: ["rodagem", "merge", "regravar"] as string[] };
   for (const fn of [api.createRerunRequest, api.createRunPreset, api.updateRunPreset, api.deleteRunPreset]) fn.mockReset();
   vi.mocked(toast.error).mockReset();
 });
@@ -366,6 +366,56 @@ describe("rodagem completa", () => {
     fireEvent.click(screen.getByRole("button", { name: "Excluir NFe do Joao" }));
     expect(confirm.mock.calls[0][0]).toMatch(/de joao/);
     await waitFor(() => expect(api.deleteRunPreset).toHaveBeenCalledWith("p2"));
+  });
+
+  it("sem a permissao de solicitar rodagem: ve a tela, mas nao envia nem salva pre-definicao", async () => {
+    auth.profile = { username: "ana", permissions: ["merge"] };
+    api.presets = [nfe(), { ...preset("p2", "NFe do Joao", "configurada", { vm_name: "a02" }), created_by: "joao" }];
+    api.requests = [request("r1", "2026-10-01T10:00:00Z", "solicitado")];
+    renderPage(<JenkinsRodagemCompleta />);
+    // Simplificada: botao bloqueado com o aviso.
+    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para solicitar rodagens");
+    // Configurada: idem; usar uma pre-definicao continua possivel, salvar/editar/copiar/excluir nao.
+    const tab = screen.getByRole("tab", { name: "Configurada" });
+    fireEvent.mouseDown(tab);
+    fireEvent.click(tab);
+    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    await openPresetList();
+    expect(screen.queryByRole("button", { name: /Nova a partir da tela atual/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Editar Casos NFe" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Excluir Casos NFe" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Casos NFe" }));
+    const editor = screen.getByLabelText("CONFIG_JSON") as HTMLTextAreaElement;
+    expect(JSON.parse(editor.value).vm_name).toBe("a09");
+    fireEvent.change(editor, { target: { value: JSON.stringify({ ...JSON.parse(editor.value), vm_name: "a10" }) } });
+    expect(screen.queryByRole("button", { name: /Salvar em/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Salvar como nova/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /Desfazer/ })).toBeInTheDocument();
+    await openPresetList();
+    fireEvent.click(screen.getByRole("tab", { name: /De outros usuários/ }));
+    expect(screen.queryByRole("button", { name: "Copiar NFe do Joao para as minhas" })).toBeNull();
+    // Historico: sem o botao de cancelar.
+    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(2));
+    expect(screen.queryByRole("button", { name: /^Cancelar$/ })).toBeNull();
+    expect(api.createRerunRequest).not.toHaveBeenCalled();
+  });
+
+  it("com a permissao de solicitar rodagem o historico mostra o cancelar", async () => {
+    api.requests = [request("r1", "2026-10-01T10:00:00Z", "solicitado")];
+    renderPage(<JenkinsRodagemCompleta />);
+    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    expect(await screen.findByRole("button", { name: /^Cancelar$/ })).toBeInTheDocument();
+    expect(screen.queryByRole("note")).toBeNull();
+  });
+
+  it("admin pode tudo mesmo sem a lista de permissoes", () => {
+    auth.isAdmin = true;
+    auth.profile = { username: "chefe", permissions: [] };
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).not.toBeDisabled();
+    expect(screen.queryByRole("note")).toBeNull();
   });
 
   it("simplificada: cria pela lista com VM, modulo e versao e mostra o que mudou depois", async () => {

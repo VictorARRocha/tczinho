@@ -25,6 +25,8 @@ export interface AppUserProfile {
   disabled_by?: string | null;
   locked_until?: string | null;
   failed_login_attempts?: number | null;
+  /** Acoes liberadas pelo admin: "rodagem", "merge", "regravar" (admin pode tudo, sem depender da lista). */
+  permissions?: string[];
 }
 
 export interface LocalAuthSession {
@@ -158,7 +160,7 @@ export const authApi = {
     });
   },
 
-  updateUser(userId: string, data: Partial<Pick<AppUserProfile, "role" | "status" | "first_name" | "last_name" | "email" | "rejection_reason">>) {
+  updateUser(userId: string, data: Partial<Pick<AppUserProfile, "role" | "status" | "first_name" | "last_name" | "email" | "rejection_reason" | "permissions">>) {
     return request<{ ok?: boolean; user: AppUserProfile }>(`/auth/users/${encodeURIComponent(userId)}`, {
       method: "PATCH",
       headers: getAuthHeader(),

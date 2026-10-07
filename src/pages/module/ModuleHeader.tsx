@@ -8,11 +8,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { RefreshCw, ChevronsUpDown, Check } from "lucide-react";
+import { ChevronsUpDown, Check } from "lucide-react";
 import { formatDateTime, getHealthStatus } from "@/lib/format";
 import { isMeaningful } from "./common";
 
-export function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void; onRefresh: () => void }) {
+export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const fields: { label: string; value: ReactNode }[] = rodagem ? [
@@ -91,15 +91,14 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun, onRefresh }: { 
             </div>
           )}
         </div>
-        <div className="flex items-center gap-3">
-          {rodagem?.score_saude != null && (
+        {rodagem?.score_saude != null && (
+          <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-4xl font-bold gradient-text">{rodagem.score_saude}</div>
               <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Score de saúde</div>
             </div>
-          )}
-          <Button variant="outline" size="icon" onClick={onRefresh}><RefreshCw className="h-4 w-4" /></Button>
-        </div>
+          </div>
+        )}
       </div>
     </Card>
   );

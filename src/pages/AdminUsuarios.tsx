@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { PERMISSOES, type Permissao } from "@/lib/permissoes";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -31,6 +33,7 @@ export default function AdminUsuarios() {
   const [tab, setTab] = useState<AppUserRow["status"]>("pending");
   const [rejectFor, setRejectFor] = useState<AppUserRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [salvando, setSalvando] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -75,6 +78,19 @@ export default function AdminUsuarios() {
     await updateUser(u, { status: "approved" });
   }
 
+  async function togglePermissao(u: AppUserRow, permissao: Permissao, marcar: boolean) {
+    const atuais = u.permissions || [];
+    const novas = marcar ? [...atuais, permissao] : atuais.filter((p) => p !== permissao);
+    const label = PERMISSOES.find((p) => p.id === permissao)?.label || permissao;
+    // Uma alteracao por vez por usuario: a proxima parte da lista ja recarregada.
+    setSalvando(u.id);
+    try {
+      await updateUser(u, { permissions: novas }, `${label}: ${marcar ? "liberado" : "removido"} para ${u.username}`);
+    } finally {
+      setSalvando(null);
+    }
+  }
+
   async function toggleRole(u: AppUserRow) {
     const newRole = u.role === "admin" ? "user" : "admin";
     await updateUser(u, { role: newRole });
@@ -86,7 +102,9 @@ export default function AdminUsuarios() {
     <div className="p-4 sm:p-6 space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold">Usuarios</h1>
-        <p className="text-sm text-muted-foreground">Aprove cadastros e gerencie roles.</p>
+        <p className="text-sm text-muted-foreground">
+          Aprove cadastros e escolha o que cada pessoa pode fazer. Ver rodagens todos podem; o administrador pode tudo.
+        </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as AppUserRow["status"])}>
@@ -139,6 +157,27 @@ export default function AdminUsuarios() {
                       </div>
                     </div>
                   </CardHeader>
+                  {(u.status === "approved" || u.status === "pending") && (
+                    <CardContent className="pt-0">
+                      {u.role === "admin" ? (
+                        <p className="text-xs text-muted-foreground">Administrador: pode tudo.</p>
+                      ) : (
+                        <div role="group" aria-label={`Permissões de ${u.username}`} className="flex flex-wrap gap-x-6 gap-y-2">
+                          {PERMISSOES.map((perm) => (
+                            <label key={perm.id} className="flex items-center gap-2 text-sm cursor-pointer" title={perm.descricao}>
+                              <Checkbox
+                                checked={(u.permissions || []).includes(perm.id)}
+                                disabled={salvando === u.id}
+                                onCheckedChange={(v) => togglePermissao(u, perm.id, v === true)}
+                                aria-label={`${perm.label} (${u.username})`}
+                              />
+                              {perm.label}
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  )}
                   {u.status === "rejected" && u.rejection_reason && (
                     <CardContent className="pt-0 text-sm text-muted-foreground">
                       Motivo: {u.rejection_reason}

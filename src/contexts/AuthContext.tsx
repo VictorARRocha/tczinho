@@ -140,6 +140,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [clearSession]);
 
+  // Ao voltar para a aba, rele o perfil (permissoes podem ter mudado). Falha aqui nao derruba a sessao:
+  // um 401 de verdade ja e tratado pelo aviso de sessao expirada.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible" || !getAuthToken()) return;
+      authApi.me().then(({ user }) => setProfile(user), () => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   // Uma chamada de dados recebeu 401: limpa a sessao para o ProtectedRoute levar ao login.
   useEffect(() => {
     const onExpired = () => {

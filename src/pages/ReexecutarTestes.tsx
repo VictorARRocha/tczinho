@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { SemPermissao } from "@/components/SemPermissao";
+import { usePermissao } from "@/hooks/use-permissao";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +78,7 @@ const SORT_LABEL: Partial<Record<SortKey, string>> = {
 };
 
 export default function ReexecutarTestes() {
+  const podeSolicitar = usePermissao("rodagem");
   const { data: runs = [] } = useAllRuns();
   const isMobile = useIsMobile();
   const [selectedRunId, setSelectedRunId] = useState<string>("");
@@ -519,12 +522,13 @@ export default function ReexecutarTestes() {
           <Button
             size="lg"
             onClick={handleSubmit}
-            disabled={!canSubmit || submitting}
+            disabled={!canSubmit || submitting || !podeSolicitar}
             className="bg-gradient-primary max-sm:w-full"
           >
             <PlayCircle className="h-4 w-4 mr-2" />
             {submitting ? "Enviando…" : "Rodar novamente"}
           </Button>
+          {!podeSolicitar && <SemPermissao permissao="rodagem" className="w-full" />}
           <div className="text-xs text-muted-foreground">
             Cria um registro em <code>rerun_requests</code> com status <strong>solicitado</strong>.
           </div>

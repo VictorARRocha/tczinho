@@ -19,6 +19,7 @@ import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
 import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
 import { HistoryClearControls } from "@/components/HistoryClearControls";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePermissao } from "@/hooks/use-permissao";
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -156,6 +157,8 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(false);
   const isMobile = useIsMobile();
+  // Cancelar uma rodagem exige a mesma permissao de pedir.
+  const podeCancelar = usePermissao("rodagem");
 
 
   return (
@@ -231,7 +234,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                           </a>
                         </Button>
                       )}
-                      {CANCELABLE_STATUSES.has(status) ? (
+                      {podeCancelar && CANCELABLE_STATUSES.has(status) ? (
                         <Button size="sm" variant="outline" className="h-8 flex-1 text-red-400 border-red-500/30" onClick={() => cancelar(r)}>
                           <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
                         </Button>
@@ -296,7 +299,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                         </div>
                       </TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
-                        {CANCELABLE_STATUSES.has(status) ? (
+                        {podeCancelar && CANCELABLE_STATUSES.has(status) ? (
                           <Button
                             size="sm"
                             variant="outline"
