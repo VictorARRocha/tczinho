@@ -11,7 +11,7 @@ import type { QaDataSource } from "./types";
 export const qaData: QaDataSource = ApiQaDataSource;
 
 export type {
-  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, RunPresetMode, SaveRunPresetPayload,
+  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, RunPresetMode, SaveRunPresetPayload, CasoDesativado,
   RegravacaoItem, RegravacaoCandidatos, RegravacaoPedido, RegravacaoResultadoItem, CreateRegravacaoPayload,
   SvnBranch, MergeBranches, MergePedido, MergePreview, MergeRevisao, MergeArquivo, MergeConflito, ConfirmMergePayload, CreateMergePayload,
 } from "./types";
@@ -54,6 +54,9 @@ export const createRunPreset = (payload: import("./types").SaveRunPresetPayload)
 export const updateRunPreset = (id: string, payload: import("./types").SaveRunPresetPayload) =>
   qaData.updateRunPreset(id, payload);
 export const deleteRunPreset = (id: string) => qaData.deleteRunPreset(id);
+export const fetchCasosDesativados = (slug: string) => qaData.fetchCasosDesativados(slug);
+export const desativarCaso = (nodeId: string, motivo?: string) => qaData.desativarCaso(nodeId, motivo);
+export const reativarCaso = (nodeId: string) => qaData.reativarCaso(nodeId);
 export const fetchRegravacaoCandidatos = (runId: string) => qaData.fetchRegravacaoCandidatos(runId);
 export const fetchRegravacoes = (runId?: string) => qaData.fetchRegravacoes(runId);
 export const createRegravacao = (payload: import("./types").CreateRegravacaoPayload) => qaData.createRegravacao(payload);

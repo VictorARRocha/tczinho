@@ -22,6 +22,8 @@ export interface TestcaseHierarchyNode {
   modulo_codigo: string | null;
   modulo_nome: string | null;
   sistema: string | null;
+  /** Descricao do caso/grupo no .mds (vazia nas rodagens anteriores a ela ser guardada). */
+  descricao?: string | null;
 }
 
 // =====================================================================

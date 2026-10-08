@@ -16,6 +16,7 @@ import {
   fetchModules,
   fetchRerunRequests,
   fetchRunPresets,
+  fetchCasosDesativados,
   fetchRegravacaoCandidatos,
   fetchRegravacoes,
   fetchMergeBranches,
@@ -36,6 +37,7 @@ export const queryKeys = {
   runFailures: (runId: string) => ["run-failures", runId] as const,
   rerunRequests: ["rerun-requests"] as const,
   runPresets: ["run-presets"] as const,
+  casosDesativados: (slug: string) => ["casos-desativados", slug] as const,
   regravacaoCandidatos: (runId: string) => ["regravacao-candidatos", runId] as const,
   regravacoes: (runId: string) => ["regravacoes", runId] as const,
   mergeBranches: ["merge-branches"] as const,
@@ -104,6 +106,15 @@ export function useRunPresets() {
 
 export function invalidateRunPresets() {
   return queryClient.invalidateQueries({ queryKey: queryKeys.runPresets });
+}
+
+/** Casos marcados como desativados no modulo (aba Casos de teste). */
+export function useCasosDesativados(slug: string) {
+  return useQuery({ queryKey: queryKeys.casosDesativados(slug), queryFn: () => fetchCasosDesativados(slug), enabled: !!slug, staleTime: 30_000 });
+}
+
+export function invalidateCasosDesativados(slug: string) {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.casosDesativados(slug) });
 }
 
 const ACTIVE_REGRAVACAO = new Set(["solicitado", "processando"]);

@@ -48,6 +48,15 @@ export interface SaveRunPresetPayload {
   config?: Record<string, unknown>;
 }
 
+/** Caso de teste marcado como desativado no dashboard (so visual: nome riscado na lista). */
+export interface CasoDesativado {
+  node_id: string;
+  module_slug: string | null;
+  reason: string | null;
+  disabled_by: string | null;
+  disabled_at: string;
+}
+
 /** Diferenca de uma rodagem e se pode ser regravada (GET /runs/:id/regravacao). */
 export interface RegravacaoItem {
   difference_id: string;
@@ -225,6 +234,11 @@ export interface QaDataSource {
   createRunPreset(payload: SaveRunPresetPayload): Promise<RunPreset>;
   updateRunPreset(id: string, payload: SaveRunPresetPayload): Promise<RunPreset>;
   deleteRunPreset(id: string): Promise<void>;
+
+  // Casos de teste desativados (lista da aba Casos de teste)
+  fetchCasosDesativados(slug: string): Promise<CasoDesativado[]>;
+  desativarCaso(nodeId: string, motivo?: string): Promise<CasoDesativado>;
+  reativarCaso(nodeId: string): Promise<void>;
 
   // Regravacao de bases (SVN)
   fetchRegravacaoCandidatos(runId: string): Promise<RegravacaoCandidatos>;

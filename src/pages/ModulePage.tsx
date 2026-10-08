@@ -18,6 +18,7 @@ import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab } from "./module/FalhasTab";
 import { HistoricoTab } from "./module/HistoricoTab";
 import { CompararTab } from "./module/CompararTab";
+import { CasosTab } from "./module/CasosTab";
 import { ModuleHeader } from "./module/ModuleHeader";
 import { PerformanceTab } from "./module/PerformanceTab";
 import { ResumoTab } from "./module/ResumoTab";
@@ -182,7 +183,7 @@ export default function ModulePage() {
 
     if (semAcesso) { setLoading(false); return; }
     loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
-    if (tabParam === "falhas" || tabParam === "comparar") setActiveTab(tabParam);
+    if (tabParam === "falhas" || tabParam === "comparar" || tabParam === "casos") setActiveTab(tabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, semAcesso]);
 
@@ -298,6 +299,7 @@ export default function ModulePage() {
           <TabsList className="bg-card border border-border max-w-full overflow-x-auto sm:overflow-y-hidden justify-start max-sm:h-auto max-sm:flex-wrap max-sm:overflow-x-visible">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
+            <TabsTrigger value="casos">Casos de teste</TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
             <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">({performance.length})</span>}</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
@@ -312,6 +314,7 @@ export default function ModulePage() {
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
+          <TabsContent value="casos" className="mt-6"><CasosTab moduloSlug={slug} hierarchy={hierarchy} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={goToRunId} /></TabsContent>

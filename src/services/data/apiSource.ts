@@ -18,7 +18,7 @@
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
 import type {
-  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload,
+  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload, CasoDesativado,
   RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
   MergeBranches, MergePedido, ConfirmMergePayload, CreateMergePayload,
 } from "./types";
@@ -344,6 +344,15 @@ export const ApiQaDataSource: QaDataSource = {
 
   deleteRunPreset: (id: string) =>
     req<unknown>(`/run-presets/${encodeURIComponent(id)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
+
+  fetchCasosDesativados: (slug: string) =>
+    req<CasoDesativado[]>(`/testcase-disabled?module=${encodeURIComponent(slug)}`),
+
+  desativarCaso: (nodeId: string, motivo?: string) =>
+    req<CasoDesativado>(`/testcase-disabled`, { method: "POST", body: JSON.stringify({ node_id: nodeId, motivo: motivo || "" }) }),
+
+  reativarCaso: (nodeId: string) =>
+    req<unknown>(`/testcase-disabled/${encodeURIComponent(nodeId)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
 
   fetchRegravacaoCandidatos: (runId: string) =>
     req<RegravacaoCandidatos>(`/runs/${encodeURIComponent(runId)}/regravacao`),
