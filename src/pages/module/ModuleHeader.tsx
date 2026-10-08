@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { formatDateTime, getHealthStatus } from "@/lib/format";
+import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { isMeaningful } from "./common";
 
 export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void }) {
@@ -18,7 +19,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
   const fields: { label: string; value: ReactNode }[] = rodagem ? [
     { label: "Sistema", value: rodagem.sistema },
     { label: "Branch", value: rodagem.branch },
-    { label: "Versão", value: rodagem.versao_sistema },
+    { label: "Versão", value: formatarVersao(rodagem.versao_sistema) },
     { label: "Data", value: formatDateTime(rodagem.data_analise) },
   ].filter((f) => isMeaningful(f.value)) : [];
   return (
@@ -57,22 +58,17 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
                         <button key={r.id} onClick={() => { onPickRun(r.id); setOpen(false); }} className={`w-full text-left px-3 py-2.5 hover:bg-secondary/60 transition-smooth border-b border-border/50 ${active ? "bg-primary/5" : ""}`}>
                           <div className="flex items-center gap-2">
                             {active && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
-                            {(() => {
-                              const vm = r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem);
-                              return (
-                                <span className="text-sm font-medium truncate flex-1">
-                                  {formatDateTime(r.data_analise)}
-                                  {vm && <span className="text-muted-foreground font-normal"> - {vm}</span>}
-                                </span>
-                              );
-                            })()}
-
+                            <span className="text-sm font-medium truncate flex-1">{formatDateTime(r.data_analise)}</span>
                             {h.label !== "Sem dados" && <Badge variant="outline" className={`${h.className} text-[10px] h-5`}>{h.label}</Badge>}
                           </div>
-                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 ml-5">
-                            {r.versao_sistema && <span>v{r.versao_sistema}</span>}
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1 ml-5">
+                            {(() => {
+                              const vm = formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem));
+                              return vm && <span>VM: <span className="text-foreground/80">{vm}</span></span>;
+                            })()}
+                            {r.versao_sistema && <span>Versão: <span className="text-foreground/80">{formatarVersao(r.versao_sistema)}</span></span>}
                             {r.branch && <span className="font-mono">{r.branch}</span>}
-                            <span>{r.total_falhas} falhas</span>
+                            <span>{r.total_falhas} {r.total_falhas === 1 ? "falha" : "falhas"}</span>
                             {r.total_possivel_funcional > 0 && <span className="text-functional">{r.total_possivel_funcional} func.</span>}
                           </div>
                         </button>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import {
@@ -42,6 +42,10 @@ interface AuthContextValue {
   signUp: (data: { username: string; first_name: string; last_name: string; password: string; modules?: string[] }) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  /** Acabou de se cadastrar e o login foi recusado por estar pendente: da para conferir a aprovacao. */
+  aguardandoAprovacao: boolean;
+  /** Tenta entrar de novo com o cadastro desta aba; aprovado = sessao aberta. */
+  verificarAprovacao: () => Promise<"aprovado" | "pendente">;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -83,6 +87,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<AppSession | null>(null);
   const [profile, setProfile] = useState<AppUserProfile | null>(null);
+  // Usuario e senha do cadastro que ficou pendente: so na memoria desta aba (some ao recarregar ou sair),
+  // para a tela de espera entrar sozinha quando o admin aprovar. Nao vai para o localStorage.
+  const cadastroPendente = useRef<{ username: string; password: string } | null>(null);
+  const [aguardandoAprovacao, setAguardandoAprovacao] = useState(false);
+  const esquecerCadastroPendente = useCallback(() => {
+    cadastroPendente.current = null;
+    setAguardandoAprovacao(false);
+  }, []);
 
   const applySession = useCallback((token: string, user: AppUserProfile, localSession?: LocalAuthSession) => {
     setAuthToken(token);
@@ -165,13 +177,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback<AuthContextValue["signIn"]>(async (username, password) => {
     try {
       const result = await authApi.login(username, password);
+      esquecerCadastroPendente();
       applySession(result.token, result.user, result.session);
       return { error: null };
     } catch (error) {
       clearSession();
       return { error: authMessage(error) };
     }
-  }, [applySession, clearSession]);
+  }, [applySession, clearSession, esquecerCadastroPendente]);
 
   const signUp = useCallback<AuthContextValue["signUp"]>(async ({ username, first_name, last_name, password, modules }) => {
     try {
@@ -186,6 +199,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (err?.code !== "user_not_approved" && err?.status !== 403) {
           throw error;
         }
+        cadastroPendente.current = { username: normalizedUsername, password };
+        setAguardandoAprovacao(true);
       }
 
       return { error: null };
@@ -194,13 +209,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applySession]);
 
+  const verificarAprovacao = useCallback<AuthContextValue["verificarAprovacao"]>(async () => {
+    const cadastro = cadastroPendente.current;
+    if (!cadastro) return "pendente";
+    try {
+      const result = await authApi.login(cadastro.username, cadastro.password);
+      esquecerCadastroPendente();
+      applySession(result.token, result.user, result.session);
+      return "aprovado";
+    } catch (error) {
+      // Ainda pendente (ou a API fora do ar): continua esperando. Senha errada nao acontece (e a do cadastro).
+      const err = error as LocalAuthError;
+      if (err?.status === 401 || err?.status === 423) esquecerCadastroPendente();
+      return "pendente";
+    }
+  }, [applySession, esquecerCadastroPendente]);
+
   const signOut = useCallback(async () => {
     try {
       if (getAuthToken()) await authApi.logout();
     } finally {
+      esquecerCadastroPendente();
       clearSession();
     }
-  }, [clearSession]);
+  }, [clearSession, esquecerCadastroPendente]);
 
   const value = useMemo<AuthContextValue>(() => {
     const isAdmin = profile?.role === "admin" && profile?.status === "approved";
@@ -216,8 +248,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       signOut,
       refreshProfile,
+      aguardandoAprovacao,
+      verificarAprovacao,
     };
-  }, [loading, session, profile, signIn, signUp, signOut, refreshProfile]);
+  }, [loading, session, profile, signIn, signUp, signOut, refreshProfile, aguardandoAprovacao, verificarAprovacao]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

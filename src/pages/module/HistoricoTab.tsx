@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
+import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Empty } from "./common";
 
@@ -30,8 +31,8 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
                   <div className="min-w-0 flex-1">
                     <div className="text-sm">{formatDateTime(r.data_analise)}</div>
                     <div className="text-[11px] text-muted-foreground">
-                      <span className="font-mono">{r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem) || "—"}</span>
-                      {" · "}<span className="font-mono">{r.versao_sistema || "—"}</span>
+                      <span className="font-mono">{formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—"}</span>
+                      {" · "}<span>{formatarVersao(r.versao_sistema) || "—"}</span>
                       {" · "}{r.total_falhas} falha(s)
                     </div>
                   </div>
@@ -59,8 +60,8 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
               return (
                 <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
                   <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem) || "—"}</TableCell>
-                  <TableCell className="font-mono text-xs">{r.versao_sistema || "—"}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—"}</TableCell>
+                  <TableCell className="text-xs">{formatarVersao(r.versao_sistema) || "—"}</TableCell>
                   <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
                   <TableCell>
                     {active

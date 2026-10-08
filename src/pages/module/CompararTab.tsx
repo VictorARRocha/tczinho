@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertTriangle, ArrowRight, GitCompare, RefreshCw, Search } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
+import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { compareRuns, executedCountsDiffer, orderRuns, type CaseComparison, type CaseStatus } from "@/lib/runComparison";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRunFailures } from "@/services/queries";
@@ -26,7 +27,7 @@ const STATUS_META: Record<CaseStatus, { label: string; badge: string; card: stri
 
 function runLabel(r: Rodagem): string {
   const data = formatDateTime(r.data_inicio_rodagem || r.data_analise);
-  const partes = [data, r.maquina, r.versao_sistema].filter((p) => p && p !== "—");
+  const partes = [data, formatarVm(r.maquina), formatarVersao(r.versao_sistema)].filter((p) => p && p !== "—");
   return `${partes.join(" — ")} · ${r.total_falhas ?? 0} falhas`;
 }
 

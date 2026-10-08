@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Clock, LogOut, XCircle, Ban, RefreshCw } from "lucide-react";
 
 export default function AguardandoAprovacao() {
-  const { loading, profile, signOut, session, refreshProfile } = useAuth();
+  const { loading, profile, signOut, session, refreshProfile, aguardandoAprovacao, verificarAprovacao } = useAuth();
 
   useEffect(() => {
     if (!session || profile?.status === "approved") return;
@@ -21,6 +21,19 @@ export default function AguardandoAprovacao() {
       window.removeEventListener("focus", refreshProfile);
     };
   }, [session, profile?.status, refreshProfile]);
+
+  // Logo apos o cadastro (sem sessao, o login fica recusado ate a aprovacao): tenta entrar a cada 5 s.
+  // Quando o admin aprova, a sessao abre e a tela vai direto para o dashboard.
+  useEffect(() => {
+    if (session || !aguardandoAprovacao) return;
+    const verificar = () => { verificarAprovacao(); };
+    const interval = window.setInterval(verificar, 5000);
+    window.addEventListener("focus", verificar);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", verificar);
+    };
+  }, [session, aguardandoAprovacao, verificarAprovacao]);
 
   if (loading) return <PageLoading message="Verificando aprovação..." />;
 
@@ -65,6 +78,13 @@ export default function AguardandoAprovacao() {
                 <LogOut className="h-4 w-4 mr-2" /> Sair
               </Button>
             </div>
+          ) : aguardandoAprovacao ? (
+            <>
+              <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Assim que for aprovado, você entra automaticamente.
+              </p>
+              <Button asChild variant="outline" className="w-full"><Link to="/login">Ir para login</Link></Button>
+            </>
           ) : (
             <Button asChild className="w-full"><Link to="/login">Ir para login</Link></Button>
           )}
