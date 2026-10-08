@@ -8,10 +8,15 @@ import { formatRelative } from "@/lib/format";
 import { toast } from "sonner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useLatestRuns } from "@/services/queries";
+import { useAuth } from "@/contexts/AuthContext";
+import { SEM_NENHUM_MODULO } from "@/lib/permissoes";
 
 export default function Dashboard() {
   // Uma chamada (/modules/latest-runs) traz a ultima rodagem de cada modulo, a cada minuto.
   const { data = [], isLoading, isError, error, refetch, isFetching } = useLatestRuns();
+  const { profile, isAdmin } = useAuth();
+  // A API so entrega os modulos da pessoa; sem nenhum, a tela explica em vez de parecer vazia.
+  const semModulos = !isAdmin && Array.isArray(profile?.modules) && profile.modules.length === 0;
   const lastSeenRef = useRef<Map<string, string | null> | null>(null);
 
   // Avisa quando a ultima rodagem de um modulo muda entre uma atualizacao e outra.
@@ -62,7 +67,7 @@ export default function Dashboard() {
           </Button>
         </Card>
       ) : data.length === 0 ? (
-        <EmptyState />
+        <EmptyState semModulos={semModulos} />
       ) : (
         <div className="grid gap-4 sm:gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {data.map(({ modulo, rodagem }) => <ModuleCard key={modulo.id} modulo={modulo} rodagem={rodagem} />)}
@@ -144,15 +149,15 @@ function Stat({ icon: Icon, label, value, tone }: { icon: LucideIcon; label: str
   );
 }
 
-function EmptyState() {
+function EmptyState({ semModulos }: { semModulos: boolean }) {
   return (
     <Card className="glass-card p-12 text-center">
       <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
         <Database className="h-5 w-5 text-muted-foreground" />
       </div>
-      <h3 className="text-lg font-semibold">Nenhum resultado de teste ainda</h3>
+      <h3 className="text-lg font-semibold">{semModulos ? "Nenhum módulo liberado" : "Nenhum resultado de teste ainda"}</h3>
       <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-        Os módulos aparecem aqui assim que a primeira rodagem de testes terminar.
+        {semModulos ? SEM_NENHUM_MODULO : "Os módulos aparecem aqui assim que a primeira rodagem de testes terminar."}
       </p>
     </Card>
   );

@@ -11,6 +11,7 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
 const api = {
   candidatos: null as RegravacaoCandidatos | null,
+  erroCandidatos: null as Error | null,
   pedidos: [] as RegravacaoPedido[],
   createRegravacao: vi.fn(),
   cancelRegravacao: vi.fn(),
@@ -21,7 +22,10 @@ vi.mock("@/services/data", async (importOriginal) => {
     ...actual,
     fetchAllRuns: async () => [{ id_rodagem: "rod_1", versao: "PROXIMA", vm_name: "a07", sistema: "Tarefas", data_inicio: null, caminho_logs: null, total_falhas: 3, total_clusters: 0, created_at: null,
                                    repository_url: "https://svn/testcomplete/unico/ProjetoUnico/branches/minha-branch" }],
-    fetchRegravacaoCandidatos: async () => api.candidatos,
+    fetchRegravacaoCandidatos: async () => {
+      if (api.erroCandidatos) throw api.erroCandidatos;
+      return api.candidatos;
+    },
     fetchRegravacoes: async () => api.pedidos,
     fetchEvidenceByRun: async () => [],
     fetchEvidenceByFailure: async () => [],
@@ -36,6 +40,7 @@ vi.mock("@/services/data", async (importOriginal) => {
 import { queryClient } from "@/lib/queryClient";
 import RegravarBases from "@/pages/RegravarBases";
 import { branchTc, defaultCommitMessage, destinoLabel } from "@/lib/regravacao";
+import { ApiError } from "@/services/data/apiSource";
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -70,6 +75,7 @@ beforeEach(() => {
   queryClient.clear();
   auth.isAdmin = true;
   auth.profile = { username: "ana", permissions: [] };
+  api.erroCandidatos = null;
   api.pedidos = [];
   api.createRegravacao.mockReset();
   api.cancelRegravacao.mockReset();
@@ -240,13 +246,14 @@ describe("tela de regravacao", () => {
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para regravar arquivos");
   });
 
-  it("rodagem de modulo sem acesso, aberta pelo link: ve os arquivos, mas nao regrava", async () => {
+  it("rodagem de modulo sem acesso, aberta pelo link: a API nao entrega os arquivos e a tela diz por que", async () => {
     auth.isAdmin = false;
     auth.profile = { username: "ana", permissions: ["regravar"], modules: ["folha"] } as typeof auth.profile;
+    api.erroCandidatos = new ApiError(403, "/runs/rod_1/regravacao", "Voce nao tem acesso ao modulo Fiscal. Peca a um administrador.");
     renderPage();
-    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
-    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).toBeDisabled();
-    expect(screen.getByRole("note")).toHaveTextContent("Você não tem acesso a este módulo");
+    expect((await screen.findAllByText(/nao tem acesso ao modulo Fiscal/, undefined, { timeout: 5000 })).length).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Selecionar d1_Atual.txt")).toBeNull();
+    expect(screen.queryByText("Não foi possível carregar as diferenças desta rodagem.")).toBeNull();
   });
 
   it("usuario comum com a permissao de regravar consegue (antes era so admin)", async () => {

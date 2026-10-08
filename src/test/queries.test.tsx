@@ -8,6 +8,9 @@ import type { RerunRequest } from "@/services/qa";
 const toastSuccess = vi.fn();
 vi.mock("sonner", () => ({ toast: { success: (...args: unknown[]) => toastSuccess(...args), error: vi.fn() } }));
 
+const auth = { isAdmin: true, profile: { username: "ana", modules: ["*"] as string[] } };
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
+
 const latestRuns = vi.fn();
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
@@ -15,6 +18,8 @@ vi.mock("@/services/data", async (importOriginal) => {
 });
 
 import Dashboard from "@/pages/Dashboard";
+import ModulePage from "@/pages/ModulePage";
+import { Route, Routes } from "react-router-dom";
 import { rerunRefetchInterval } from "@/services/queries";
 import { ApiQaDataSource } from "@/services/data/apiSource";
 
@@ -35,6 +40,36 @@ afterEach(() => {
   vi.restoreAllMocks();
   toastSuccess.mockReset();
   latestRuns.mockReset();
+  auth.isAdmin = true;
+  auth.profile = { username: "ana", modules: ["*"] };
+});
+
+describe("acesso por modulo nas telas de leitura", () => {
+  it("visao geral: sem nenhum modulo liberado, explica em vez de parecer vazia", async () => {
+    auth.isAdmin = false;
+    auth.profile = { username: "ana", modules: [] };
+    latestRuns.mockResolvedValue([]); // a API ja nao entrega nenhum modulo
+    renderDashboard(new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+    expect(await screen.findByText("Nenhum módulo liberado")).toBeInTheDocument();
+    expect(screen.getByText(/não tem acesso a nenhum módulo/)).toBeInTheDocument();
+  });
+
+  it("link de um modulo sem acesso: mostra o aviso e nem busca as rodagens", async () => {
+    auth.isAdmin = false;
+    auth.profile = { username: "ana", modules: ["folha"] };
+    latestRuns.mockResolvedValue([]);
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={["/modulo/fiscal/rodagem-x"]}>
+          <Routes><Route path="/modulo/:slug/:rodagemSlug?" element={<ModulePage />} /></Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("Módulo Fiscal")).toBeInTheDocument();
+    expect(screen.getByText(/não tem acesso a este módulo/)).toBeInTheDocument();
+    expect(fetchSpy.mock.calls.some(([url]) => String(url).includes("/modules/fiscal/runs"))).toBe(false);
+  });
 });
 
 describe("Visao geral", () => {

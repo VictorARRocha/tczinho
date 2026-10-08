@@ -15,7 +15,8 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
-import { podeNoModulo, SEM_MODULO } from "@/lib/permissoes";
+import { podeNoModulo } from "@/lib/permissoes";
+import { mensagemDaApi } from "@/lib/apiErro";
 import { SemPermissao } from "@/components/SemPermissao";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
@@ -61,7 +62,7 @@ const sortValue = (item: RegravacaoItem, key: SortKey) =>
   key === "caso" ? item.id_caso_teste || "" : key === "atual" ? item.arquivo_atual || "" : item.caminho_base ? caminhoBridge(item.caminho_base) : "";
 
 function apiMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status === 403) return "Somente administradores podem regravar bases.";
+  if (e instanceof ApiError && e.status === 403) return mensagemDaApi(e);
   if (e instanceof ApiError && e.status === 409) return "Algum arquivo já está num pedido em andamento.";
   return (e as Error)?.message || "Erro desconhecido";
 }
@@ -84,8 +85,6 @@ export default function RegravarBases() {
   const [fVersao, setFVersao] = useState("all");
   const runId = params.get("rodagem") || "";
   const rodagemAtual = runs.find((r) => r.id_rodagem === runId) || null;
-  // Aberta por link (ex.: detalhe da falha) numa rodagem de modulo sem acesso: ve, mas nao regrava.
-  const foraDoModulo = !!runId && !rodagemAtual && todasRodagens.some((r) => r.id_rodagem === runId);
   const setRunId = (id: string) => setParams(id ? { rodagem: id } : {}, { replace: true });
 
   const vmOptions = useMemo(() => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(), [runs]);
@@ -102,7 +101,10 @@ export default function RegravarBases() {
     [runs, fVm, fModulo, fVersao],
   );
 
-  const { data: candidatos, isLoading: loadingItens, isError: itensError } = useRegravacaoCandidatos(runId || null);
+  const { data: candidatos, isLoading: loadingItens, isError: itensError, error: erroItens } = useRegravacaoCandidatos(runId || null);
+  // Aberta por link numa rodagem de outro modulo: a API nao entrega nada e diz por que.
+  const foraDoModulo = erroItens instanceof ApiError && erroItens.status === 403;
+  const erroItensTexto = foraDoModulo ? mensagemDaApi(erroItens) : "Não foi possível carregar as diferenças desta rodagem.";
   const { data: pedidos = [] } = useRegravacoes(runId || null);
   const { data: evidencias = [] } = useRunEvidences(runId || null);
   const { data: falhas = [] } = useRunFailures(runId || null);
@@ -351,7 +353,7 @@ export default function RegravarBases() {
               {loadingItens ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
               ) : itensError ? (
-                <p className="py-8 text-center text-sm text-red-500">Não foi possível carregar as diferenças desta rodagem.</p>
+                <p className="py-8 text-center text-sm text-red-500">{erroItensTexto}</p>
               ) : visiveis.length === 0 ? (
                 <p className="py-8 px-4 text-center text-sm text-muted-foreground">
                   {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
@@ -416,7 +418,7 @@ export default function RegravarBases() {
                 {loadingItens ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Carregando…</TableCell></TableRow>
                 ) : itensError ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-red-500">Não foi possível carregar as diferenças desta rodagem.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-red-500">{erroItensTexto}</TableCell></TableRow>
                 ) : visiveis.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
@@ -497,7 +499,6 @@ export default function RegravarBases() {
             {`Regravar ${marcados.size} arquivo(s)`}
           </Button>
           {!podeRegravar && <SemPermissao permissao="regravar" />}
-          {podeRegravar && foraDoModulo && <SemPermissao mensagem={SEM_MODULO} />}
         </Card>
       )}
 

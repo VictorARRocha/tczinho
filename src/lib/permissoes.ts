@@ -27,8 +27,8 @@ export function temPermissao(
 }
 
 // ---------------------------------------------------------------- modulos
-// Alem da permissao, pedir/cancelar rodagem e regravar so valem nos modulos da pessoa (a API confere).
-// Ver rodagens continua livre. ["*"] = todos os modulos (padrao de quem ja existia).
+// Alem da permissao, pedir/cancelar rodagem e regravar so valem nos modulos da pessoa, e cada um so ve
+// as rodagens dos seus modulos (a API confere e esconde o resto). ["*"] = todos (padrao de quem ja existia).
 
 export const TODOS_MODULOS = "*";
 
@@ -79,3 +79,4 @@ export function modulosDosCasos(casos: string | null | undefined): string[] {
 }
 
 export const SEM_MODULO = "Você não tem acesso a este módulo. Peça a um administrador.";
+export const SEM_NENHUM_MODULO = "Você não tem acesso a nenhum módulo. Peça a um administrador.";

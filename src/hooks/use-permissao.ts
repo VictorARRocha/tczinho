@@ -7,7 +7,7 @@ export function usePermissao(permissao: Permissao): boolean {
   return temPermissao(profile, isAdmin, permissao);
 }
 
-/** Modulos em que a pessoa pode agir (pedir rodagem, regravar). Ver rodagens e livre. */
+/** Modulos da pessoa: so ve e age (pedir rodagem, regravar) neles. */
 export function useModulos(): { todos: boolean; pode: (slug: string | null | undefined) => boolean } {
   const { profile, isAdmin } = useAuth();
   return {

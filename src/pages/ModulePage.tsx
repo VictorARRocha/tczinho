@@ -7,11 +7,13 @@ import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, Atra
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, RefreshCw } from "lucide-react";
+import { ChevronLeft, Lock, RefreshCw } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { type ComparisonPair } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import { useModulos } from "@/hooks/use-permissao";
+import { nomeModulo, SEM_MODULO } from "@/lib/permissoes";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab } from "./module/FalhasTab";
 import { HistoricoTab } from "./module/HistoricoTab";
@@ -57,6 +59,8 @@ export default function ModulePage() {
   const currentSlugRef = useRef(slug);
 
   const moduleName = modulo?.nome || slug;
+  // Modulo de que a pessoa nao tem acesso (link compartilhado): a API nao entrega nada, entao nem busca.
+  const semAcesso = !useModulos().pode(slug);
 
   // Rodagem nova: a mesma consulta leve da visao geral (cache compartilhado) diz
   // qual e a ultima rodagem do modulo; se ela nao esta no historico carregado, avisa.
@@ -176,10 +180,11 @@ export default function ModulePage() {
     setLoadError(null);
     setNotFound(false);
 
+    if (semAcesso) { setLoading(false); return; }
     loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
     if (tabParam === "falhas" || tabParam === "comparar") setActiveTab(tabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slug]);
+  }, [slug, semAcesso]);
 
   // Rodagem selecionada derivada da rota (navegação/voltar do browser)
   const initialRouteRef = useRef(true);
@@ -200,6 +205,23 @@ export default function ModulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rodagemSlug]);
 
+
+  if (semAcesso) {
+    return (
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
+        <Card className="glass-card p-12 text-center">
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+            <Lock className="h-5 w-5 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold">Módulo {nomeModulo(slug)}</h3>
+          <p className="mt-2 text-sm text-muted-foreground">{SEM_MODULO}</p>
+          <Button className="mt-4" variant="outline" asChild>
+            <Link to="/">Voltar à visão geral</Link>
+          </Button>
+        </Card>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
