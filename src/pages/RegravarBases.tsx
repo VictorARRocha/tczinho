@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, FileDiff, GitCommitHorizontal, RotateCcw, Upload, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, FileDiff, GitCommitHorizontal, RotateCcw, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -232,22 +232,17 @@ export default function RegravarBases() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
-          <Upload className="h-3 w-3" /> Regravar arquivos
-        </div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-          Regravar <span className="gradient-text">arquivos</span>
-        </h1>
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Regravar arquivos</h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-          Substitui no SVN o arquivo base (Stores\Files) pelo arquivo atual de diferenças esperadas. O commit é feito pelo
-          RegravacaoBridge da D01, que antes confere se a base ainda é a mesma da rodagem.
+          Quando a diferença de arquivo é esperada, troca o arquivo base do teste no SVN pelo arquivo novo da rodagem.
+          Antes de gravar, o sistema confere se a base não mudou desde a rodagem.
         </p>
       </div>
 
       {/* Rodagem */}
-      <Card className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Rodagem</h2>
+      <Card className="p-4 sm:p-5 mb-5">
+        <h2 className="mb-3 text-base font-semibold">1. Rodagem</h2>
         <div className="grid gap-3 sm:grid-cols-3 mb-3">
           {[
             { label: "VM", value: fVm, set: setFVm, options: vmOptions, all: "Todas" },
@@ -255,7 +250,7 @@ export default function RegravarBases() {
             { label: "Versão", value: fVersao, set: setFVersao, options: versaoOptions, all: "Todas" },
           ].map((f) => (
             <div key={f.label}>
-              <label className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label}</label>
+              <label className="mb-1.5 block text-sm font-medium">{f.label}</label>
               <Select value={f.value} onValueChange={f.set}>
                 <SelectTrigger aria-label={f.label}><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -304,11 +299,18 @@ export default function RegravarBases() {
             </dd>
           </dl>
         )}
+        {!runId && (
+          <ol className="mt-4 space-y-1.5 border-t border-border/60 pt-4 text-sm text-muted-foreground">
+            <li><span className="mr-2 font-mono text-foreground">1</span>Escolha a rodagem (use VM, módulo e versão para achar mais rápido).</li>
+            <li><span className="mr-2 font-mono text-foreground">2</span>Confira as diferenças com “Comparar” e marque os arquivos que estão certos.</li>
+            <li><span className="mr-2 font-mono text-foreground">3</span>Revise a mensagem do commit e regrave.</li>
+          </ol>
+        )}
       </Card>
 
       {/* Arquivos */}
       {runId && (
-        <Card className="glass-card backdrop-filter-none overflow-hidden mb-5">
+        <Card className="overflow-hidden mb-5">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 p-3">
             <div className="flex flex-wrap items-center gap-2">
               <Button size="sm" variant="outline" disabled={!regravaveis.length}
@@ -318,13 +320,13 @@ export default function RegravarBases() {
               <Button size="sm" variant="outline" disabled={!marcados.size} onClick={() => setMarcados(new Set())}>
                 Desmarcar
               </Button>
-              <label className="inline-flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+              <label className="inline-flex h-9 items-center gap-2 px-1 text-sm text-muted-foreground cursor-pointer">
                 <Checkbox checked={soRegravaveis} onCheckedChange={(v) => setSoRegravaveis(v === true)} />
-                Só regraváveis
+                Mostrar só os regraváveis
               </label>
             </div>
             <span className="text-xs text-muted-foreground">
-              {marcados.size} selecionado(s) · {regravaveis.length} de {itens.length} regravável(is)
+              <span className="font-mono text-foreground">{marcados.size}</span> {marcados.size === 1 ? "marcado" : "marcados"} · <span>{`${regravaveis.length} de ${itens.length} ${regravaveis.length === 1 ? "regravável" : "regraváveis"}`}</span>
             </span>
           </div>
           {isMobile ? (
@@ -353,7 +355,7 @@ export default function RegravarBases() {
               {loadingItens ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
               ) : itensError ? (
-                <p className="py-8 text-center text-sm text-red-500">{erroItensTexto}</p>
+                <p className="py-8 text-center text-sm text-destructive">{erroItensTexto}</p>
               ) : visiveis.length === 0 ? (
                 <p className="py-8 px-4 text-center text-sm text-muted-foreground">
                   {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
@@ -361,7 +363,7 @@ export default function RegravarBases() {
               ) : (
                 <ul className="divide-y divide-border/60">
                   {visiveis.map((item) => (
-                    <li key={item.difference_id} className={`flex gap-3 p-3 ${item.regravavel ? "" : "opacity-70"}`}>
+                    <li key={item.difference_id} className={`flex gap-3 p-3 ${item.regravavel ? "" : "text-muted-foreground"}`}>
                       {/* area de toque maior que a caixa */}
                       <label className="-m-2 flex h-10 w-10 shrink-0 items-center justify-center">
                         <Checkbox
@@ -388,7 +390,7 @@ export default function RegravarBases() {
                         )}
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] text-muted-foreground">
-                            {item.linhas_alteradas ?? "—"} linha(s) alterada(s)
+                            {item.linhas_alteradas ?? "—"} {item.linhas_alteradas === 1 ? "linha alterada" : "linhas alteradas"}
                           </span>
                           <Button size="sm" variant="outline" className="h-8" onClick={() => abrirComparacao(item)}>
                             <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
@@ -418,13 +420,13 @@ export default function RegravarBases() {
                 {loadingItens ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Carregando…</TableCell></TableRow>
                 ) : itensError ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-red-500">{erroItensTexto}</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-destructive">{erroItensTexto}</TableCell></TableRow>
                 ) : visiveis.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
                     {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
                   </TableCell></TableRow>
                 ) : visiveis.map((item) => (
-                  <TableRow key={item.difference_id} className={item.regravavel ? "" : "opacity-70"}>
+                  <TableRow key={item.difference_id} className={item.regravavel ? "" : "text-muted-foreground"}>
                     <TableCell>
                       <Checkbox
                         aria-label={`Selecionar ${item.arquivo_atual}`}
@@ -443,8 +445,8 @@ export default function RegravarBases() {
                         {item.id_caso_teste}
                       </button>
                     </TableCell>
-                    <TableCell className="text-xs max-w-[220px] truncate" title={item.arquivo_atual || ""}>{item.arquivo_atual}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[320px] truncate" title={item.caminho_base || ""}>
+                    <TableCell className="text-xs max-w-[260px] break-all" title={item.arquivo_atual || ""}>{item.arquivo_atual}</TableCell>
+                    <TableCell className="text-xs font-mono max-w-[340px] break-all" title={item.caminho_base || ""}>
                       {item.caminho_base ? caminhoBridge(item.caminho_base) : "—"}
                     </TableCell>
                     <TableCell className="text-xs text-right">{item.linhas_alteradas ?? "—"}</TableCell>
@@ -465,9 +467,9 @@ export default function RegravarBases() {
 
       {/* Mensagem + envio */}
       {runId && regravaveis.length > 0 && (
-        <Card ref={envioRef} className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5 space-y-3 scroll-mt-20">
+        <Card ref={envioRef} className="p-4 sm:p-5 mb-5 space-y-3 scroll-mt-20">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Mensagem do commit</h2>
+            <h2 className="text-base font-semibold">3. Mensagem do commit</h2>
             <div className="flex items-center gap-2">
               {mensagemEditada && (
                 <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400">Editada</Badge>
@@ -485,18 +487,18 @@ export default function RegravarBases() {
             className="min-h-[170px] font-mono text-xs"
             maxLength={4000}
           />
-          <p className="text-[11px] text-muted-foreground">
-            <code>{"{pedido}"}</code> é trocado pelo número do pedido no commit. Enquanto não for editada, a mensagem acompanha
+          <p className="text-xs text-muted-foreground">
+            <code className="font-mono">{"{pedido}"}</code> é trocado pelo número do pedido no commit. Enquanto não for editada, a mensagem acompanha
             os arquivos selecionados.
           </p>
           <Button
             size="lg"
-            className="w-full bg-gradient-primary"
+            className="w-full"
             disabled={!podeRegravar || foraDoModulo || !marcados.size || !mensagem.trim()}
             onClick={() => setConfirmOpen(true)}
           >
             <GitCommitHorizontal className="h-4 w-4 mr-2" />
-            {`Regravar ${marcados.size} arquivo(s)`}
+            {marcados.size === 0 ? "Marque os arquivos para regravar" : `Regravar ${marcados.size} ${marcados.size === 1 ? "arquivo" : "arquivos"}`}
           </Button>
           {!podeRegravar && <SemPermissao permissao="regravar" />}
         </Card>
@@ -513,7 +515,7 @@ export default function RegravarBases() {
               onOcultar={() => setAvisoOculto(pedidoConflito.id)}
             />
           )}
-          <Card className="glass-card backdrop-filter-none overflow-hidden">
+          <Card className="overflow-hidden">
             {isMobile ? (
               pedidos.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">Nenhum pedido ainda.</p>
@@ -531,7 +533,7 @@ export default function RegravarBases() {
                           </div>
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {p.requested_by || "—"} · {p.items_json?.length ?? 0} arquivo(s)
+                          {p.requested_by || "—"} · {p.items_json?.length ?? 0} {(p.items_json?.length ?? 0) === 1 ? "arquivo" : "arquivos"}
                           {p.svn_revision && <> · <span className="font-mono text-foreground">r{p.svn_revision}</span></>}
                         </p>
                         <div className="flex gap-2">
@@ -601,8 +603,8 @@ export default function RegravarBases() {
         <>
           <div className="h-16" />
           <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 py-3">
-            <span className="text-sm">{marcados.size} selecionado(s)</span>
-            <Button size="sm" className="bg-gradient-primary"
+            <span className="text-sm">{marcados.size} {marcados.size === 1 ? "marcado" : "marcados"}</span>
+            <Button size="sm"
               onClick={() => envioRef.current?.scrollIntoView({ block: "start" })}>
               <GitCommitHorizontal className="h-4 w-4 mr-1" /> Ir para regravar
             </Button>
@@ -614,7 +616,7 @@ export default function RegravarBases() {
       <Dialog open={confirmOpen} onOpenChange={(o) => !enviando && setConfirmOpen(o)}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Regravar {selecionados.length} arquivo(s)?</DialogTitle>
+            <DialogTitle>Regravar {selecionados.length} {selecionados.length === 1 ? "arquivo" : "arquivos"}?</DialogTitle>
             <DialogDescription>
               Destino: {destinoLabel(candidatos?.repository_url || null)}. Se alguma base tiver mudado no SVN desde a rodagem,
               nada é gravado.
@@ -741,9 +743,9 @@ function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedid
 
 function SituacaoBadge({ item }: { item: RegravacaoItem }) {
   return item.regravavel ? (
-    <Badge variant="outline" className="border-green-500/40 text-green-600 dark:text-green-400">Regravável</Badge>
+    <Badge variant="outline" className="whitespace-nowrap border-green-500/40 text-green-600 dark:text-green-400">Regravável</Badge>
   ) : (
-    <Badge variant="outline" className="border-amber-500/40 text-amber-700 dark:text-amber-400" title={item.motivo_texto || ""}>
+    <Badge variant="outline" className="whitespace-nowrap border-amber-500/40 text-amber-700 dark:text-amber-400" title={item.motivo_texto || ""}>
       {MOTIVO_CURTO[item.motivo || ""] || item.motivo}
     </Badge>
   );

@@ -1,24 +1,24 @@
 // Merge entre branches do TC: textos e regras da tela (a execucao fica no MergeBridge da D01).
 import type { MergePedido, SvnBranch } from "@/services/data";
 
-export const MERGE_STATUS: Record<string, { label: string; className: string }> = {
-  previa_solicitada: { label: "Prévia na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400" },
-  previa_processando: { label: "Gerando prévia", className: "border-purple-500/40 text-purple-600 dark:text-purple-400" },
-  previa_pronta: { label: "Prévia pronta", className: "border-primary/50 text-primary" },
-  solicitado: { label: "Merge na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400" },
-  processando: { label: "Fazendo merge", className: "border-purple-500/40 text-purple-600 dark:text-purple-400" },
-  concluido: { label: "Merge realizado", className: "border-green-500/40 text-green-600 dark:text-green-400" },
-  sem_alteracoes: { label: "Já atualizado", className: "border-border text-muted-foreground" },
-  conflito: { label: "Conflito", className: "border-red-500/50 text-red-600 dark:text-red-400" },
-  erro: { label: "Erro", className: "border-red-500/40 text-red-600 dark:text-red-400" },
-  cancelado: { label: "Cancelado", className: "border-orange-500/40 text-orange-600 dark:text-orange-400" },
+export const MERGE_STATUS: Record<string, { label: string; className: string; dica?: string }> = {
+  previa_solicitada: { label: "Prévia na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400", dica: "Esperando a vez para gerar a prévia das alterações." },
+  previa_processando: { label: "Gerando prévia", className: "border-primary/40 text-primary", dica: "Calculando o que o merge vai mudar." },
+  previa_pronta: { label: "Prévia pronta", className: "border-primary/50 text-primary", dica: "A prévia das alterações está pronta." },
+  solicitado: { label: "Merge na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400", dica: "Esperando a vez para gravar no SVN." },
+  processando: { label: "Fazendo merge", className: "border-primary/40 text-primary", dica: "Gravando no SVN agora." },
+  concluido: { label: "Merge realizado", className: "border-green-500/40 text-green-600 dark:text-green-400", dica: "Alterações gravadas no destino." },
+  sem_alteracoes: { label: "Já atualizado", className: "border-border text-muted-foreground", dica: "O destino já tinha tudo da origem; nada foi gravado." },
+  conflito: { label: "Conflito", className: "border-red-500/50 text-red-600 dark:text-red-400", dica: "Os mesmos arquivos mudaram nas duas branches. Nada foi gravado." },
+  erro: { label: "Erro", className: "border-red-500/40 text-red-600 dark:text-red-400", dica: "O merge não terminou. Nada foi gravado." },
+  cancelado: { label: "Cancelado", className: "border-orange-500/40 text-orange-600 dark:text-orange-400", dica: "Cancelado antes de gravar." },
 };
 
-const SIMULACAO = { label: "Simulação", className: "border-border text-muted-foreground" };
+const SIMULACAO = { label: "Simulação", className: "border-border text-muted-foreground", dica: "Teste do merge sem gravar nada no SVN." };
 
 export function mergeStatus(p: Pick<MergePedido, "status" | "result_json">) {
   if (p.status === "erro" && p.result_json?.simulacao) return SIMULACAO;
-  return MERGE_STATUS[p.status] || { label: p.status, className: "" };
+  return MERGE_STATUS[p.status] || { label: p.status, className: "", dica: undefined };
 }
 
 /** O MergeBridge esta trabalhando no pedido (previa ou merge). */

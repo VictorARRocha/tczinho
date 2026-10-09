@@ -30,12 +30,33 @@ const FileComparatorDialog = lazy(() =>
   import("@/components/FileComparator").then((m) => ({ default: m.FileComparatorDialog }))
 );
 
+// Aba e filtro de falhas ficam na URL (?tab=falhas&filtro=quebra): link compartilhavel,
+// F5 mantem a aba e o Voltar do navegador volta para a aba anterior.
+const TABS = ["resumo", "falhas", "casos", "agrupamentos", "performance", "historico", "comparar"] as const;
+type ModuleTab = (typeof TABS)[number];
+const FILTROS = ["todos", "quebra", "diferenca", "quebra_diferenca"] as const;
+type FalhasFiltro = (typeof FILTROS)[number];
+
 export default function ModulePage() {
   const { slug = "", rodagemSlug } = useParams();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const runParam = searchParams.get("run") || undefined;
   const tabParam = searchParams.get("tab");
+  const activeTab: ModuleTab = (TABS as readonly string[]).includes(tabParam || "") ? (tabParam as ModuleTab) : "resumo";
+  const filtroParam = searchParams.get("filtro");
+  const falhasSubTab: FalhasFiltro = (FILTROS as readonly string[]).includes(filtroParam || "") ? (filtroParam as FalhasFiltro) : "todos";
+  const setParams = (changes: Record<string, string | null>, replace = false) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [k, v] of Object.entries(changes)) {
+        if (v == null) next.delete(k); else next.set(k, v);
+      }
+      return next;
+    }, { replace });
+  };
+  const setActiveTab = (tab: string) => setParams({ tab: tab === "resumo" ? null : tab });
+  const setFalhasSubTab = (filtro: FalhasFiltro) => setParams({ filtro: filtro === "todos" ? null : filtro }, true);
   const [modulo, setModulo] = useState<Modulo | null>(null);
   const [rodagem, setRodagem] = useState<Rodagem | null>(null);
   const [historico, setHistorico] = useState<Rodagem[]>([]);
@@ -46,8 +67,6 @@ export default function ModulePage() {
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [hierarchy, setHierarchy] = useState<TestcaseHierarchyNode[]>([]);
-  const [activeTab, setActiveTab] = useState("resumo");
-  const [falhasSubTab, setFalhasSubTab] = useState<"todos" | "quebra" | "diferenca" | "quebra_diferenca">("todos");
   const [loading, setLoading] = useState(true);
   const [runLoading, setRunLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -160,11 +179,14 @@ export default function ModulePage() {
     }
   };
 
-  const goToRun = (run: Rodagem | null | undefined) => {
+  // Trocar rodagem mantem a aba aberta; abrir pelo Historico vai para o Resumo dela.
+  const goToRun = (run: Rodagem | null | undefined, keepTab = true) => {
     if (!run) return;
-    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}`);
+    const tab = keepTab && activeTab !== "resumo" && activeTab !== "historico" ? `?tab=${activeTab}` : "";
+    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}${tab}`);
   };
   const goToRunId = (id: string) => goToRun(historico.find((r) => r.id === id) || null);
+  const openRunFromHistory = (id: string) => goToRun(historico.find((r) => r.id === id) || null, false);
 
   // Carrega módulo (e rodagem inicial) quando o módulo muda
   useEffect(() => {
@@ -176,14 +198,12 @@ export default function ModulePage() {
     clearRunData();
     setSelectedFalha(null);
     setComparePair(null);
-    setActiveTab("resumo");
     setLoading(true);
     setLoadError(null);
     setNotFound(false);
 
     if (semAcesso) { setLoading(false); return; }
     loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug);
-    if (tabParam === "falhas" || tabParam === "comparar" || tabParam === "casos") setActiveTab(tabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, semAcesso]);
 
@@ -263,8 +283,8 @@ export default function ModulePage() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <Link to="/" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mb-4">
-        <ChevronLeft className="h-3 w-3" /> Visão geral
+      <Link to="/" className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground">
+        <ChevronLeft className="h-4 w-4" /> Visão geral
       </Link>
 
       <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} />
@@ -296,12 +316,12 @@ export default function ModulePage() {
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6 sm:mt-8">
-          <TabsList className="bg-card border border-border max-w-full overflow-x-auto sm:overflow-y-hidden justify-start max-sm:h-auto max-sm:flex-wrap max-sm:overflow-x-visible">
+          <TabsList className="bg-card border border-border max-w-full overflow-x-auto overflow-y-hidden justify-start [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:w-full">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
-            <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">({falhas.length})</span></TabsTrigger>
+            <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">{falhas.length}</span></TabsTrigger>
             <TabsTrigger value="casos">Casos de teste</TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
-            <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">({performance.length})</span>}</TabsTrigger>
+            <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">{performance.length}</span>}</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
             <TabsTrigger value="comparar">Comparar</TabsTrigger>
           </TabsList>
@@ -312,12 +332,12 @@ export default function ModulePage() {
             </div>
           )}
 
-          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => { setFalhasSubTab(sub); setActiveTab("falhas"); }} /></TabsContent>
+          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="casos" className="mt-6"><CasosTab moduloSlug={slug} hierarchy={hierarchy} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
-          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={goToRunId} /></TabsContent>
+          <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>
           <TabsContent value="comparar" className="mt-6"><CompararTab runs={historico} currentRunId={rodagem.id} onOpenFailure={setSelectedFalha} /></TabsContent>
 
         </Tabs>

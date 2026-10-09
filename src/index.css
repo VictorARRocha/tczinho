@@ -27,8 +27,9 @@
     --muted-foreground: 215 18% 72%;
 
 
-    --accent: 264 80% 65%;
-    --accent-foreground: 210 30% 98%;
+    /* superficie neutra de hover/foco (menus, botoes outline/ghost) */
+    --accent: 222 18% 19%;
+    --accent-foreground: 210 35% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -94,8 +95,8 @@
     --muted: 220 18% 94%;
     --muted-foreground: 215 16% 38%;
 
-    --accent: 264 70% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 220 18% 92%;
+    --accent-foreground: 222 35% 12%;
 
     --destructive: 0 78% 52%;
     --destructive-foreground: 0 0% 100%;
@@ -154,6 +155,22 @@
   }
   .font-mono {
     font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
+    color: hsl(var(--foreground));
+  }
+  :focus-visible {
+    outline-color: hsl(var(--ring));
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -162,11 +179,17 @@
     @apply bg-card/80 backdrop-blur-xl border border-border/60;
     box-shadow: var(--shadow-card);
   }
+  /* Legado: o destaque vem de peso/tamanho, nao de degrade. */
   .gradient-text {
-    background: var(--gradient-primary);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: inherit;
+  }
+  .transition-smooth {
+    transition-property: transform, border-color, background-color, box-shadow, opacity;
+    transition-duration: 200ms;
+    transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
+  }
+  .tabular-nums-mono {
+    font-variant-numeric: tabular-nums;
   }
   .glow-primary {
     box-shadow: var(--shadow-glow);
@@ -180,7 +203,7 @@
   .overflow-auto,
   pre {
     scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.35) transparent;
+    scrollbar-color: hsl(var(--muted-foreground) / 0.35) transparent;
   }
   .overflow-x-auto::-webkit-scrollbar,
   .overflow-y-auto::-webkit-scrollbar,
@@ -199,13 +222,13 @@
   .overflow-y-auto::-webkit-scrollbar-thumb,
   .overflow-auto::-webkit-scrollbar-thumb,
   pre::-webkit-scrollbar-thumb {
-    background-color: rgba(0, 0, 0, 0.35);
+    background-color: hsl(var(--muted-foreground) / 0.35);
     border-radius: 9999px;
   }
   .overflow-x-auto::-webkit-scrollbar-thumb:hover,
   .overflow-y-auto::-webkit-scrollbar-thumb:hover,
   .overflow-auto::-webkit-scrollbar-thumb:hover,
   pre::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(0, 0, 0, 0.55);
+    background-color: hsl(var(--muted-foreground) / 0.55);
   }
 }

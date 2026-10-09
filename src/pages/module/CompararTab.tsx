@@ -4,7 +4,6 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Falha, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -15,14 +14,14 @@ import { compareRuns, executedCountsDiffer, orderRuns, type CaseComparison, type
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRunFailures } from "@/services/queries";
 import { failureDescription } from "./caseText";
-import { TipoBadge } from "./common";
+import { Empty, SEM_RESULTADO, TipoBadge } from "./common";
 
 type Filtro = "todos" | CaseStatus | "tipo_mudou";
 
-const STATUS_META: Record<CaseStatus, { label: string; badge: string; card: string }> = {
-  nova: { label: "Nova", badge: "bg-destructive/15 text-destructive border-destructive/40", card: "text-destructive" },
-  persistente: { label: "Persistente", badge: "bg-warning/15 text-warning border-warning/40", card: "text-warning" },
-  resolvida: { label: "Não falhou", badge: "bg-success/15 text-success border-success/40", card: "text-success" },
+const STATUS_META: Record<CaseStatus, { label: string; dot: string; card: string }> = {
+  nova: { label: "Nova", dot: "bg-destructive", card: "text-destructive" },
+  persistente: { label: "Persistente", dot: "bg-warning", card: "text-warning" },
+  resolvida: { label: "Não falhou", dot: "bg-success", card: "text-success" },
 };
 
 function runLabel(r: Rodagem): string {
@@ -98,7 +97,7 @@ export function CompararTab({
 
   if (runs.length < 2) {
     return (
-      <Card className="glass-card p-12 text-center">
+      <Card className="p-12 text-center">
         <GitCompare className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
         <h3 className="text-base font-semibold">É preciso pelo menos duas rodagens para comparar.</h3>
         <p className="text-sm text-muted-foreground mt-1">Este módulo tem apenas uma rodagem registrada.</p>
@@ -117,7 +116,7 @@ export function CompararTab({
 
   return (
     <div className="space-y-4">
-      <Card className="glass-card p-4 space-y-3">
+      <Card className="p-3 sm:p-4 space-y-3">
         <div className="grid gap-3 md:grid-cols-[1fr_auto_1fr] md:items-end">
           <RunSelect label="De" value={deId} runs={runs} onChange={(id) => setRun("de", id)} />
           <ArrowRight className="hidden md:block h-4 w-4 mb-3 text-muted-foreground" />
@@ -131,9 +130,9 @@ export function CompararTab({
       </Card>
 
       {mesmaRodagem ? (
-        <Card className="glass-card p-10 text-center text-sm text-muted-foreground">Escolha duas rodagens diferentes.</Card>
+        <Card className="p-10 text-center text-sm text-muted-foreground">Escolha duas rodagens diferentes.</Card>
       ) : carregando || !comparacao ? (
-        <Card className="glass-card p-10 text-center text-sm text-muted-foreground">
+        <Card className="p-10 text-center text-sm text-muted-foreground">
           <RefreshCw className="h-4 w-4 animate-spin inline mr-2" /> Comparando rodagens...
         </Card>
       ) : (
@@ -153,26 +152,34 @@ export function CompararTab({
               <button
                 key={c.id}
                 type="button"
-                title={c.dica}
+                title={`${c.dica} Clique para filtrar a lista.`}
+                aria-pressed={filtro === c.id}
                 onClick={() => setFiltro((atual) => (atual === c.id ? "todos" : c.id))}
-                className={`text-left rounded-xl border p-4 transition-colors glass-card ${filtro === c.id ? "border-primary ring-1 ring-primary/40" : "border-border hover:border-primary/40"}`}
+                className={`text-left rounded-lg border bg-card p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${filtro === c.id ? "border-primary ring-1 ring-primary/40" : "border-border hover:border-primary/40"}`}
               >
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.label}</div>
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>{c.label}</span>
+                  <span className={filtro === c.id ? "text-primary" : "opacity-0"}>Filtrando</span>
+                </div>
                 <div className={`text-2xl font-bold font-mono mt-1 ${c.tom}`}>{c.valor}</div>
               </button>
             ))}
           </div>
 
-          <Card className="glass-card p-3">
+          <Card className="p-3">
             <div className="flex items-center gap-2 flex-wrap">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Buscar por ID, nome do caso ou mensagem de erro..."
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
-                className="bg-background flex-1 min-w-[220px] max-sm:min-w-0"
-              />
+              <div className="relative min-w-0 flex-1 basis-full sm:basis-auto">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  aria-label="Buscar casos"
+                  placeholder="Buscar por ID, nome ou erro"
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Escape") setQ(""); }}
+                  className="bg-background pl-9"
+                />
+              </div>
               <span className="text-xs text-muted-foreground">
                 {visiveis.length} de {comparacao.itens.length} casos
               </span>
@@ -183,11 +190,11 @@ export function CompararTab({
           </Card>
 
           {comparacao.itens.length === 0 ? (
-            <Card className="glass-card p-10 text-center text-sm text-muted-foreground">Nenhuma das duas rodagens tem falhas.</Card>
+            <Card className="p-10 text-center text-sm text-muted-foreground">Nenhuma das duas rodagens tem falhas.</Card>
           ) : visiveis.length === 0 ? (
-            <Card className="glass-card p-10 text-center text-sm text-muted-foreground">Nenhum caso para o filtro aplicado.</Card>
+            <Card><Empty text={SEM_RESULTADO} onClear={() => { setQ(""); setFiltro("todos"); }} /></Card>
           ) : (
-            <Card className="glass-card divide-y divide-border/60 overflow-hidden">
+            <Card className="divide-y divide-border/60 overflow-hidden">
               {visiveis.map((item) => (
                 <CaseRow key={item.key} item={item} onOpenFailure={onOpenFailure} />
               ))}
@@ -202,7 +209,7 @@ export function CompararTab({
 function RunSelect({ label, value, runs, onChange }: { label: string; value: string | undefined; runs: Rodagem[]; onChange: (id: string) => void }) {
   return (
     <div className="space-y-1 min-w-0">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="bg-background max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2" aria-label={`Rodagem ${label}`}>
           <SelectValue placeholder="Escolha a rodagem" />
@@ -232,20 +239,22 @@ function CaseRow({ item, onOpenFailure }: { item: CaseComparison; onOpenFailure:
       onClick={() => referencia && onOpenFailure(referencia)}
       onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && referencia) { e.preventDefault(); onOpenFailure(referencia); } }}
     >
-      <div className="flex items-center gap-2 shrink-0 md:w-56">
-        <Badge variant="outline" className={`text-[10px] uppercase tracking-wide ${meta.badge}`}>{meta.label}</Badge>
-        {item.caseId && <Badge variant="outline" className="font-mono text-[11px]">#{item.caseId}</Badge>}
-        {ocorrencias > 1 && <span className="text-[10px] text-muted-foreground">{ocorrencias}x</span>}
+      <div className="flex items-center gap-3 shrink-0 md:w-48">
+        <span className="inline-flex w-24 items-center gap-1.5 text-xs text-foreground/85">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`} aria-hidden />{meta.label}
+        </span>
+        {item.caseId && <span className="font-mono text-xs text-muted-foreground">{item.caseId}</span>}
+        {ocorrencias > 1 && <span className="text-xs text-muted-foreground">{ocorrencias}x</span>}
       </div>
       <div className="min-w-0 flex-1">
-        <div className="text-sm font-medium truncate">{item.nome || "Caso sem nome no MDS"}</div>
+        <div className="text-sm font-medium md:truncate" title={item.nome || undefined}>{item.nome || "Caso sem nome no MDS"}</div>
         {/* Sem mensagem de erro, a descricao cai no proprio nome do caso: nao repete. */}
-        {resumo && resumo !== item.nome && <div className="text-xs text-muted-foreground line-clamp-1">{resumo}</div>}
+        {resumo && resumo !== item.nome && <div className="text-xs text-muted-foreground line-clamp-1" title={resumo}>{resumo}</div>}
       </div>
       <div className="flex items-center gap-1.5 shrink-0">
-        {item.tipoAntes ? <TipoBadge tipo={item.tipoAntes} /> : <span className="text-[10px] text-muted-foreground">sem falha</span>}
-        <ArrowRight className={`h-3 w-3 ${item.tipoMudou ? "text-primary" : "text-muted-foreground"}`} />
-        {item.tipoDepois ? <TipoBadge tipo={item.tipoDepois} /> : <span className="text-[10px] text-muted-foreground">sem falha</span>}
+        {item.tipoAntes ? <TipoBadge tipo={item.tipoAntes} /> : <span className="text-xs text-muted-foreground">sem falha</span>}
+        <ArrowRight className={`h-3 w-3 ${item.tipoMudou ? "text-primary" : "text-muted-foreground"}`} aria-label="virou" />
+        {item.tipoDepois ? <TipoBadge tipo={item.tipoDepois} /> : <span className="text-xs text-muted-foreground">sem falha</span>}
       </div>
     </div>
   );

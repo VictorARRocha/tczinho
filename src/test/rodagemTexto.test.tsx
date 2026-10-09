@@ -10,8 +10,8 @@ describe("texto da rodagem", () => {
       "PROXIMA1.26.10.0": "Próxima 10.0",
       "PROXIMA1.26.9.99": "Próxima 9.99",
       "PROXIMA": "Próxima",
-      "CONTABIL_DERE": "Contabil Dere",
-      "FOLHA_SUSTENTACAO_2026": "Folha Sustentacao 2026",
+      "CONTABIL_DERE": "Contábil Dere",
+      "FOLHA_SUSTENTACAO_2026": "Folha Sustentação 2026",
       "CLIENTES": "Clientes",
       "PRE-CLIENTES": "Pre-clientes",
       "8.05z": "8.05z",
@@ -35,7 +35,7 @@ describe("texto da rodagem", () => {
     fireEvent.click(screen.getByRole("button", { name: /Trocar rodagem/ }));
     const [primeira, segunda] = screen.getAllByRole("button").filter((b) => b.textContent?.includes("VM:"));
     expect(primeira).toHaveTextContent("VM: A08");
-    expect(primeira).toHaveTextContent("Versão: Contabil Dere");
+    expect(primeira).toHaveTextContent("Versão: Contábil Dere");
     expect(primeira).toHaveTextContent("6 falhas");
     expect(within(segunda).getByText("Próxima 10.0")).toBeInTheDocument();
     expect(segunda).toHaveTextContent("1 falha");

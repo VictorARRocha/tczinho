@@ -27,7 +27,7 @@ export function HistoryClearControls({
         onClick={onClear}
         title="Oculta as solicitações finalizadas só neste navegador. Nada é apagado do servidor."
       >
-        <Eraser className="h-3.5 w-3.5 mr-1" /> Limpar
+        <Eraser className="h-3.5 w-3.5 mr-1" /> Ocultar finalizadas
       </Button>
     </div>
   );

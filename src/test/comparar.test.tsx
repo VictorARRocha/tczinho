@@ -151,14 +151,14 @@ describe("aba Falhas", () => {
   it("busca pela mensagem de erro mesmo sem nome correspondente na hierarquia", async () => {
     renderFalhas();
     // Arvore comeca recolhida (comportamento original).
-    expect(screen.queryByText("#3.1.1")).toBeNull();
+    expect(screen.queryByText("[3.1.1]")).toBeNull();
 
     fireEvent.change(screen.getByPlaceholderText(/Buscar por ID/), { target: { value: "btnSalvar" } });
     await vi.advanceTimersByTimeAsync(300);
 
     expect(screen.getByText("Mostrando 1 de 3 falhas")).toBeInTheDocument();
-    expect(await screen.findByText("#3.1.1")).toBeInTheDocument();
-    expect(screen.queryByText("#3.1.2")).toBeNull();
+    expect(await screen.findByText("[3.1.1]")).toBeInTheDocument();
+    expect(screen.queryByText("[3.1.2]")).toBeNull();
   });
 
   it("alterna para lista e lembra a escolha", () => {

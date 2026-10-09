@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/collapsible";
 import {
   Copy,
+  ChevronLeft,
   ChevronDown,
   PlayCircle,
   RefreshCw,
@@ -65,11 +66,11 @@ const STATUS_META: Record<string, { label: string; className: string }> = {
 
 function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
   if (tipo === "quebra")
-    return <Badge variant="outline" className="border-red-500/40 text-red-400">Quebra</Badge>;
+    return <Badge variant="outline" className="border-destructive/40 text-destructive">Quebra</Badge>;
   if (tipo === "diferenca")
-    return <Badge variant="outline" className="border-amber-500/40 text-amber-400">Diferença</Badge>;
+    return <Badge variant="outline" className="border-warning/40 text-warning">Diferença</Badge>;
   if (tipo === "quebra_diferenca")
-    return <Badge variant="outline" className="border-purple-500/40 text-purple-400">Quebra com diferença</Badge>;
+    return <Badge variant="outline" className="border-fuchsia-500/40 text-fuchsia-600 dark:text-fuchsia-400">Quebra + diferença</Badge>;
   return <Badge variant="outline">—</Badge>;
 }
 
@@ -285,30 +286,24 @@ export default function ReexecutarTestes() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
-          <PlayCircle className="h-3 w-3" />
-          Reexecutar Testes
-        </div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-          Solicitar nova execução no <span className="gradient-text">Jenkins</span>
-        </h1>
+      <Link to="/jenkins" className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground">
+        <ChevronLeft className="h-4 w-4" /> Jenkins
+      </Link>
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Reexecutar rodagens</h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-          Selecione uma rodagem analisada, marque os casos quebrados ou com diferença e crie uma
-          solicitação.
+          Escolha uma rodagem já analisada, marque os casos que quebraram ou deram diferença e peça ao Jenkins para rodar de novo.
         </p>
       </div>
 
       {/* Seletor de rodagem */}
-      <Card className="glass-card p-4 sm:p-5 mb-5">
+      <Card className="p-4 sm:p-5 mb-5">
         <div className="mb-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Rodagem
-          </h2>
+          <h2 className="text-base font-semibold">1. Rodagem</h2>
         </div>
         <div className="grid gap-3 sm:grid-cols-3 mb-3">
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">VM</label>
+            <label className="mb-1.5 block text-sm font-medium">VM</label>
             <Select value={fVm} onValueChange={setFVm}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -318,7 +313,7 @@ export default function ReexecutarTestes() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Módulo</label>
+            <label className="mb-1.5 block text-sm font-medium">Módulo</label>
             <Select value={fModulo} onValueChange={setFModulo}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -328,7 +323,7 @@ export default function ReexecutarTestes() {
             </Select>
           </div>
           <div>
-            <label className="text-[10px] uppercase tracking-wider text-muted-foreground">Versão</label>
+            <label className="mb-1.5 block text-sm font-medium">Versão</label>
             <Select value={fVersao} onValueChange={setFVersao}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -362,14 +357,25 @@ export default function ReexecutarTestes() {
 
         {selectedRun && (
           <>
-            <div className="mt-3 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Caminho de logs</div>
-              <div
-                className="text-sm font-mono whitespace-nowrap overflow-x-auto"
-                title={selectedRun.caminho_logs || "—"}
-              >
-                {selectedRun.caminho_logs || "—"}
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-muted-foreground mb-1">Caminho dos logs</div>
+                <div className="break-all text-sm font-mono" title={selectedRun.caminho_logs || "—"}>
+                  {selectedRun.caminho_logs || "—"}
+                </div>
               </div>
+              {selectedRun.caminho_logs && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 shrink-0"
+                  aria-label="Copiar caminho dos logs"
+                  title="Copiar"
+                  onClick={() => { navigator.clipboard.writeText(selectedRun.caminho_logs || ""); toast.success("Caminho copiado"); }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
             {(selectedRun.modulo_slug || selectedRun.sistema) && (
               <div className="mt-4">
@@ -395,37 +401,41 @@ export default function ReexecutarTestes() {
           />
           <label htmlFor="restaurar-base" className="cursor-pointer select-none">
             <div className="text-sm font-medium">Restaurar base</div>
-            <div className="text-[11px] text-muted-foreground">
-              Quando habilitado, adiciona <code className="text-xs">[0.4]</code> e{" "}
-              <code className="text-xs">[0.5]</code> ao campo <code className="text-xs">casos_teste</code>.
+            <div className="text-xs text-muted-foreground">
+              Volta a base de dados antes de rodar (inclui as rotinas <code className="font-mono">[0.4]</code> e{" "}
+              <code className="font-mono">[0.5]</code>).
             </div>
           </label>
         </div>
       </Card>
 
       {/* Filtros */}
-      <Card className="glass-card p-4 sm:p-5 mb-5">
+      <Card className="p-4 sm:p-5 mb-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-semibold">2. Casos para rodar de novo</h2>
+          <span className="text-sm text-muted-foreground">
+            <span className="font-mono text-foreground">{casosSelecionados.length}</span> de {casos.length} marcados
+          </span>
+        </div>
         <div className="flex flex-wrap gap-2 items-center">
           <Button size="sm" variant="outline" onClick={() => toggleAll(true)}>Marcar todos</Button>
           <Button size="sm" variant="outline" onClick={() => toggleAll(false)}>Desmarcar todos</Button>
           <span className="w-px h-5 bg-border mx-1 max-sm:hidden" />
-          <Button size="sm" variant="outline" onClick={() => toggleByTipo("diferenca")}>
-            <GitCompare className="h-3.5 w-3.5 mr-1" /> Apenas diferenças
-          </Button>
+          <span className="text-xs text-muted-foreground max-sm:w-full">Marcar só:</span>
           <Button size="sm" variant="outline" onClick={() => toggleByTipo("quebra")}>
-            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Apenas quebras
+            <AlertTriangle className="h-3.5 w-3.5 mr-1" /> Quebras
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => toggleByTipo("diferenca")}>
+            <GitCompare className="h-3.5 w-3.5 mr-1" /> Diferenças
           </Button>
           <Button size="sm" variant="outline" onClick={() => toggleByTipo("quebra_diferenca")}>
-            <Layers className="h-3.5 w-3.5 mr-1" /> Quebra com diferença
+            <Layers className="h-3.5 w-3.5 mr-1" /> Quebra + diferença
           </Button>
-          <div className="ml-auto text-xs text-muted-foreground">
-            {casosSelecionados.length} selecionado(s) de {casos.length}
-          </div>
         </div>
       </Card>
 
       {/* Tabela de casos (cartoes no celular) */}
-      <Card className="glass-card mb-5 overflow-hidden">
+      <Card className="mb-5 overflow-hidden">
         {isMobile ? (
           <>
             <div className="flex items-center gap-2 border-b border-border/60 p-3">
@@ -526,20 +536,24 @@ export default function ReexecutarTestes() {
       </Card>
 
       {/* Rodapé: preview + botão */}
-      <Card className="glass-card p-4 sm:p-5 mb-8">
+      <Card className="p-4 sm:p-5 mb-8">
         <div className="flex flex-wrap items-center gap-3">
           <Button
             size="lg"
             onClick={handleSubmit}
             disabled={!canSubmit || submitting || !podeSolicitar}
-            className="bg-gradient-primary max-sm:w-full"
+            className="max-sm:w-full"
           >
             <PlayCircle className="h-4 w-4 mr-2" />
-            {submitting ? "Enviando…" : "Rodar novamente"}
+            {submitting ? "Enviando…" : casosSelecionados.length > 0 ? `Rodar ${casosSelecionados.length} ${casosSelecionados.length === 1 ? "caso" : "casos"} de novo` : "Rodar novamente"}
           </Button>
           {!podeSolicitar && <SemPermissao permissao="rodagem" className="w-full" />}
-          <div className="text-xs text-muted-foreground">
-            Cria um registro em <code>rerun_requests</code> com status <strong>solicitado</strong>.
+          <div className="text-sm text-muted-foreground">
+            {!selectedRun
+              ? "Escolha uma rodagem acima."
+              : casosSelecionados.length === 0
+                ? "Marque pelo menos um caso para rodar de novo."
+                : "O pedido vai para a fila do Jenkins e aparece no histórico abaixo."}
           </div>
         </div>
 
@@ -547,7 +561,7 @@ export default function ReexecutarTestes() {
           <CollapsibleTrigger asChild>
             <Button variant="ghost" size="sm">
               <ChevronDown className={`h-3.5 w-3.5 mr-1 transition-transform ${previewOpen ? "rotate-180" : ""}`} />
-              Preview do CONFIG_JSON
+              Configuração técnica enviada
             </Button>
           </CollapsibleTrigger>
           <CollapsibleContent>
@@ -575,7 +589,7 @@ export default function ReexecutarTestes() {
           />
         </div>
         <CollapsibleContent>
-          <Card className="glass-card overflow-hidden">
+          <Card className="overflow-hidden">
             {isMobile ? (
               history.length === 0 ? (
                 <p className="py-8 text-center text-sm text-muted-foreground">
@@ -683,7 +697,7 @@ export default function ReexecutarTestes() {
 function Info({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="rounded-lg border border-border/60 bg-secondary/30 px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-xs text-muted-foreground">{label}</div>
       <div className={`text-sm truncate ${mono ? "font-mono" : ""}`} title={value}>{value}</div>
     </div>
   );

@@ -10,22 +10,21 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { formatDateTime, getHealthStatus } from "@/lib/format";
-import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
+import { formatarSistema, formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { isMeaningful } from "./common";
 
 export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const fields: { label: string; value: ReactNode }[] = rodagem ? [
-    { label: "Sistema", value: rodagem.sistema },
+    { label: "Sistema", value: formatarSistema(rodagem.sistema) },
     { label: "Branch", value: rodagem.branch },
     { label: "Versão", value: formatarVersao(rodagem.versao_sistema) },
     { label: "Data", value: formatDateTime(rodagem.data_analise) },
   ].filter((f) => isMeaningful(f.value)) : [];
   return (
-    <Card className="glass-card p-4 sm:p-6 lg:p-8 relative overflow-hidden">
-      <div className="absolute -top-20 -right-20 h-60 w-60 rounded-full bg-gradient-primary opacity-10 blur-3xl" />
-      <div className="flex flex-col lg:flex-row lg:items-start gap-6 justify-between relative">
+    <Card className="p-4 sm:p-6">
+      <div className="flex flex-col lg:flex-row lg:items-start gap-6 justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{modulo?.nome || "Módulo"}</h1>
@@ -47,7 +46,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[420px] p-0 max-sm:w-[calc(100vw-2rem)]" align="start">
-                  <div className="px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground">
                     {runs.length} rodagens disponíveis
                   </div>
                   <div className="max-h-80 overflow-auto">
@@ -82,7 +81,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
           {fields.length > 0 && (
             <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-muted-foreground">
               {fields.map((f) => (
-                <span key={f.label}><strong className="text-foreground/80">{f.label}:</strong> {f.value}</span>
+                <span key={f.label}>{f.label} <span className="font-medium text-foreground/90">{f.value}</span></span>
               ))}
             </div>
           )}
@@ -90,8 +89,8 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
         {rodagem?.score_saude != null && (
           <div className="flex items-center gap-3">
             <div className="text-right">
-              <div className="text-4xl font-bold gradient-text">{rodagem.score_saude}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Score de saúde</div>
+              <div className="text-4xl font-bold font-mono">{rodagem.score_saude}</div>
+              <div className="text-xs text-muted-foreground">Score de saúde</div>
             </div>
           </div>
         )}

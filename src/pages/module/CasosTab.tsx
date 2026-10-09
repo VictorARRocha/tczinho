@@ -1,7 +1,7 @@
 // Aba Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, o que falhou na rodagem aberta
 // e os casos marcados aqui como desativados (so visual: o nome fica riscado).
 import { createContext, useContext, useMemo, useState } from "react";
-import { Check, ChevronRight, Copy, ExternalLink, FolderClosed, FolderOpen, Search, X } from "lucide-react";
+import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, ExternalLink, FolderClosed, FolderOpen, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { desativarCaso, reativarCaso, type CasoDesativado, type TestcaseHierarchyNode } from "@/services/data";
 import { invalidateCasosDesativados, useCasosDesativados } from "@/services/queries";
@@ -16,7 +16,7 @@ import { formatDateTime } from "@/lib/format";
 import { modulosDosCasos } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
 import { extractCaseIdParts } from "./FalhasTab";
-import { Empty } from "./common";
+import { Empty, SEM_RESULTADO } from "./common";
 
 const MAX_RESULTADOS = 200;
 const MAX_MOTIVO = 300;
@@ -215,32 +215,35 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
   });
   const expandirTudo = () => {
     const ids = new Set<string>();
-    const visitar = (n: No) => { if (n.grupo) { ids.add(n.id); n.filhos.forEach(visitar); } };
+    // Pastas sem nenhum caso dentro nao abrem (nao ha o que mostrar).
+    const visitar = (n: No) => { if (n.grupo && n.casos > 0) { ids.add(n.id); n.filhos.forEach(visitar); } };
     arvore.forEach(visitar);
     setAbertos(ids);
   };
   const alternarFiltro = (f: "falhas" | "desativados") => setFiltro((atual) => (atual === f ? "" : f));
+  const algumAberto = abertos.size > 0;
 
   return (
     <AcoesCtx.Provider value={acoes}>
       <div className="space-y-4">
-        <Card className="glass-card p-4 space-y-3">
+        <Card className="p-3 sm:p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <span><strong>{casos.length.toLocaleString("pt-BR")}</strong> <span className="text-muted-foreground">casos de teste</span></span>
+            <span><strong>{casos.length.toLocaleString("pt-BR")}</strong> <span className="text-muted-foreground">casos cadastrados no módulo</span></span>
             {totalFalhas > 0 && (
-              <span className="text-red-500"><strong>{totalFalhas}</strong> com falha nesta rodagem</span>
+              <span className="text-destructive"><strong>{totalFalhas}</strong> com falha nesta rodagem</span>
             )}
             {totalDesativados > 0 && (
               <span className="text-muted-foreground"><strong>{totalDesativados}</strong> {totalDesativados === 1 ? "desativado" : "desativados"}</span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[220px]">
+            <div className="relative w-full min-w-0 sm:w-auto sm:flex-1 sm:min-w-[220px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por número (2.1.3), nome, descrição ou chamado"
+                placeholder="Buscar por número, nome ou chamado"
+                title="Ex.: 2.1.3, parte do nome, da descrição ou o número do chamado"
                 aria-label="Buscar casos de teste"
                 className="pl-9 pr-9"
               />
@@ -261,19 +264,23 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
                 Só os desativados
               </Button>
             )}
-            {!filtrando && (
-              <>
-                <Button size="sm" variant="ghost" onClick={expandirTudo}>Expandir tudo</Button>
-                <Button size="sm" variant="ghost" onClick={() => setAbertos(new Set())}>Recolher</Button>
-              </>
-            )}
+            {/* Com busca/filtro a lista e plana: o botao fica, desabilitado, para a barra nao pular. */}
+            <Button
+              size="sm"
+              variant="outline"
+              className="sm:ml-auto"
+              disabled={filtrando}
+              onClick={algumAberto ? () => setAbertos(new Set()) : expandirTudo}
+            >
+              {algumAberto ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Recolher tudo</> : <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir tudo</>}
+            </Button>
           </div>
         </Card>
 
-        <Card className="glass-card overflow-hidden">
+        <Card className="overflow-hidden">
           {filtrando ? (
             resultados.length === 0 ? (
-              <p className="p-8 text-center text-sm text-muted-foreground">Nenhum caso encontrado.</p>
+              <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setFiltro(""); }} />
             ) : (
               <>
                 <ul className="divide-y divide-border/60" aria-label="Casos encontrados">
@@ -302,6 +309,24 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
 function Ramo({ no, nivel, abertos, onToggle }: { no: No; nivel: number; abertos: Set<string>; onToggle: (id: string) => void }) {
   const recuo = { paddingLeft: `${12 + nivel * 18}px` };
   if (!no.grupo) return <li style={recuo}><LinhaCaso no={no} /></li>;
+  // Pasta sem nenhum caso dentro: sem seta e sem abrir/fechar, so mostra que esta vazia.
+  if (no.casos === 0) {
+    return (
+      <li>
+        <div style={recuo} className="flex w-full items-start gap-2 py-2 pr-3 text-left" title="Pasta sem casos de teste">
+          <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+          <FolderClosed className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
+          <span className="min-w-0 flex-1">
+            <span className="font-mono text-xs text-muted-foreground mr-2">[{no.id}]</span>
+            <span className="text-sm font-medium text-muted-foreground">{no.nome}</span>
+            {no.descricao && <span className="block text-xs text-muted-foreground line-clamp-1">{no.descricao}</span>}
+            <Contagens no={no} className="mt-1 sm:hidden" />
+          </span>
+          <Contagens no={no} className="hidden sm:flex shrink-0" />
+        </div>
+      </li>
+    );
+  }
   const aberto = abertos.has(no.id);
   const Pasta = aberto ? FolderOpen : FolderClosed;
   return (
@@ -336,8 +361,8 @@ function Ramo({ no, nivel, abertos, onToggle }: { no: No; nivel: number; abertos
 function Contagens({ no, className }: { no: No; className?: string }) {
   return (
     <span className={cn("flex items-center gap-1.5 text-xs", className)}>
-      {no.falhas > 0 && <span className="rounded-full bg-red-500/15 px-2 py-0.5 font-medium text-red-500">{no.falhas} com falha</span>}
-      <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
+      {no.falhas > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive">{no.falhas} com falha</span>}
+      <span className="px-1 text-muted-foreground tabular-nums">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
     </span>
   );
 }
@@ -352,7 +377,7 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
   const longa = descricao.length > 160;
   return (
     <div className={cn("group flex items-start gap-2 py-2 pr-3", mostrarCaminho && "px-4 py-3")}>
-      <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", no.falhas ? "bg-red-500" : "bg-muted-foreground/50")} aria-hidden />
+      <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", no.falhas ? "bg-destructive" : "bg-muted-foreground/50")} aria-hidden />
       <div className="min-w-0 flex-1">
         {mostrarCaminho && no.caminho.length > 0 && (
           <div className="text-[11px] text-muted-foreground truncate">{no.caminho.join(" › ")}</div>
@@ -388,7 +413,7 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
       </div>
       <div className="flex shrink-0 items-center gap-1">
         {no.falhas > 0 && (
-          <Button size="sm" variant="ghost" className="h-7 px-2 text-xs text-red-500 hover:text-red-500" onClick={() => acoes.abrirFalha(no)}>
+          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-destructive hover:text-destructive" onClick={() => acoes.abrirFalha(no)}>
             Falhou · ver
           </Button>
         )}

@@ -4,6 +4,8 @@ import { MemoryRouter } from "react-router-dom";
 import type { Evidencia, Falha } from "@/types/db";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// A pagina do Jenkins mostra as execucoes recentes; aqui so interessam os atalhos.
+vi.mock("@/components/JenkinsHistory", () => ({ JenkinsHistory: () => null }));
 
 import { FailureDetailSheet } from "@/components/FailureDetailSheet";
 import JenkinsHome from "@/pages/JenkinsHome";

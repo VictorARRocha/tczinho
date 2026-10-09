@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { authApi } from "@/services/authApi";
 import type { AppUserProfile } from "@/services/authApi";
@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw, SlidersHorizontal } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw, SlidersHorizontal, Search, Check } from "lucide-react";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { MODULOS_ACESSO, PERMISSOES, TODOS_MODULOS, nomeModulo, type Permissao } from "@/lib/permissoes";
 
@@ -41,14 +42,22 @@ export default function AdminUsuarios() {
   const [rejectFor, setRejectFor] = useState<AppUserRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [edicao, setEdicao] = useState<Edicao | null>(null);
+  const [desativarFor, setDesativarFor] = useState<AppUserRow | null>(null);
+  const [busca, setBusca] = useState("");
+  const primeiraCarga = useRef(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const { users } = await authApi.users();
       setUsers(users ?? []);
+      // Sem cadastro pendente, abre direto nos aprovados (em vez de uma lista vazia).
+      if (primeiraCarga.current) {
+        primeiraCarga.current = false;
+        if (!(users ?? []).some((u) => u.status === "pending")) setTab("approved");
+      }
     } catch (error) {
-      toast.error("Erro ao carregar usuarios", { description: errorMessage(error, "Falha ao carregar usuarios.") });
+      toast.error("Erro ao carregar usuários", { description: errorMessage(error, "Falha ao carregar usuários.") });
     } finally {
       setLoading(false);
     }
@@ -66,21 +75,21 @@ export default function AdminUsuarios() {
       await load();
       return true;
     } catch (error) {
-      toast.error("Falha", { description: errorMessage(error, "Falha ao atualizar usuario.") });
+      toast.error("Não foi possível salvar", { description: errorMessage(error, "Falha ao atualizar usuário.") });
       return false;
     }
   }
 
   async function reject(u: AppUserRow, reason: string) {
-    await updateUser(u, { status: "rejected", rejection_reason: reason }, "Usuario rejeitado");
+    await updateUser(u, { status: "rejected", rejection_reason: reason }, "Cadastro rejeitado");
   }
 
   async function disable(u: AppUserRow) {
-    await updateUser(u, { status: "disabled" });
+    await updateUser(u, { status: "disabled" }, `${u.username} desativado`);
   }
 
   async function reactivate(u: AppUserRow) {
-    await updateUser(u, { status: "approved" });
+    await updateUser(u, { status: "approved" }, `${u.username} reativado`);
   }
 
   async function toggleRole(u: AppUserRow) {
@@ -88,18 +97,23 @@ export default function AdminUsuarios() {
     return updateUser(u, { role: newRole });
   }
 
-  const filtered = useMemo(() => users.filter((u) => u.status === tab), [users, tab]);
+  const termo = busca.trim().toLowerCase();
+  const filtered = useMemo(
+    () => users.filter((u) => u.status === tab && (!termo || `${u.username} ${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(termo))),
+    [users, tab, termo],
+  );
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 space-y-6 animate-fade-in">
       <div>
-        <h1 className="font-display text-2xl font-bold">Usuarios</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Usuários</h1>
+        <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
           Aprove cadastros e escolha o que cada pessoa pode fazer e em quais módulos. Ver rodagens todos podem; o administrador pode tudo.
         </p>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as AppUserRow["status"])}>
+        <div className="flex flex-wrap items-center gap-3">
         <TabsList className="max-sm:h-auto max-sm:flex-wrap max-sm:justify-start">
           {(["pending", "approved", "rejected", "disabled"] as const).map((s) => (
             <TabsTrigger key={s} value={s}>
@@ -107,30 +121,37 @@ export default function AdminUsuarios() {
             </TabsTrigger>
           ))}
         </TabsList>
+        {users.length > 8 && (
+          <div className="relative w-full sm:ml-auto sm:w-72">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input type="search" aria-label="Buscar usuário" placeholder="Buscar por nome, login ou e-mail" value={busca} onChange={(e) => setBusca(e.target.value)} className="pl-9" />
+          </div>
+        )}
+        </div>
 
         {(["pending", "approved", "rejected", "disabled"] as const).map((s) => (
           <TabsContent key={s} value={s} className="space-y-2 mt-4">
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>
             ) : filtered.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum usuario.</p>
+              <p className="py-6 text-sm text-muted-foreground">{termo ? "Ninguém encontrado com essa busca." : `Nenhum usuário ${STATUS_LABEL[s].toLowerCase()}.`}</p>
             ) : (
               filtered.map((u) => (
-                <Card key={u.id} aria-label={`Usuário ${u.username}`} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <Card key={u.id} aria-label={`Usuário ${u.username}`} className="flex flex-wrap items-center gap-3 px-4 py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto]">
                   <div className="min-w-[180px] flex-1">
-                    <div className="text-sm font-semibold">
-                      <span className="font-mono">{u.username}</span>
-                      {u.role === "admin" && <Badge className="ml-2" variant="default">admin</Badge>}
+                    <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                      <span>{u.username}</span>
+                      {u.role === "admin" && <Badge variant="outline" className="border-primary/40 text-primary">admin</Badge>}
+                      {u.id === profile?.id && <Badge variant="secondary">você</Badge>}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {u.first_name} {u.last_name} - {u.email}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{u.first_name} {u.last_name}</p>
+                    <p className="text-xs text-muted-foreground break-all">{u.email}</p>
                     {u.status === "rejected" && u.rejection_reason && (
                       <p className="text-xs text-muted-foreground mt-0.5">Motivo: {u.rejection_reason}</p>
                     )}
                   </div>
-                  {(u.status === "approved" || u.status === "pending") && <ResumoAcesso user={u} />}
-                  <div className="flex flex-wrap gap-2">
+                  {(u.status === "approved" || u.status === "pending") ? <ResumoAcesso user={u} /> : <div className="hidden lg:block" />}
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
                     {u.status === "pending" && (
                       <>
                         <Button size="sm" onClick={() => setEdicao({ user: u, modo: "aprovar" })}><UserCheck className="h-4 w-4 mr-1" />Revisar e aprovar</Button>
@@ -140,13 +161,20 @@ export default function AdminUsuarios() {
                     {u.status === "approved" && (
                       <>
                         {u.role === "admin" ? (
-                          <Button size="sm" variant="outline" onClick={() => toggleRole(u)}><ShieldOff className="h-4 w-4 mr-1" />Remover admin</Button>
+                          // Ninguem tira o proprio admin por engano (ficaria sem acesso a esta tela).
+                          u.id !== profile?.id && (
+                            <Button size="sm" variant="outline" onClick={() => toggleRole(u)}><ShieldOff className="h-4 w-4 mr-1" />Remover admin</Button>
+                          )
                         ) : (
                           <Button size="sm" variant="outline" onClick={() => setEdicao({ user: u, modo: "editar" })}>
                             <SlidersHorizontal className="h-4 w-4 mr-1" />Editar acesso
                           </Button>
                         )}
-                        <Button size="sm" variant="destructive" onClick={() => disable(u)}><Ban className="h-4 w-4 mr-1" />Desativar</Button>
+                        {u.id !== profile?.id && (
+                          <Button size="sm" variant="ghost" className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDesativarFor(u)}>
+                            <Ban className="h-4 w-4 mr-1" />Desativar
+                          </Button>
+                        )}
                       </>
                     )}
                     {(u.status === "rejected" || u.status === "disabled") && (
@@ -181,8 +209,21 @@ export default function AdminUsuarios() {
         />
       )}
 
-      <Dialog open={!!rejectFor} onOpenChange={(open) => !open && setRejectFor(null)}>
+      <Dialog open={!!desativarFor} onOpenChange={(open) => !open && setDesativarFor(null)}>
         <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Desativar {desativarFor?.username}?</DialogTitle>
+            <DialogDescription>A pessoa perde o acesso ao dashboard. Dá para reativar depois na aba Desativado.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDesativarFor(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => { if (desativarFor) { disable(desativarFor); setDesativarFor(null); } }}>Desativar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!rejectFor} onOpenChange={(open) => !open && setRejectFor(null)}>
+        <DialogContent aria-describedby={undefined}>
           <DialogHeader><DialogTitle>Rejeitar {rejectFor?.username}</DialogTitle></DialogHeader>
           <Textarea placeholder="Motivo (opcional)" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} />
           <DialogFooter>
@@ -201,7 +242,7 @@ function Etiqueta({ children, tom = "neutro" }: { children: React.ReactNode; tom
   return (
     <span
       className={cn(
-        "rounded-full border px-2 py-0.5 text-[11px]",
+        "rounded-full border px-2 py-0.5 text-xs",
         tom === "neutro" && "border-border bg-secondary/60",
         tom === "acao" && "border-primary/40 bg-primary/10 text-primary",
         tom === "todos" && "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
@@ -215,18 +256,25 @@ function Etiqueta({ children, tom = "neutro" }: { children: React.ReactNode; tom
 
 function ResumoAcesso({ user }: { user: AppUserRow }) {
   if (user.role === "admin") {
-    return <div className="flex-[2] min-w-[240px]"><Etiqueta tom="todos">Administrador: pode tudo</Etiqueta></div>;
+    return (
+      <div className="flex-[2] min-w-[240px]">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="w-16 text-xs text-muted-foreground">Acesso</span>
+          <Etiqueta tom="todos">Administrador: pode tudo</Etiqueta>
+        </div>
+      </div>
+    );
   }
   const acoes = PERMISSOES.filter((p) => (user.permissions || []).includes(p.id));
   const modulos = modulosDe(user);
   return (
     <div className="flex-[2] min-w-[240px] space-y-1" aria-label={`Acesso de ${user.username}`}>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-16 text-[11px] text-muted-foreground">Ações</span>
+        <span className="w-16 text-xs text-muted-foreground">Ações</span>
         {acoes.length ? acoes.map((p) => <Etiqueta key={p.id} tom="acao">{p.label}</Etiqueta>) : <Etiqueta tom="vazio">só visualiza</Etiqueta>}
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="w-16 text-[11px] text-muted-foreground">{user.status === "pending" ? "Pediu" : "Módulos"}</span>
+        <span className="w-16 text-xs text-muted-foreground">{user.status === "pending" ? "Pediu" : "Módulos"}</span>
         {modulos.includes(TODOS_MODULOS) ? (
           <Etiqueta tom="todos">Todos os módulos</Etiqueta>
         ) : modulos.length ? (
@@ -252,7 +300,7 @@ function Alternavel({ ativo, onClick, children }: { ativo: boolean; onClick: () 
         ativo ? "border-primary bg-primary/15 text-foreground" : "border-border text-muted-foreground hover:text-foreground",
       )}
     >
-      {ativo && <span className="mr-1 font-bold text-primary">✓</span>}
+      {ativo && <Check className="mr-1 inline h-3.5 w-3.5 text-primary" aria-hidden />}
       {children}
     </button>
   );
@@ -311,7 +359,7 @@ function AcessoDialog({
 
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">O que pode fazer</p>
+            <p className="mb-2 text-sm font-medium">O que pode fazer</p>
             <div role="group" aria-label="O que pode fazer" className="flex flex-wrap gap-1.5">
               {PERMISSOES.map((p) => (
                 <Alternavel key={p.id} ativo={acoes.has(p.id)} onClick={() => alternar(acoes, p.id, setAcoes)}>
@@ -322,7 +370,7 @@ function AcessoDialog({
           </div>
 
           <div>
-            <p className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">Em quais módulos</p>
+            <p className="mb-2 text-sm font-medium">Em quais módulos</p>
             <button
               type="button"
               role="switch"
@@ -331,7 +379,7 @@ function AcessoDialog({
               className="mb-2 flex items-center gap-2 text-sm"
             >
               <span className={cn("relative h-5 w-9 rounded-full border transition-colors", todos ? "border-primary bg-primary" : "border-border bg-input")}>
-                <span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-background transition-all", todos ? "left-[18px]" : "left-0.5")} />
+                <span className={cn("absolute top-0.5 h-3.5 w-3.5 rounded-full bg-background transition-[left]", todos ? "left-[18px]" : "left-0.5")} />
               </span>
               Todos os módulos
             </button>

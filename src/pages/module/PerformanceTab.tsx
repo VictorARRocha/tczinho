@@ -1,7 +1,7 @@
 // Aba Performance: tempos dos casos comparados com a planilha de referencia.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
 import type { ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { AtrasoRodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,9 @@ import { Search, ChevronsUpDown, Gauge, TrendingUp, TrendingDown, Minus, ArrowUp
 import { toast } from "sonner";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Empty, Paginacao, SEM_RESULTADO } from "./common";
+
+const PAGE_SIZE = 25;
 
 // ============= Performance helpers =============
 export function formatDuration(seconds: number): string {
@@ -25,9 +28,10 @@ export function formatDuration(seconds: number): string {
   return neg ? `-${out}` : out;
 }
 
+// O status fica neutro com so o icone colorido: a cor forte e da coluna Diferenca (um sinal so, nao tres).
 function PerfBadge({ status }: { status: AtrasoRodagem["status"] }) {
-  if (status === "mais_lento") return <Badge variant="outline" className="bg-destructive/15 text-destructive border-destructive/30 gap-1"><TrendingUp className="h-3 w-3" />Mais lento</Badge>;
-  if (status === "mais_rapido") return <Badge variant="outline" className="bg-success/15 text-success border-success/30 gap-1"><TrendingDown className="h-3 w-3" />Mais rápido</Badge>;
+  if (status === "mais_lento") return <Badge variant="outline" className="border-border font-normal text-foreground/85 gap-1"><TrendingUp className="h-3 w-3 text-destructive" />Mais lento</Badge>;
+  if (status === "mais_rapido") return <Badge variant="outline" className="border-border font-normal text-foreground/85 gap-1"><TrendingDown className="h-3 w-3 text-success" />Mais rápido</Badge>;
   return <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1"><Minus className="h-3 w-3" />Sem variação</Badge>;
 }
 
@@ -41,6 +45,8 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const debouncedQ = useDebounce(q, 250);
   const isMobile = useIsMobile();
+  const [page, setPage] = useState(1);
+  useEffect(() => { setPage(1); }, [debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir, data]);
 
   const groupOf = (codigo?: string | null) => {
     const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
@@ -134,14 +140,12 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   const cards = useMemo(() => {
     const netDelta = totalAdded - totalSaved; // >0 mais lento no total; <0 mais rápido
     const netTone = netDelta > 0 ? "text-destructive" : netDelta < 0 ? "text-success" : "text-muted-foreground";
-    const withSign = (sign: "+" | "-", txt: string) => (
-      <><span className="font-sans mr-1">{sign}</span>{txt}</>
-    );
+    const withSign = (sign: "+" | "-", txt: string) => `${sign === "-" ? "−" : "+"}${txt}`;
     const netValue = netDelta === 0
       ? formatDuration(0)
       : withSign(netDelta > 0 ? "+" : "-", formatDuration(Math.abs(netDelta)));
     return ([
-      { label: "Registros", value: data.length, tone: "" },
+      { label: "Casos medidos", value: data.length, tone: "" },
       { label: "Mais lentos", value: slow.length, tone: "text-destructive" },
       { label: "Mais rápidos", value: fast.length, tone: "text-success" },
       { label: "Maior atraso", value: maxDelay ? withSign("+", formatDuration(maxDelay.delay_segundos)) : "—", tone: "text-destructive" },
@@ -168,13 +172,16 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
   // com e sem performance nao pode mudar a quantidade de hooks chamados.
   if (data.length === 0) {
     return (
-      <Card className="glass-card p-12 text-center">
+      <Card className="p-12 text-center">
         <Gauge className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
         <h3 className="text-base font-semibold">Nenhum dado de performance encontrado para esta rodagem.</h3>
         <p className="text-sm text-muted-foreground mt-1">Os tempos de execução dos casos aparecem aqui quando a rodagem trouxer essa informação.</p>
       </Card>
     );
   }
+
+  const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const clearFilters = () => { setQ(""); setStatusFilter("all"); setGroupFilter("all"); setCaseFilter("all"); };
 
   const copyRow = (d: AtrasoRodagem) => {
     const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");
@@ -184,19 +191,19 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
-          <Card key={c.label} className="glass-card p-4">
-            <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{c.label}</div>
+          <Card key={c.label} className="p-4">
+            <div className="text-xs text-muted-foreground">{c.label}</div>
             <div className={`text-xl font-bold font-mono mt-1 ${c.tone}`}>{c.value}</div>
           </Card>
         ))}
       </div>
 
-      <Card className="glass-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Buscar por código ou nome do caso..." value={q} onChange={(e) => setQ(e.target.value)} className="bg-background" />
+      <Card className="p-3 sm:p-4 space-y-3">
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input type="search" aria-label="Buscar casos" placeholder="Buscar por código ou nome do caso" value={q} onChange={(e) => setQ(e.target.value)} className="bg-background pl-9" />
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -221,7 +228,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
 
       </Card>
 
-      <Card className="glass-card overflow-hidden">
+      <Card className="overflow-hidden">
         {isMobile ? (
           <>
             <div className="flex items-center gap-2 border-b border-border/60 p-3">
@@ -247,10 +254,10 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
               </button>
             </div>
             {filtered.length === 0 ? (
-              <p className="py-12 text-center text-sm text-muted-foreground">Nenhum registro corresponde aos filtros.</p>
+              <Empty text={SEM_RESULTADO} onClear={clearFilters} />
             ) : (
               <ul className="divide-y divide-border/60">
-                {filtered.map((d) => {
+                {pageRows.map((d) => {
                   const tone = d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : "";
                   return (
                     <li key={d.id} className="space-y-1.5 p-3">
@@ -259,11 +266,11 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
                         <PerfBadge status={d.status} />
                       </div>
                       {hasName && d.nome_teste && <p className="text-sm break-words">{d.nome_teste}</p>}
-                      <div className="grid grid-cols-4 gap-2 text-[11px]">
+                      <div className="grid grid-cols-4 gap-2 text-xs">
                         <div><div className="text-muted-foreground">Base</div><div className="font-mono">{d.tempo_padrao || "—"}</div></div>
                         <div><div className="text-muted-foreground">Atual</div><div className="font-mono">{d.tempo_atual || "—"}</div></div>
                         <div><div className="text-muted-foreground">Diferença</div><div className={`font-mono ${tone}`}>{d.status === "mais_lento" ? "+" : ""}{formatDuration(d.delay_segundos)}</div></div>
-                        <div><div className="text-muted-foreground">Variação</div><div className={`font-mono ${tone}`}>{d.variacao_pct > 0 ? "+" : ""}{d.variacao_pct.toFixed(1)}%</div></div>
+                        <div><div className="text-muted-foreground">Variação</div><div className="font-mono text-muted-foreground" title={baseCurta(d) ? BASE_CURTA : undefined}>{fmtVar(d)}</div></div>
                       </div>
                     </li>
                   );
@@ -286,19 +293,19 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={hasName ? 7 : 6} className="text-center text-sm text-muted-foreground py-12">Nenhum registro corresponde aos filtros.</TableCell></TableRow>
-            ) : filtered.map((d) => (
+              <TableRow><TableCell colSpan={hasName ? 7 : 6} className="p-0"><Empty text={SEM_RESULTADO} onClear={clearFilters} /></TableCell></TableRow>
+            ) : pageRows.map((d) => (
               <TableRow key={d.id} className="border-border">
-                <TableCell className="font-mono text-xs">{d.codigo_teste || "—"}</TableCell>
-                {hasName && <TableCell className="text-sm max-w-[280px] truncate">{d.nome_teste || "—"}</TableCell>}
+                <TableCell className="py-2.5 font-mono text-xs">{d.codigo_teste || "—"}</TableCell>
+                {hasName && <TableCell className="py-2.5 text-sm max-w-[320px] truncate" title={d.nome_teste || undefined}>{d.nome_teste || "—"}</TableCell>}
                 <TableCell><PerfBadge status={d.status} /></TableCell>
                 <TableCell className="text-right font-mono text-xs">{d.tempo_padrao || "—"}</TableCell>
                 <TableCell className="text-right font-mono text-xs">{d.tempo_atual || "—"}</TableCell>
                 <TableCell className={`text-right font-mono text-xs ${d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : ""}`}>
                   {d.status === "mais_lento" ? "+" : ""}{formatDuration(d.delay_segundos)}
                 </TableCell>
-                <TableCell className={`text-right font-mono text-xs ${d.status === "mais_lento" ? "text-destructive" : d.status === "mais_rapido" ? "text-success" : ""}`}>
-                  {d.variacao_pct > 0 ? "+" : ""}{d.variacao_pct.toFixed(1)}%
+                <TableCell className="text-right font-mono text-xs text-muted-foreground" title={baseCurta(d) ? BASE_CURTA : undefined}>
+                  {fmtVar(d)}
                 </TableCell>
               </TableRow>
             ))}
@@ -306,9 +313,20 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         </Table>
         )}
       </Card>
-
+      {pageRows.some(baseCurta) && (
+        <p className="-mt-3 text-xs text-muted-foreground">* Tempo base menor que 1 minuto: a porcentagem exagera a diferença.</p>
+      )}
+      <Paginacao page={page} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
     </div>
   );
+}
+
+// Com base de poucos segundos a % explode (13s -> 2:08 = +884%) e chama mais atencao que um
+// atraso real de minutos: a variacao fica discreta e marcada quando a base e curta.
+const BASE_CURTA = "Tempo base menor que 1 minuto: a porcentagem exagera a diferença.";
+function baseCurta(d: AtrasoRodagem) { return (d.base_segundos ?? 0) > 0 && d.base_segundos < 60; }
+function fmtVar(d: AtrasoRodagem) {
+  return `${d.variacao_pct > 0 ? "+" : ""}${d.variacao_pct.toFixed(1).replace(".", ",")}%${baseCurta(d) ? "*" : ""}`;
 }
 
 function SortableTH<K extends string>({

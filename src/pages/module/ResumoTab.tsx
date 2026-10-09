@@ -9,15 +9,34 @@ import { classifyOccurrence, groupEvidsByFailure } from "@/lib/occurrence";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { formatDuration } from "./PerformanceTab";
 import { isMeaningful, StatCard, Empty } from "./common";
+import { formatPercent, resultadoRodagem } from "@/lib/format";
 
-function OccCard({ label, value, tone, onClick }: { label: string; value: number; tone: string; onClick: () => void }) {
+const OCC_COR = {
+  quebra: { texto: "text-destructive", barra: "bg-destructive" },
+  diferenca: { texto: "text-warning", barra: "bg-warning" },
+  quebra_diferenca: { texto: "text-fuchsia-500 dark:text-fuchsia-400", barra: "bg-fuchsia-500" },
+} as const;
+
+function OccCard({ label, hint, value, tone, onClick }: { label: string; hint: string; value: number; tone: string; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="text-left">
-      <Card className="glass-card p-3 sm:p-5 hover:border-primary/40 transition-smooth h-full">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-        <div className={`text-2xl sm:text-3xl font-bold font-mono mt-1 ${tone}`}>{value}</div>
-        <div className="text-xs text-primary mt-2 inline-flex items-center gap-1">Abrir <ArrowRight className="h-3 w-3" /></div>
-      </Card>
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={value === 0}
+      className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-smooth hover:border-primary/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-col sm:items-start"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-medium">{label}</span>
+        <span className="block text-xs text-muted-foreground">{hint}</span>
+      </span>
+      <span className="flex items-center gap-2 sm:w-full sm:justify-between">
+        <span className={`text-2xl font-bold font-mono sm:text-3xl ${tone}`}>{value}</span>
+        {value > 0 && (
+          <span className="inline-flex items-center gap-1 text-xs text-primary">
+            Ver <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+          </span>
+        )}
+      </span>
     </button>
   );
 }
@@ -37,9 +56,8 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
     { name: "Baixa", value: rodagem.total_baixa, color: "hsl(var(--success))" },
   ].filter((d) => d.value > 0), [rodagem.total_alta, rodagem.total_media, rodagem.total_baixa]);
 
+  // Total, aprovados e falhas ficam no bloco "Resultado"; aqui so as classificacoes extras.
   const cards = useMemo(() => ([
-    { label: "Casos rodados", value: rodagem.total_analisados, tone: "text-primary", force: true },
-    { label: "Falhas", value: rodagem.total_falhas, force: true },
     { label: "Funcional", value: rodagem.total_possivel_funcional, tone: "text-functional" },
     { label: "Automação", value: rodagem.total_automacao, tone: "text-automation" },
     { label: "Massa/Dados", value: rodagem.total_massa_dados, tone: "text-data-mass" },
@@ -63,27 +81,31 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
     <div className="space-y-6">
       {hasDiagText && (
         <Card className="glass-card p-4 sm:p-6">
-          <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
+          <h3 className="text-sm font-medium text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
           {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
           {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
           {isMeaningful(rodagem.conclusao_geral) && (
             <div className="mt-4 pt-4 border-t border-border">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1">Conclusão</div>
+              <div className="text-xs text-muted-foreground mb-1">Conclusão</div>
               <p className="text-sm">{rodagem.conclusao_geral}</p>
             </div>
           )}
         </Card>
       )}
 
-      <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-        {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
+      <ResultadoCard rodagem={rodagem} occ={occCounts} />
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <OccCard label="Quebras de teste" hint="O teste parou com erro" value={occCounts.quebra} tone={OCC_COR.quebra.texto} onClick={() => onOpenFalhas("quebra")} />
+        <OccCard label="Diferenças de arquivos" hint="Arquivo gerado diferente da base" value={occCounts.diferenca} tone={OCC_COR.diferenca.texto} onClick={() => onOpenFalhas("diferenca")} />
+        <OccCard label="Quebra + diferença" hint="As duas coisas no mesmo caso" value={occCounts.quebra_diferenca} tone={OCC_COR.quebra_diferenca.texto} onClick={() => onOpenFalhas("quebra_diferenca")} />
       </div>
 
-      <div className="grid gap-3 md:grid-cols-3 max-sm:grid-cols-3 max-sm:gap-2">
-        <OccCard label="Quebras de teste" value={occCounts.quebra} tone="text-destructive" onClick={() => onOpenFalhas("quebra")} />
-        <OccCard label="Diferenças de arquivos" value={occCounts.diferenca} tone="text-warning" onClick={() => onOpenFalhas("diferenca")} />
-        <OccCard label="Quebras + Diferenças" value={occCounts.quebra_diferenca} tone="text-primary" onClick={() => onOpenFalhas("quebra_diferenca")} />
-      </div>
+      {cards.length > 0 && (
+        <div className="grid gap-3 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+          {cards.map((c) => <StatCard key={c.label} label={c.label} value={c.value} tone={c.tone} />)}
+        </div>
+      )}
 
 
 
@@ -92,10 +114,10 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
         const fast = performance.filter((p) => p.status === "mais_rapido");
         const maxDelay = slow.reduce((a, b) => (b.delay_segundos > a ? b.delay_segundos : a), 0);
         return (
-          <Card className="glass-card p-5 flex items-center gap-4 flex-wrap">
+          <Card className="p-4 sm:p-5 flex items-center gap-4 flex-wrap">
             <div className="h-10 w-10 rounded-lg bg-primary/15 text-primary grid place-items-center"><Gauge className="h-5 w-5" /></div>
             <div className="flex-1 min-w-[200px]">
-              <div className="text-xs uppercase tracking-wider text-muted-foreground">Performance da rodagem</div>
+              <div className="text-sm font-medium">Performance da rodagem</div>
               <div className="text-sm mt-0.5">
                 <span className="text-destructive font-mono font-semibold">{slow.length}</span> mais lento{slow.length === 1 ? "" : "s"}
                 {" · "}
@@ -111,7 +133,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
       {(classData.length > 0 || sevData.length > 0) && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="glass-card p-6">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por classificação</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por classificação</h3>
             {classData.length === 0 ? <Empty text="Sem dados de classificação para exibir." /> : (
               <>
                 <ResponsiveContainer width="100%" height={220}>
@@ -134,7 +156,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
           </Card>
 
           <Card className="glass-card p-6">
-            <h3 className="text-xs uppercase tracking-wider text-muted-foreground mb-4">Distribuição por severidade</h3>
+            <h3 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por severidade</h3>
             {sevData.length === 0 ? <Empty text="Sem dados de severidade para exibir." /> : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={sevData}>
@@ -155,4 +177,52 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
   );
 }
 
-// ============ Blocos operacionais (Jenkins / rerun_requests) ============
+/** Resultado da rodagem: taxa de sucesso e quantos casos de cada tipo. */
+function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: number; diferenca: number; quebra_diferenca: number } }) {
+  const r = resultadoRodagem(rodagem);
+  if (!r) {
+    // Sem os totais para a taxa: mostra o que existe (falhas e, se vier, casos rodados).
+    return (
+      <Card className="p-4 sm:p-5">
+        <div className="text-sm text-muted-foreground">Falhas nesta rodagem</div>
+        <div className="mt-1 text-3xl font-bold font-mono">{rodagem.total_falhas ?? "—"}</div>
+        {(rodagem.total_analisados ?? 0) > 0 && (
+          <div className="mt-1 text-sm text-muted-foreground">
+            <span className="font-mono text-foreground">{rodagem.total_analisados.toLocaleString("pt-BR")}</span> casos rodados
+          </div>
+        )}
+      </Card>
+    );
+  }
+  const partes = [
+    { key: "ok", label: "Passaram", value: r.passaram, barra: "bg-success" },
+    { key: "q", label: "Quebras", value: occ.quebra, barra: OCC_COR.quebra.barra },
+    { key: "d", label: "Diferenças", value: occ.diferenca, barra: OCC_COR.diferenca.barra },
+    { key: "qd", label: "Quebra + diferença", value: occ.quebra_diferenca, barra: OCC_COR.quebra_diferenca.barra },
+  ];
+  return (
+    <Card className="p-4 sm:p-5">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+        <div>
+          <div className="text-sm text-muted-foreground">Resultado da rodagem</div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-3xl font-bold font-mono sm:text-4xl">{formatPercent(r.taxa)}</span>
+            <span className="text-sm text-muted-foreground">passaram</span>
+          </div>
+        </div>
+        <div className="text-sm text-muted-foreground">
+          <span className="font-mono text-foreground">{r.rodados.toLocaleString("pt-BR")}</span> casos rodados
+          {" · "}
+          <span className="font-mono text-destructive">{r.falhas}</span> {r.falhas === 1 ? "falhou" : "falharam"}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+        {partes.map((p) => (
+          <span key={p.key} className="inline-flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${p.barra}`} />{p.label} <span className="font-mono text-foreground">{p.value}</span>
+          </span>
+        ))}
+      </div>
+    </Card>
+  );
+}

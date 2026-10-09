@@ -190,7 +190,6 @@ export function FalhasTab({
   onCompare: (pair: ComparisonPair, falha: Falha) => void;
 }) {
   const [q, setQ] = useState("");
-  const [extFilter, setExtFilter] = useState<string>("");
   const [view, setView] = useState<FalhasView>(readStoredView);
   const changeView = (v: FalhasView) => { setView(v); storeView(v); };
   const debouncedQ = useDebounce(q, 250);
@@ -302,11 +301,6 @@ export function FalhasTab({
     return { ...c, todos: enriched.length };
   }, [enriched]);
 
-  const allExts = useMemo(() => {
-    const s = new Set<string>();
-    enriched.forEach((e) => e.pairs.forEach((p) => p.extensao && s.add(p.extensao)));
-    return Array.from(s).sort();
-  }, [enriched]);
 
 
 
@@ -340,17 +334,16 @@ export function FalhasTab({
     });
   }, [enriched, debouncedQ, hierMap]);
 
-  const filtered = useMemo(() => filteredByHierSearch.filter(({ tipo, pairs }) => {
+  const filtered = useMemo(() => filteredByHierSearch.filter(({ tipo }) => {
     if (subTab !== "todos" && tipo !== subTab) return false;
-    if (extFilter && !pairs.some((p) => p.extensao === extFilter)) return false;
     return true;
-  }), [filteredByHierSearch, subTab, extFilter]);
+  }), [filteredByHierSearch, subTab]);
 
   const { root, orphans } = useMemo(() => buildFailuresTree(filtered, moduloNome, hierMap), [filtered, moduloNome, hierMap]);
 
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const hasActiveFilter = Boolean(debouncedQ || extFilter || subTab !== "todos");
+  const hasActiveFilter = Boolean(debouncedQ || subTab !== "todos");
   // Estado inicial recolhido; ao aplicar filtro, expande apenas o caminho até
   // o primeiro item encontrado, mantendo os demais recolhidos.
   useEffect(() => {
@@ -425,7 +418,7 @@ export function FalhasTab({
         <div className="flex flex-wrap gap-2">
           <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
           <SubTabBtn id="diferenca" label="Diferenças" count={counts.diferenca} tone="text-warning" />
-          <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-primary" />
+          <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-fuchsia-500 dark:text-fuchsia-400" />
           <SubTabBtn id="todos" label="Todos" count={counts.todos} />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -448,17 +441,8 @@ export function FalhasTab({
             )}
           </div>
         </div>
-        {(allExts.length > 1 || hasActiveFilter) && (
+        {hasActiveFilter && (
           <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-            {allExts.length > 1 && (
-              <>
-                <span>Arquivos de comparação:</span>
-                <ToggleChip label="Todos" active={!extFilter} onClick={() => setExtFilter("")} />
-                {allExts.map((ext) => (
-                  <ToggleChip key={ext} label={`.${ext.replace(/^\.+/, "")}`} active={extFilter === ext} onClick={() => setExtFilter(extFilter === ext ? "" : ext)} />
-                ))}
-              </>
-            )}
             <span className="ml-auto max-sm:ml-0">Mostrando {filtered.length} de {enriched.length} falhas</span>
           </div>
         )}
@@ -466,7 +450,7 @@ export function FalhasTab({
 
       {isEmpty ? (
         <Card className="glass-card p-12 text-center text-sm text-muted-foreground">
-          {debouncedQ || extFilter || subTab !== "todos"
+          {debouncedQ || subTab !== "todos"
             ? "Nenhum item encontrado para os filtros aplicados."
             : "Nenhuma falha encontrada neste módulo."}
         </Card>
@@ -610,11 +594,6 @@ function LeafItemCard({
       <div className="px-4 py-3 space-y-2.5">
         {/* Cabeçalho: Código + Status */}
         <div className="flex items-start gap-2.5 flex-wrap">
-          {f.id_caso_teste && (
-            <Badge variant="outline" className="font-mono text-[11px] px-2 py-0.5">
-              #{f.id_caso_teste}
-            </Badge>
-          )}
           <div className="flex-1 min-w-0" />
           <TipoBadge tipo={tipo} />
         </div>

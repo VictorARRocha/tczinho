@@ -103,7 +103,7 @@ function ProgressBar({ value, color, indeterminate }: { value: number; color: st
         <div className={`absolute inset-y-0 w-1/3 ${color} animate-[progress-indeterminate_1.4s_ease-in-out_infinite]`} />
       ) : (
         <div
-          className={`h-full ${color} transition-all duration-500`}
+          className={`h-full ${color} transition-[width] duration-500`}
           style={{ width: `${value}%` }}
         />
       )}
@@ -149,7 +149,8 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   title = "Histórico Jenkins",
   limit = 50,
   clearStorageKey = "agenttc.jenkins.historico.ocultas",
-}: { title?: string; limit?: number; clearStorageKey?: string }) {
+  defaultExpanded = false,
+}: { title?: string; limit?: number; clearStorageKey?: string; defaultExpanded?: boolean }) {
   // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
   const { data } = useRerunRequests(limit);
   // A API pode devolver mais que o pedido; a tela mostra no maximo `limit`.
@@ -165,7 +166,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   const { hiddenIds, clear, restore } = useHistoryClear(clearStorageKey);
   const history = useMemo(() => visibleAfterClear(allHistory, hiddenIds), [allHistory, hiddenIds]);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const isMobile = useIsMobile();
   // Cancelar uma rodagem exige a mesma permissao de pedir.
   const podeCancelar = usePermissao("rodagem");
@@ -183,7 +184,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-base sm:text-lg font-semibold">{title}</h2>
           {hasActive && (
-            <Badge variant="outline" className="bg-purple-500/10 text-purple-400 border-purple-500/30 text-[10px]">
+            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 text-[10px]">
               Atualizando ao vivo
             </Badge>
           )}

@@ -20,25 +20,7 @@ import { fetchEvidenceBlob } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-function countReplacementChars(text: string): number {
-  return (text.match(/\uFFFD/g) || []).length;
-}
-
-/** Tenta UTF-8, windows-1252 e iso-8859-1; escolhe o que tem menos caracteres �. */
-function decodeArrayBufferSmart(buffer: ArrayBuffer): string {
-  const encodings = ["utf-8", "windows-1252", "iso-8859-1"];
-  const candidates: { enc: string; text: string; bad: number }[] = [];
-  for (const enc of encodings) {
-    try {
-      const text = new TextDecoder(enc, { fatal: false }).decode(buffer);
-      candidates.push({ enc, text, bad: countReplacementChars(text) });
-    } catch { /* encoding não suportado pelo navegador */ }
-  }
-  if (candidates.length === 0) return "";
-  candidates.sort((a, b) => a.bad - b.bad);
-  return candidates[0].text;
-}
+import { decodeEvidenceText } from "@/lib/textDecode";
 
 async function decodeText(blob: Blob | null): Promise<{ text: string | null; tooLarge: boolean }> {
   if (!blob) return { text: null, tooLarge: false };
@@ -49,7 +31,7 @@ async function decodeText(blob: Blob | null): Promise<{ text: string | null; too
     let nulls = 0;
     for (let i = 0; i < sniff.length; i++) if (sniff[i] === 0) nulls++;
     if (nulls > 4) return { text: null, tooLarge: false };
-    return { text: decodeArrayBufferSmart(buf), tooLarge: false };
+    return { text: decodeEvidenceText(buf), tooLarge: false };
   } catch (e) {
     console.error("[comparator] fetch", e);
     return { text: null, tooLarge: false };
@@ -99,6 +81,8 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const [atualText, setAtualText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
+  // Tema atual (a classe fica no <html>); sem depender do provider, que os testes nao montam.
+  const theme = typeof document !== "undefined" && document.documentElement.classList.contains("light") ? "light" : "dark";
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [tooLarge, setTooLarge] = useState(false);
   const [binary, setBinary] = useState(false);
@@ -193,6 +177,14 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
   const handleDiffEditorMount = useCallback((editor: MonacoEditor.IStandaloneDiffEditor) => {
     diffEditorRef.current = editor;
+    // Os modelos ficam com o editor (keepCurrent*Model) e so sao descartados depois dele:
+    // descartar antes gerava "TextModel got disposed before DiffEditorWidget model got reset".
+    let models = editor.getModel();
+    editor.onDidChangeModel?.(() => { models = editor.getModel() ?? models; });
+    editor.onDidDispose?.(() => {
+      models?.original?.dispose();
+      models?.modified?.dispose();
+    });
     const update = () => {
       try {
         const changes = editor.getLineChanges?.() || [];
@@ -269,8 +261,8 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-[96vw] w-[1320px] h-[92vh] flex flex-col p-0 gap-0">
-        <DialogHeader className="px-6 py-3 border-b border-border max-sm:px-4">
+      <DialogContent aria-describedby={undefined} className="max-w-[96vw] w-[1320px] h-[92vh] flex flex-col p-0 gap-0 max-sm:max-w-full max-sm:h-[100dvh] max-sm:rounded-none">
+        <DialogHeader className="px-6 py-3 pr-14 border-b border-border max-sm:px-4 max-sm:pr-14">
           <DialogTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" /> Comparação de arquivos
           </DialogTitle>
@@ -336,7 +328,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                 if (atualUrl) await trigger(atualUrl, atualName);
               }}
             >
-              <Download className="h-3.5 w-3.5 mr-1" /> Baixar arquivos
+              <Download className="h-3.5 w-3.5 mr-1" /><span className="max-sm:sr-only">Baixar arquivos</span>
             </Button>
           )}
 
@@ -344,11 +336,17 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
 
         {/* Cabeçalho dos painéis */}
-        <div className="grid grid-cols-2 border-b border-border bg-background">
-          <PaneHeader name={baseName} side="left" />
-          <PaneHeader name={atualName} side="right" />
-
-        </div>
+        {isMobile ? (
+          <div className="space-y-0.5 border-b border-border bg-background px-4 py-2 text-xs">
+            <div className="break-all font-mono"><span className="font-sans text-muted-foreground">Base: </span>{baseName}</div>
+            <div className="break-all font-mono"><span className="font-sans text-muted-foreground">Atual: </span>{atualName}</div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 border-b border-border bg-background">
+            <PaneHeader name={baseName} side="left" />
+            <PaneHeader name={atualName} side="right" />
+          </div>
+        )}
 
         <div className="flex-1 overflow-hidden">
           {loading ? (
@@ -391,8 +389,10 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                     original={baseText ?? ""}
                     modified={atualText ?? ""}
                     language={monacoLanguageFromExt(ext)}
-                    theme="vs-dark"
+                    theme={theme === "light" ? "vs" : "vs-dark"}
                     onMount={handleDiffEditorMount}
+                    keepCurrentOriginalModel
+                    keepCurrentModifiedModel
                     options={{
                       readOnly: true,
                       renderSideBySide: true,
@@ -401,7 +401,9 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                       // No celular o Monaco ja mostra o diff em linha; sem minimapa e com quebra de linha.
                       minimap: { enabled: !isMobile },
                       scrollBeyondLastLine: false,
-                      wordWrap: isMobile ? "on" : "off",
+                      // Linhas longas (XML do eSocial) quebram: a diferenca no fim da linha fica visivel.
+                      wordWrap: "on",
+                      diffWordWrap: "on",
                       renderWhitespace: "boundary",
                       fontSize: 12,
                       originalEditable: false,
@@ -436,7 +438,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 function PaneHeader({ name, side }: { name: string; side: "left" | "right" }) {
   return (
     <div className={`px-4 py-2 flex items-center gap-2 ${side === "left" ? "border-r border-border" : ""}`}>
-      <span className="text-xs font-mono truncate flex-1" title={name}>{name}</span>
+      <span className="text-xs font-mono truncate flex-1" title={name}><span className="font-sans text-muted-foreground">{side === "left" ? "Base: " : "Atual: "}</span>{name}</span>
     </div>
   );
 }
@@ -445,7 +447,7 @@ function PaneHeader({ name, side }: { name: string; side: "left" | "right" }) {
 function ImagePane({ label, url }: { label: string; url: string | null }) {
   return (
     <Card className="overflow-hidden">
-      <div className="px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+      <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground flex items-center gap-2">
         <ImageIcon className="h-3 w-3" /> {label}
       </div>
       {url ? (
@@ -460,7 +462,7 @@ function ImagePane({ label, url }: { label: string; url: string | null }) {
 function PdfPane({ label, url }: { label: string; url: string | null }) {
   return (
     <Card className="overflow-hidden flex flex-col">
-      <div className="px-3 py-2 border-b border-border text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground">{label}</div>
       {url ? (
         <iframe title={label} src={url} className="flex-1 w-full min-h-[70vh] bg-background" />
       ) : (

@@ -98,7 +98,7 @@ describe("aba Casos de teste", () => {
     expect(within(lista).getByText("Apuração mensal")).toBeInTheDocument();
     expect(within(lista).getByText("Lalur Mensal")).toBeInTheDocument();
     fireEvent.change(busca, { target: { value: "nada disso" } });
-    expect(screen.getByText("Nenhum caso encontrado.")).toBeInTheDocument();
+    expect(screen.getByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
   });
 
   it("so os que falharam, e o botao abre a falha do caso", () => {

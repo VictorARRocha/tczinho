@@ -153,7 +153,7 @@ describe("historico Jenkins", () => {
     fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(4));
 
-    fireEvent.click(screen.getByRole("button", { name: /Limpar/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Ocultar finalizadas/ }));
     expect(screen.getAllByRole("row")).toHaveLength(2); // cabecalho + pedido ainda rodando
     expect(screen.getByRole("button", { name: /2 ocultas/ })).toBeInTheDocument();
     view.unmount();
@@ -374,13 +374,13 @@ describe("rodagem completa", () => {
     api.requests = [request("r1", "2026-10-01T10:00:00Z", "solicitado")];
     renderPage(<JenkinsRodagemCompleta />);
     // Simplificada: botao bloqueado com o aviso.
-    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Enviar rodagem/ })).toBeDisabled();
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para solicitar rodagens");
     // Configurada: idem; usar uma pre-definicao continua possivel, salvar/editar/copiar/excluir nao.
     const tab = screen.getByRole("tab", { name: "Configurada" });
     fireEvent.mouseDown(tab);
     fireEvent.click(tab);
-    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Enviar rodagem/ })).toBeDisabled();
     await openPresetList();
     expect(screen.queryByRole("button", { name: /Nova a partir da tela atual/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Editar Casos NFe" })).toBeNull();
@@ -396,7 +396,7 @@ describe("rodagem completa", () => {
     fireEvent.click(screen.getByRole("tab", { name: /De outros usuários/ }));
     expect(screen.queryByRole("button", { name: "Copiar NFe do Joao para as minhas" })).toBeNull();
     // Historico: sem o botao de cancelar.
-    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    // O historico ja abre expandido nesta tela.
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(2));
     expect(screen.queryByRole("button", { name: /^Cancelar$/ })).toBeNull();
     expect(api.createRerunRequest).not.toHaveBeenCalled();
@@ -405,7 +405,7 @@ describe("rodagem completa", () => {
   it("com a permissao de solicitar rodagem o historico mostra o cancelar", async () => {
     api.requests = [request("r1", "2026-10-01T10:00:00Z", "solicitado")];
     renderPage(<JenkinsRodagemCompleta />);
-    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    // O historico ja abre expandido nesta tela.
     expect(await screen.findByRole("button", { name: /^Cancelar$/ })).toBeInTheDocument();
     expect(screen.queryByRole("note")).toBeNull();
   });
@@ -414,7 +414,8 @@ describe("rodagem completa", () => {
     auth.isAdmin = true;
     auth.profile = { username: "chefe", permissions: [] };
     renderPage(<JenkinsRodagemCompleta />);
-    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).not.toBeDisabled();
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
+    expect(screen.getByRole("button", { name: /Enviar rodagem/ })).not.toBeDisabled();
     expect(screen.queryByRole("note")).toBeNull();
   });
 
@@ -430,10 +431,10 @@ describe("rodagem completa", () => {
     // Fiscal (padrao da tela) nao e da ana: troca para o primeiro modulo dela.
     await waitFor(() => expect(screen.getByText(/"casos_teste": "\[1\]"/)).toBeInTheDocument());
     fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
-    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledWith(expect.objectContaining({ casos_teste: "[1]" })));
 
-    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    // O historico ja abre expandido nesta tela.
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(3)); // cabecalho + Folha + rotina geral
     expect(screen.queryByText("[2.1.3]")).toBeNull();
   });
@@ -441,7 +442,7 @@ describe("rodagem completa", () => {
   it("modulos: sem nenhum modulo, o envio fica bloqueado com o aviso", async () => {
     auth.profile = { username: "ana", permissions: ["rodagem"], modules: [] } as typeof auth.profile;
     renderPage(<JenkinsRodagemCompleta />);
-    expect(screen.getByRole("button", { name: /Enviar rodagem para Jenkins/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Enviar rodagem/ })).toBeDisabled();
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem acesso a nenhum módulo");
   });
 
@@ -502,7 +503,7 @@ describe("rodagem completa", () => {
   it("digitar no formulario nao re-renderiza o historico, que mostra no maximo 50", async () => {
     api.requests = Array.from({ length: 100 }, (_, i) => request(`r${i}`, "2026-10-01T10:00:00Z", "finalizado_sucesso"));
     renderPage(<JenkinsRodagemCompleta />);
-    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    // O historico ja abre expandido nesta tela.
     await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(51));
 
     historyRenders.count = 0;

@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDateTime } from "@/lib/format";
 import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Empty } from "./common";
+import { Empty, Paginacao } from "./common";
 
 export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?: string; onPick: (id: string) => void }) {
   const PAGE_SIZE = 20;
@@ -19,9 +19,10 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
   const totalPages = Math.max(1, Math.ceil(runs.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageRuns = runs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const vmDe = (r: Rodagem) => formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—";
   return (
     <div className="space-y-3">
-      <Card className="glass-card overflow-hidden">
+      <Card className="overflow-hidden">
         {isMobile ? (
           <ul className="divide-y divide-border/60">
             {pageRuns.map((r) => {
@@ -30,14 +31,14 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
                 <li key={r.id} className={`flex items-center gap-3 p-3 ${active ? "bg-primary/5" : ""}`}>
                   <div className="min-w-0 flex-1">
                     <div className="text-sm">{formatDateTime(r.data_analise)}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      <span className="font-mono">{formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—"}</span>
+                    <div className="text-xs text-muted-foreground">
+                      <span className="font-mono">{vmDe(r)}</span>
                       {" · "}<span>{formatarVersao(r.versao_sistema) || "—"}</span>
-                      {" · "}{r.total_falhas} falha(s)
+                      {" · "}{r.total_falhas} {r.total_falhas === 1 ? "falha" : "falhas"}
                     </div>
                   </div>
                   {active
-                    ? <Button size="sm" variant="ghost" disabled>Atual</Button>
+                    ? <span className="px-3 text-xs text-muted-foreground">Aberta</span>
                     : <Button size="sm" variant="outline" onClick={() => onPick(r.id)}>Abrir</Button>}
                 </li>
               );
@@ -51,22 +52,26 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
               <TableHead>VM</TableHead>
               <TableHead>Versão</TableHead>
               <TableHead className="text-right">Falhas</TableHead>
-              <TableHead></TableHead>
+              <TableHead className="w-24"><span className="sr-only">Ações</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {pageRuns.map((r) => {
               const active = r.id === currentId;
               return (
-                <TableRow key={r.id} className={`border-border ${active ? "bg-primary/5" : ""}`}>
-                  <TableCell className="text-xs">{formatDateTime(r.data_analise)}</TableCell>
-                  <TableCell className="font-mono text-xs">{formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—"}</TableCell>
-                  <TableCell className="text-xs">{formatarVersao(r.versao_sistema) || "—"}</TableCell>
-                  <TableCell className="text-right font-mono">{r.total_falhas}</TableCell>
-                  <TableCell>
+                <TableRow
+                  key={r.id}
+                  className={`border-border ${active ? "bg-primary/5" : "cursor-pointer"}`}
+                  onClick={() => !active && onPick(r.id)}
+                >
+                  <TableCell className="py-2 text-sm">{formatDateTime(r.data_analise)}</TableCell>
+                  <TableCell className="py-2 font-mono text-xs">{vmDe(r)}</TableCell>
+                  <TableCell className="py-2 text-sm">{formatarVersao(r.versao_sistema) || "—"}</TableCell>
+                  <TableCell className="py-2 text-right font-mono text-sm">{r.total_falhas}</TableCell>
+                  <TableCell className="py-2 text-right">
                     {active
-                      ? <Button size="sm" variant="ghost" disabled>Atual</Button>
-                      : <Button size="sm" variant="outline" onClick={() => onPick(r.id)}>Abrir</Button>}
+                      ? <span className="px-3 text-xs text-muted-foreground">Aberta</span>
+                      : <Button size="sm" variant="outline" className="h-8" onClick={(e) => { e.stopPropagation(); onPick(r.id); }}>Abrir</Button>}
                   </TableCell>
                 </TableRow>
               );
@@ -75,18 +80,7 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
         </Table>
         )}
       </Card>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
-          <div className="text-xs text-muted-foreground">
-            Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, runs.length)} de {runs.length}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" disabled={currentPage <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Anterior</Button>
-            <span className="text-xs font-mono text-muted-foreground">{currentPage} / {totalPages}</span>
-            <Button size="sm" variant="outline" disabled={currentPage >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>Próxima</Button>
-          </div>
-        </div>
-      )}
+      <Paginacao page={currentPage} pageSize={PAGE_SIZE} total={runs.length} onChange={setPage} />
     </div>
   );
 }

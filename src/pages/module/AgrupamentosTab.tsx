@@ -131,13 +131,14 @@ export function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onRelo
   const filteredItems = useMemo(() => items.filter((g) => g.quantidade > 1), [items]);
 
   const [aiGrouped, setAiGrouped] = useState(false);
+  const [aiError, setAiError] = useState(false);
 
   return (
     <div className="space-y-4">
-      <AiGroupingPanel runId={runId} onReload={onReload} onGroupedChange={setAiGrouped} />
+      <AiGroupingPanel runId={runId} onReload={onReload} onGroupedChange={setAiGrouped} onErrorChange={setAiError} />
 
       {!aiGrouped ? (
-        <Empty text="Clique em 'Agrupar falhas' para que a IA agrupe as falhas desta rodagem." />
+        aiError ? null : <Empty text="Use “Agrupar falhas” para a IA juntar as falhas parecidas desta rodagem." />
       ) : filteredItems.length === 0 ? (
         <Empty text="Sem agrupamentos com múltiplos casos." />
       ) : (
@@ -151,7 +152,22 @@ export function AgrupamentosTab({ runId, grupos, falhas, links, onSelect, onRelo
   );
 }
 
-function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; onReload: () => void | Promise<void>; onGroupedChange?: (grouped: boolean) => void }) {
+/**
+ * Erro do agrupamento em linguagem de gente. O texto cru do provedor (ex.: "Gemini HTTP 503: [{...}]")
+ * fica so nos detalhes tecnicos.
+ */
+export function mensagemErroIa(raw: string): string {
+  const t = raw.toLowerCase();
+  if (/\b503\b|high demand|overload|unavailable|sobrecarreg/.test(t)) return "O serviço de IA está sobrecarregado agora. Tente de novo em alguns minutos.";
+  if (/\b429\b|quota|rate limit|resource_exhausted/.test(t)) return "O limite de uso da IA foi atingido. Tente de novo mais tarde.";
+  if (/\b40[13]\b|api key|permission|unauthori/.test(t)) return "A IA está sem acesso configurado. Avise a equipe de automação.";
+  if (/timeout|timed out|deadline/.test(t)) return "A IA demorou demais para responder. Tente de novo.";
+  // Mensagem ja amigavel (vinda da propria tela) passa direto; texto tecnico vira generico.
+  if (/[{}[\]]|http|error|exception/i.test(raw)) return "Não foi possível agrupar as falhas da última vez. Tente de novo.";
+  return raw;
+}
+
+function AiGroupingPanel({ runId, onReload, onGroupedChange, onErrorChange }: { runId: string; onReload: () => void | Promise<void>; onGroupedChange?: (grouped: boolean) => void; onErrorChange?: (hasError: boolean) => void }) {
   const [status, setStatus] = useState<import("@/services/aiGrouping").AiGroupStatus | null>(null);
   const [grouped, setGrouped] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(true);
@@ -159,6 +175,7 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => { onGroupedChange?.(grouped); }, [grouped, onGroupedChange]);
+  useEffect(() => { onErrorChange?.(!!errorMsg); }, [errorMsg, onErrorChange]);
 
   const refreshStatus = async () => {
     try {
@@ -221,22 +238,33 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange }: { runId: string; 
     }
   };
 
-  let label = "Agrupar falhas";
+  let label = errorMsg ? "Tentar de novo" : "Agrupar falhas";
   let disabled = false;
   if (loadingStatus) { label = "Carregando..."; disabled = true; }
   else if (grouped) { label = "Falhas agrupadas"; disabled = true; }
   else if (running) { label = "Agrupando..."; disabled = true; }
+  const erroAmigavel = errorMsg ? mensagemErroIa(errorMsg) : null;
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-card/60 px-3 py-2">
+    <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
       <div className="min-w-0">
         <p className="text-sm font-medium">Agrupamento por IA</p>
-        {errorMsg && <p className="text-xs text-destructive mt-0.5 truncate" title={errorMsg}>{errorMsg}</p>}
+        {erroAmigavel && (
+          <div className="mt-0.5 text-sm text-destructive">
+            <p>{erroAmigavel}</p>
+            {erroAmigavel !== errorMsg && (
+              <details className="mt-1 text-xs text-muted-foreground">
+                <summary className="cursor-pointer select-none hover:text-foreground">Detalhes técnicos</summary>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded bg-muted/50 p-2 font-mono">{errorMsg}</pre>
+              </details>
+            )}
+          </div>
+        )}
         {!errorMsg && grouped && <p className="text-xs text-muted-foreground mt-0.5">As falhas desta rodagem já foram agrupadas.</p>}
         {!errorMsg && !grouped && !running && <p className="text-xs text-muted-foreground mt-0.5">Junta as falhas parecidas para você analisar cada problema uma vez só.</p>}
         {!errorMsg && running && <p className="text-xs text-muted-foreground mt-0.5">Agrupando as falhas. Isso pode levar alguns instantes.</p>}
       </div>
-      <Button size="sm" onClick={handleClick} disabled={disabled}>
+      <Button size="sm" onClick={handleClick} disabled={disabled} className="shrink-0 max-sm:w-full">
         {running && <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />}
         {label}
       </Button>
@@ -255,7 +283,7 @@ function AgrupamentoCard({ g, onSelect }: { g: AgrupamentoCardItem; onSelect: (f
 
   return (
     <Card
-      className="glass-card p-4 sm:p-5 cursor-pointer hover:bg-secondary/20 transition-smooth"
+      className="p-4 sm:p-5 cursor-pointer hover:border-primary/30 transition-smooth"
       onClick={() => g.casos.length > 0 && setOpen((v) => !v)}
     >
       <div className="flex items-start justify-between mb-3 gap-3">
@@ -289,8 +317,8 @@ function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; on
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          Casos vinculados a esta quebra ({casos.length})
+        <div className="text-xs text-muted-foreground">
+          Casos vinculados a esta quebra <span className="font-mono">{casos.length}</span>
         </div>
         <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
           {open ? "Ocultar casos" : "Ver casos"}

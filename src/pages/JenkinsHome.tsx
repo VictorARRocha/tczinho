@@ -1,51 +1,49 @@
 import { Link } from "react-router-dom";
-import { Card } from "@/components/ui/card";
 import { PlayCircle, RefreshCcw, ChevronRight } from "lucide-react";
+import { JenkinsHistory } from "@/components/JenkinsHistory";
 
 export default function JenkinsHome() {
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <h1 className="mb-6 sm:mb-8 text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-        Disparar execuções no <span className="gradient-text">Jenkins</span>
-      </h1>
+      {/* So o titulo e os atalhos (decisao anterior: sem selo e sem texto de apoio). */}
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Disparar execuções no Jenkins</h1>
 
-      <div className="grid gap-4 sm:gap-5 sm:grid-cols-2">
-        <JenkinsCard
+      <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <JenkinsAction
           to="/jenkins/rodagem-completa"
-          icon={<PlayCircle className="h-8 w-8" />}
+          icon={<PlayCircle className="h-5 w-5" />}
           title="Rodagem completa"
-          description="Iniciar uma nova rodagem completa ou por módulo no Jenkins."
+          description="Nova rodagem de um módulo inteiro, agora ou agendada."
         />
-        <JenkinsCard
+        <JenkinsAction
           to="/jenkins/reexecutar"
-          icon={<RefreshCcw className="h-8 w-8" />}
+          icon={<RefreshCcw className="h-5 w-5" />}
           title="Reexecutar rodagens"
-          description="Selecionar casos quebrados de uma rodagem já analisada e enviar novamente ao Jenkins."
+          description="Escolha casos quebrados ou com diferença e rode de novo."
         />
+      </div>
+
+      <div className="mt-10">
+        <JenkinsHistory title="Execuções recentes" limit={20} defaultExpanded />
       </div>
     </div>
   );
 }
 
-
-
-function JenkinsCard({ to, icon, title, description }: {
+function JenkinsAction({ to, icon, title, description }: {
   to: string; icon: React.ReactNode; title: string; description: string;
 }) {
   return (
-    <Link to={to} className="group">
-      <Card className="glass-card p-6 sm:p-8 h-full transition-all hover:border-primary/50 hover:shadow-lg hover:-translate-y-0.5">
-        <div className="flex flex-col items-center text-center gap-3">
-          <div className="rounded-2xl bg-gradient-primary p-4 text-primary-foreground glow-primary">
-            {icon}
-          </div>
-          <h2 className="text-xl font-bold tracking-tight">{title}</h2>
-          <p className="text-sm text-muted-foreground max-w-md">{description}</p>
-          <div className="mt-2 inline-flex items-center gap-1 text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-            Abrir <ChevronRight className="h-3.5 w-3.5" />
-          </div>
-        </div>
-      </Card>
+    <Link
+      to={to}
+      className="group flex items-center gap-4 rounded-lg border border-border bg-card p-4 transition-smooth hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        <span className="block text-sm text-muted-foreground">{description}</span>
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
     </Link>
   );
 }

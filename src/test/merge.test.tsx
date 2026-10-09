@@ -162,7 +162,7 @@ describe("tela de merge", () => {
     renderPage();
     await waitFor(() => expect(screen.getByRole("combobox", { name: /^Origem/ })).toHaveTextContent("Unico"));
     await escolher(/^Destino \(branch/, "proxima", /Proxima10_0/);
-    fireEvent.click(screen.getByRole("button", { name: /Adicionar merge/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar outro merge/ }));
     expect(screen.getByRole("combobox", { name: "Origem do merge 2" })).toHaveTextContent("Unico");
     await escolher(/^Destino do merge 2/, "proxima", /Proxima10_0/);
     expect(screen.getAllByText("Este merge está repetido na lista.")).toHaveLength(2);
@@ -183,7 +183,7 @@ describe("tela de merge", () => {
       .mockResolvedValueOnce(pedido({ id: "m2", target_url: FOLHA, status: "solicitado" }));
     renderPage();
     await escolher(/^Destino \(branch/, "proxima", /Proxima10_0/);
-    fireEvent.click(screen.getByRole("button", { name: /Adicionar merge/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Adicionar outro merge/ }));
     await escolher(/^Destino do merge 2/, "folha", /Folha_sustentação/);
     fireEvent.click(screen.getByRole("button", { name: "Fazer os 2 merges" }));
     await waitFor(() => expect(api.createMerge).toHaveBeenCalledTimes(2));
@@ -278,5 +278,19 @@ describe("tela de merge", () => {
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Cancelar/ }));
     await waitFor(() => expect(api.cancelMerge).toHaveBeenCalledWith("m1"));
+  });
+
+  it("historico com paginas: se a lista diminuir estando na pagina 2, volta para a ultima pagina que existe", async () => {
+    const lista = (n: number) => Array.from({ length: n }, (_, i) =>
+      pedido({ id: `m${i}`, status: "concluido", svn_revision: String(23000 + i), target_name: `Destino_${String(i).padStart(2, "0")}` }));
+    api.merges = lista(20);
+    renderPage();
+    expect(await screen.findByText(/Mostrando 1–15 de 20/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(await screen.findByText(/Mostrando 16–20 de 20/)).toBeInTheDocument();
+    api.merges = lista(10);
+    await queryClient.invalidateQueries();
+    await waitFor(() => expect(screen.getAllByText(/^Destino_\d+$/).length).toBeGreaterThanOrEqual(10));
+    expect(screen.queryByText(/Mostrando/)).toBeNull();
   });
 });

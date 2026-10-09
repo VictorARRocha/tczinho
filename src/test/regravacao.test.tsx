@@ -124,7 +124,7 @@ describe("tela de regravacao", () => {
     expect(screen.getByText("PROXIMA")).toBeInTheDocument();
     expect(screen.getByText("Branch do TC (destino):")).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Rodagem" })).toHaveTextContent("TC: minha-branch");
-    expect(screen.getByText(/2 de 3 regravável/)).toBeInTheDocument();
+    expect(screen.getByText(/2 de 3 regraváveis/)).toBeInTheDocument();
   });
 
   it("a mensagem vem com o padrao, acompanha a selecao ate ser editada e pode ser restaurada", async () => {

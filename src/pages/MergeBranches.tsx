@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Paginacao } from "./module/common";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -53,6 +54,7 @@ export default function MergeBranches() {
   const [linhas, setLinhas] = useState<Linha[]>([{ id: 1, origem: "", destino: "", mensagem: "", editada: false }]);
   const [confirmaTrunk, setConfirmaTrunk] = useState(false);
   const [enviando, setEnviando] = useState(false);
+  const [histPage, setHistPage] = useState(1);
   const [abertosIds, setAbertosIds] = useState<string[]>([]);
   const [fechados, setFechados] = useState<Set<string>>(new Set());
 
@@ -133,29 +135,30 @@ export default function MergeBranches() {
 
   const rotuloBotao = linhas.length > 1
     ? `Fazer os ${linhas.length} merges`
-    : `Fazer merge de ${nomeDe(linhas[0]?.origem || "") || "…"} → ${nomeDe(linhas[0]?.destino || "") || "…"}`;
+    : `Fazer merge de ${nomeDe(linhas[0]?.origem || "") || "(escolha a origem)"} → ${nomeDe(linhas[0]?.destino || "") || "(escolha o destino)"}`;
+  const HIST_PAGE = 15;
+  const histPaginaAtual = Math.min(histPage, Math.max(1, Math.ceil(merges.length / HIST_PAGE)));
+  const mergesPagina = merges.slice((histPaginaAtual - 1) * HIST_PAGE, histPaginaAtual * HIST_PAGE);
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
-          <GitMerge className="h-3 w-3" /> Merge de branches
-        </div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-          Merge de <span className="gradient-text">branches</span>
-        </h1>
+      <div className="mb-6">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Merge de branches</h1>
+        <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
+          Leva as alterações de uma branch do TestComplete para outra. Os merges entram numa fila e são feitos um de cada vez.
+        </p>
       </div>
 
       {/* Novos merges */}
-      <Card className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-muted-foreground">Novo merge</h2>
+      <Card className="p-4 sm:p-5 mb-5">
+        <h2 className="mb-3 text-base font-semibold">Novo merge</h2>
         <div className="space-y-4">
           {linhas.map((linha, index) => (
             <div key={linha.id} className={linhas.length > 1 ? "rounded-lg border border-border/60 p-3" : ""}>
               {linhas.length > 1 && (
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Merge {index + 1}</span>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500" onClick={() => removerLinha(linha.id)}
+                  <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive" onClick={() => removerLinha(linha.id)}
                     aria-label={`Remover merge ${index + 1}`}>
                     <X className="h-3.5 w-3.5 mr-1" /> Remover
                   </Button>
@@ -175,9 +178,9 @@ export default function MergeBranches() {
                 <BranchPicker label={index === 0 ? "Destino (branch que será atualizada)" : `Destino do merge ${index + 1}`} branches={branches}
                   value={linha.destino} onChange={(v) => setLinha(linha.id, { destino: v })} placeholder="Escolha a branch de destino" loading={loadingBranches} />
               </div>
-              {linha.destino && linha.origem === linha.destino && <p className="mt-2 text-xs text-red-500">Origem e destino precisam ser diferentes.</p>}
+              {linha.destino && linha.origem === linha.destino && <p className="mt-2 text-xs text-destructive">Origem e destino precisam ser diferentes.</p>}
               {linha.destino && linha.origem !== linha.destino && repetidas.has(chave(linha)) && (
-                <p className="mt-2 text-xs text-red-500">Este merge está repetido na lista.</p>
+                <p className="mt-2 text-xs text-destructive">Este merge está repetido na lista.</p>
               )}
               {linha.destino && linha.destino === trunk?.url && linha.origem !== linha.destino && (
                 <p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
@@ -187,11 +190,11 @@ export default function MergeBranches() {
               )}
               <div className="mt-3 space-y-1">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span className="text-sm font-medium">
                     {linhas.length > 1 ? `Mensagem do commit do merge ${index + 1}` : "Mensagem do commit"}
                   </span>
                   {linha.editada && (
-                    <Button size="sm" variant="ghost" className="h-6 text-[11px]" onClick={() => setLinha(linha.id, { editada: false, mensagem: "" })}>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setLinha(linha.id, { editada: false, mensagem: "" })}>
                       <RotateCcw className="h-3 w-3 mr-1" /> Restaurar padrão
                     </Button>
                   )}
@@ -203,7 +206,7 @@ export default function MergeBranches() {
                   className="min-h-[60px] font-mono text-xs"
                 />
                 {!linha.editada && (
-                  <p className="text-[11px] text-muted-foreground">Sem edição, o commit leva também quem pediu e a lista de revisões que entraram.</p>
+                  <p className="text-xs text-muted-foreground">Sem edição, o commit leva também quem pediu e a lista de revisões que entraram.</p>
                 )}
               </div>
             </div>
@@ -223,15 +226,15 @@ export default function MergeBranches() {
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" onClick={adicionarLinha} disabled={branches.length === 0} className="max-sm:w-full">
-              <Plus className="h-4 w-4 mr-1" /> Adicionar merge
+              <Plus className="h-4 w-4 mr-1" /> Adicionar outro merge
             </Button>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {branchData?.updated_at ? `Lista de branches atualizada em ${dataCurta(branchData.updated_at)}` : ""}
             </span>
           </div>
-          <Button className="bg-gradient-primary max-sm:w-full" disabled={!podeFazer} onClick={fazerMerges}>
+          <Button className="max-w-full max-sm:w-full" disabled={!podeFazer} onClick={fazerMerges}>
             {enviando ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <GitMerge className="h-4 w-4 mr-2" />}
-            {rotuloBotao}
+            <span className="truncate">{rotuloBotao}</span>
           </Button>
         </div>
         {!podeMerge && <SemPermissao permissao="merge" className="mt-3 sm:justify-end" />}
@@ -247,20 +250,23 @@ export default function MergeBranches() {
       ))}
 
       {/* Historico */}
-      <h2 className="mb-3 text-base sm:text-lg font-semibold">Histórico de merges</h2>
-      <Card className="glass-card backdrop-filter-none overflow-hidden">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base sm:text-lg font-semibold">Histórico de merges</h2>
+        <span className="text-xs text-muted-foreground">Passe o mouse no resultado para ver o que ele quer dizer.</span>
+      </div>
+      <Card className="overflow-hidden">
         {merges.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Nenhum merge ainda.</p>
         ) : isMobile ? (
           <ul className="divide-y divide-border/60">
-            {merges.map((m) => (
+            {mergesPagina.map((m) => (
               <li key={m.id} className="space-y-1 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs">{dataCurta(m.created_at)}</span>
                   <ResultadoBadge pedido={m} />
                 </div>
                 <p className="break-all text-sm">{m.source_name} <ArrowRight className="inline h-3 w-3" /> {m.target_name}</p>
-                <p className="text-[11px] text-muted-foreground">{m.requested_by || "—"}</p>
+                <p className="text-xs text-muted-foreground">{m.requested_by || "—"}</p>
               </li>
             ))}
           </ul>
@@ -276,14 +282,14 @@ export default function MergeBranches() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {merges.map((m) => (
+                {mergesPagina.map((m) => (
                   <TableRow key={m.id} className={abertos.some((a) => a.id === m.id) ? "bg-primary/5" : ""}>
-                    <TableCell className="text-xs">{dataCurta(m.created_at)}</TableCell>
-                    <TableCell className="text-xs">
+                    <TableCell className="py-2.5 text-sm whitespace-nowrap">{dataCurta(m.created_at)}</TableCell>
+                    <TableCell className="py-2.5 text-sm">
                       {m.source_name} <ArrowRight className="inline h-3 w-3 text-muted-foreground" /> <strong>{m.target_name}</strong>
                     </TableCell>
-                    <TableCell className="text-xs">{m.requested_by || "—"}</TableCell>
-                    <TableCell><ResultadoBadge pedido={m} /></TableCell>
+                    <TableCell className="py-2.5 text-sm">{m.requested_by || "—"}</TableCell>
+                    <TableCell className="py-2.5"><ResultadoBadge pedido={m} /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -291,6 +297,9 @@ export default function MergeBranches() {
           </div>
         )}
       </Card>
+      <div className="mt-3">
+        <Paginacao page={histPaginaAtual} pageSize={HIST_PAGE} total={merges.length} onChange={setHistPage} />
+      </div>
     </div>
   );
 }
@@ -298,7 +307,7 @@ export default function MergeBranches() {
 /** Resultado no historico: "Merge realizado", "Conflito" (ou o andamento/erro). */
 function ResultadoBadge({ pedido }: { pedido: MergePedido }) {
   const meta = mergeStatus(pedido);
-  return <Badge variant="outline" className={meta.className}>{meta.label}</Badge>;
+  return <Badge variant="outline" className={`whitespace-nowrap ${meta.className}`} title={meta.dica}>{meta.label}</Badge>;
 }
 
 /* ---------------------------------------------------------------- seletor de branch */
@@ -313,13 +322,13 @@ function BranchPicker({ label, branches, value, onChange, placeholder, loading }
   const visiveis = branches.filter((b) => combinaBusca(b.name, busca));
   return (
     <div className="min-w-0 space-y-1">
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="text-sm font-medium">{label}</div>
       <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setBusca(""); }}>
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" aria-label={label} className="w-full justify-between font-normal">
             <span className="truncate">
               {atual ? atual.name : loading ? "Carregando branches…" : placeholder}
-              {atual?.kind === "trunk" && <span className="ml-2 text-[10px] text-muted-foreground">principal</span>}
+              {atual?.kind === "trunk" && <span className="ml-2 text-xs text-muted-foreground">principal</span>}
             </span>
             <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
           </Button>
@@ -384,7 +393,7 @@ function PedidoPainel({ pedido, podeCancelar, onFechar }: { pedido: MergePedido;
   const conflitos = pedido.result_json?.conflitos?.length ? pedido.result_json.conflitos : pedido.preview_json?.conflitos || [];
 
   return (
-    <Card className="glass-card backdrop-filter-none p-4 sm:p-5 mb-5 space-y-3" aria-label="Merge aberto">
+    <Card className="p-4 sm:p-5 mb-5 space-y-3" aria-label="Merge aberto">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-base font-semibold break-all">

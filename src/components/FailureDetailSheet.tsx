@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Copy, Download, ExternalLink, FileText, Image as ImageIcon, FileArchive,
   GitCompare, X, ChevronDown, ChevronRight, Upload,
@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
 import { FileComparatorDialog } from "./FileComparator";
+import { decodeEvidenceText } from "@/lib/textDecode";
 
 /* ---------------- helpers ---------------- */
 
@@ -30,17 +31,6 @@ function formatBytes(b?: number | null) {
   return `${n.toFixed(n < 10 ? 1 : 0)} ${u[i]}`;
 }
 
-function countBad(s: string) { let n = 0; for (let i = 0; i < s.length; i++) if (s.charCodeAt(i) === 0xfffd) n++; return n; }
-function decodeBufferSmart(buffer: ArrayBuffer): string {
-  const encs = ["utf-8", "windows-1252", "iso-8859-1"];
-  const cands: { text: string; bad: number }[] = [];
-  for (const enc of encs) {
-    try { const t = new TextDecoder(enc, { fatal: false }).decode(buffer); cands.push({ text: t, bad: countBad(t) }); } catch { /* encoding nao suportado pelo navegador */ }
-  }
-  if (!cands.length) return "";
-  cands.sort((a, b) => a.bad - b.bad);
-  return cands[0].text;
-}
 function evidenceFileName(ev: Evidencia) {
   return ev.nome_arquivo || (ev.storage_path || "").split(/[\\/]/).filter(Boolean).pop() || "evidencia";
 }
@@ -50,7 +40,7 @@ async function fetchEvidenceText(ev: Evidencia): Promise<string | null> {
     const blob = await fetchEvidenceBlob(ev);
     if (!blob) return null;
     if (blob.size > 8 * 1024 * 1024) return null;
-    return decodeBufferSmart(await blob.arrayBuffer());
+    return decodeEvidenceText(await blob.arrayBuffer());
   } catch {
     return null;
   }
@@ -97,6 +87,12 @@ function isErrorImage(ev: Evidencia) {
   if (!isImageEv(ev)) return false;
   const name = (ev.nome_arquivo || "").toLowerCase();
   return /(imagem[_\s-]*erro|imagemerro|^erro[_\s-]|_erro\.|print[_\s-]*erro)/.test(name);
+}
+
+/** TXT com a mensagem de erro do TestComplete (InformacaoErro.txt): vem antes do print. */
+function isErrorText(ev: Evidencia) {
+  const isTxt = ev.tipo === "txt" || ev.tipo === "error_text" || (ev.extensao || "").toLowerCase() === "txt";
+  return isTxt && (ev.tipo === "error_text" || /erro/i.test(ev.nome_arquivo || ""));
 }
 
 function isNumberedPrint(ev: Evidencia) {
@@ -169,6 +165,7 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
     <SheetPortal>
       <SheetOverlay />
       <SheetPrimitive.Content
+        aria-describedby={undefined}
         {...props}
         style={{ width: isMobile ? "100vw" : `min(100vw, ${width}px)` }}
         className={cn(
@@ -196,7 +193,7 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
 
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
 
-        <SheetPrimitive.Close className="absolute right-4 top-4 rounded-md p-1 opacity-70 ring-offset-background transition-opacity hover:opacity-100 hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-ring">
+        <SheetPrimitive.Close className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
           <X className="h-4 w-4" />
           <span className="sr-only">Fechar</span>
         </SheetPrimitive.Close>
@@ -271,6 +268,9 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
   }, [evidencias, realPairs, falha?.arquivo_zip]);
 
   if (!falha) return null;
+  const erro = (falha.mensagem_principal || falha.erro_principal || "").trim();
+  const errorTexts = otherEvidences.filter(isErrorText);
+  const restEvidences = otherEvidences.filter((e) => !isErrorText(e));
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -281,7 +281,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             {falha.caso_teste_provavel || falha.erro_titulo || falha.arquivo_zip || "Falha"}
           </SheetTitle>
 
-          {falha.descricao_caso && (
+          {falha.descricao_caso && falha.descricao_caso !== falha.caso_teste_provavel && (
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {falha.descricao_caso}
             </p>
@@ -291,20 +291,45 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
         <div className="px-4 sm:px-7 py-5 sm:py-6 space-y-6 sm:space-y-8">
 
 
-          {falha.arquivo_zip && (
-            <Section title="Arquivo ZIP/RAR">
-              <ZipFileRow name={falha.arquivo_zip} evidence={zipEvidence} />
+          {/* Sem o TXT de erro anexado, mostra a mensagem que a analise extraiu. */}
+          {erro && errorTexts.length === 0 && (
+            <Section title="Mensagem de erro">
+              <div className="relative rounded-lg border border-destructive/30 bg-destructive/5 p-3 pr-11">
+                <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground/90">{erro}</p>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1.5 top-1.5 h-8 w-8"
+                  aria-label="Copiar mensagem de erro"
+                  title="Copiar"
+                  onClick={() => { navigator.clipboard.writeText(erro); toast.success("Mensagem copiada"); }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </Section>
+          )}
+
+          {errorTexts.length > 0 && (
+            <div className="space-y-3">
+              {errorTexts.map((e) => <EvidenceItem key={`${falha.id}-errtxt-${e.id}`} ev={e} />)}
+            </div>
           )}
 
           {errorImage && (
             <EvidenceItem key={`${falha.id}-err-${errorImage.id}`} ev={errorImage} priority />
           )}
 
-          {otherEvidences.length > 0 && (
+          {restEvidences.length > 0 && (
             <div className="space-y-3">
-              {otherEvidences.map((e) => <EvidenceItem key={`${falha.id}-oth-${e.id}`} ev={e} />)}
+              {restEvidences.map((e) => <EvidenceItem key={`${falha.id}-oth-${e.id}`} ev={e} />)}
             </div>
+          )}
+
+          {falha.arquivo_zip && (
+            <Section title="Arquivo compactado do teste">
+              <ZipFileRow name={falha.arquivo_zip} evidence={zipEvidence} />
+            </Section>
           )}
 
 
@@ -319,19 +344,19 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
               )}
               <div className="space-y-2">
                 {realPairs.map((p) => (
-                  <Card key={p.key} className="p-3.5 flex items-center gap-3 flex-wrap bg-card/60">
+                  <Card key={p.key} className="p-3 flex items-center gap-3 flex-wrap bg-card/60">
                     <div className="flex-1 min-w-0 text-xs space-y-1">
-                      <div className="font-mono truncate" title={p.base?.nome_arquivo || ""}>
+                      <div className="font-mono break-all" title={p.base?.nome_arquivo || ""}>
                         <span className="text-muted-foreground font-sans not-italic mr-1">Base:</span>
                         <span className="text-foreground/90">{p.base?.nome_arquivo}</span>
                       </div>
-                      <div className="font-mono truncate" title={p.atual?.nome_arquivo || ""}>
+                      <div className="font-mono break-all" title={p.atual?.nome_arquivo || ""}>
                         <span className="text-muted-foreground font-sans not-italic mr-1">Atual:</span>
                         <span className="text-foreground/90">{p.atual?.nome_arquivo}</span>
                       </div>
                       {p.auto && <div className="text-[10px] text-muted-foreground italic">Par identificado automaticamente</div>}
                     </div>
-                    <Button size="sm" onClick={() => setComparePair(p)}>
+                    <Button size="sm" className="max-sm:w-full" onClick={() => setComparePair(p)}>
                       <GitCompare className="h-3.5 w-3.5 mr-1" /> Ver diferenças
                     </Button>
                   </Card>
@@ -351,8 +376,8 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                   className="group flex w-full items-center gap-2 text-left mb-3 hover:text-foreground transition-colors"
                 >
                   <ChevronRight className="h-3.5 w-3.5 text-muted-foreground transition-transform group-data-[state=open]:rotate-90" />
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground group-hover:text-foreground">
-                    Prints do teste <span className="text-foreground/60 normal-case font-normal">({numberedPrints.length})</span>
+                  <h3 className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
+                    Prints do teste <span className="font-mono text-xs text-foreground/60">{numberedPrints.length}</span>
                   </h3>
                 </button>
               </CollapsibleTrigger>
@@ -378,7 +403,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
       <div className="space-y-3">{children}</div>
     </section>
   );
@@ -391,18 +416,18 @@ function ZipFileRow({ name, evidence }: { name: string; evidence: Evidencia | nu
       className="group flex items-center gap-2.5 rounded-lg border border-border/60 bg-background/40 px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-primary/[0.04]"
     >
       <FileArchive className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-      <span className="flex-1 text-sm font-mono truncate text-foreground/90">{name}</span>
+      <span className="min-w-0 flex-1 break-all text-sm font-mono text-foreground/90">{name}</span>
       {canDownload ? (
         <Button
           size="sm"
-          variant="ghost"
-          className="h-7 text-xs opacity-0 group-hover:opacity-100 transition-opacity"
+          variant="outline"
+          className="h-8 shrink-0 text-xs"
           onClick={() => evidence && handleDownload(evidence)}
         >
           <Download className="h-3.5 w-3.5 mr-1" /> Baixar
         </Button>
       ) : (
-        <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">indisponível</span>
+        <span className="shrink-0 text-xs text-muted-foreground">Indisponível para baixar</span>
       )}
     </div>
   );
@@ -411,7 +436,8 @@ function ZipFileRow({ name, evidence }: { name: string; evidence: Evidencia | nu
 function ImagePreviewDialog({ url, alt, open, onOpenChange }: { url: string | null; alt: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] w-fit p-0 bg-transparent border-0 shadow-none">
+      <DialogContent aria-describedby={undefined} className="max-w-[95vw] w-fit p-0 bg-transparent border-0 shadow-none">
+        <DialogTitle className="sr-only">{alt}</DialogTitle>
         {url && (
           <img src={url} alt={alt} className="max-w-[95vw] max-h-[92vh] object-contain rounded-md" />
         )}
@@ -423,11 +449,11 @@ function ImagePreviewDialog({ url, alt, open, onOpenChange }: { url: string | nu
 function TextPreviewDialog({ title, content, open, onOpenChange }: { title: string; content: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <div className="flex items-center gap-2 pb-2 border-b border-border">
+      <DialogContent aria-describedby={undefined} className="max-w-3xl">
+        <div className="flex items-center gap-2 pb-2 pr-8 border-b border-border">
           <FileText className="h-4 w-4 text-warning" />
-          <span className="text-sm font-medium truncate">{title}</span>
-          <Button variant="ghost" size="sm" className="ml-auto h-7 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
+          <DialogTitle className="text-sm font-medium truncate">{title}</DialogTitle>
+          <Button variant="ghost" size="sm" className="ml-auto h-8 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
             <Copy className="h-3 w-3 mr-1" /> Copiar
           </Button>
         </div>
@@ -513,8 +539,8 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
               <span className="text-[11px] text-muted-foreground">{formatBytes(ev.tamanho_bytes)}</span>
             )}
             <div className="ml-auto flex gap-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
-                <Download className="h-3 w-3 mr-1" />Baixar
+              <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => handleDownload(ev)}>
+                <Download className="h-3 w-3" /><span className="max-sm:sr-only">Baixar</span>
               </Button>
             </div>
           </div>
@@ -524,6 +550,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
               onClick={() => setPreview(true)}
               className="block w-full cursor-zoom-in group/img"
               title="Clique para ampliar"
+              aria-label={`Ampliar ${ev.nome_arquivo || "print"}`}
             >
               <img
                 src={url}
@@ -548,39 +575,40 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
     );
   }
   if (isTxt) {
-    const firstLine = (txtContent || "").split(/\r?\n/).find((l) => l.trim().length > 0) || "";
+    const fullText = (txtContent || "").trim();
     const previewText =
       txtStatus === "loading" ? "Carregando conteúdo…"
       : txtStatus === "error" ? "Não foi possível carregar o conteúdo do TXT."
       : txtContent == null ? "Carregando conteúdo…"
-      : firstLine ? firstLine
+      : fullText ? fullText
       : "Arquivo TXT sem conteúdo.";
     const canCopy = !!txtContent;
     return (
       <>
         <Card ref={containerRef}>
           <div className="flex items-center gap-2 px-3 py-2 border-b border-border/60">
-            <FileText className="h-4 w-4 text-warning" />
-            <span className="text-xs font-medium truncate">{ev.nome_arquivo || "Erro / Call stack"}</span>
-            <div className="ml-auto flex gap-1">
+            <FileText className="h-4 w-4 shrink-0 text-warning" />
+            <span className="min-w-0 flex-1 truncate text-xs font-medium" title={ev.nome_arquivo || undefined}>{ev.nome_arquivo || "Erro / Call stack"}</span>
+            <div className="flex shrink-0 gap-0.5">
               <Button
-                variant="ghost" size="sm" className="h-7 text-xs"
+                variant="ghost" size="sm" className="h-8 px-2 text-xs"
                 disabled={!canCopy}
+                aria-label="Copiar conteúdo"
                 onClick={() => { if (txtContent) { navigator.clipboard.writeText(txtContent); toast.success("TXT copiado"); } }}
               >
-                <Copy className="h-3 w-3 mr-1" />Copiar
+                <Copy className="h-3 w-3" /><span className="max-sm:sr-only">Copiar</span>
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setTxtOpen(true)} disabled={!canCopy}>
-                <ExternalLink className="h-3 w-3 mr-1" />Abrir
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" aria-label="Abrir em tela cheia" onClick={() => setTxtOpen(true)} disabled={!canCopy}>
+                <ExternalLink className="h-3 w-3" /><span className="max-sm:sr-only">Abrir</span>
               </Button>
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleDownload(ev)}>
-                <Download className="h-3 w-3 mr-1" />Baixar
+              <Button variant="ghost" size="sm" className="h-8 px-2 text-xs" aria-label="Baixar arquivo" onClick={() => handleDownload(ev)}>
+                <Download className="h-3 w-3" /><span className="max-sm:sr-only">Baixar</span>
               </Button>
             </div>
           </div>
-          <div className="px-3 py-2.5 text-xs text-foreground/80 font-mono truncate" title={firstLine || undefined}>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words px-3 py-2.5 font-mono text-xs leading-relaxed text-foreground/85">
             {previewText}
-          </div>
+          </pre>
         </Card>
         <TextPreviewDialog title={ev.nome_arquivo || "TXT"} content={txtContent || ""} open={txtOpen} onOpenChange={setTxtOpen} />
       </>

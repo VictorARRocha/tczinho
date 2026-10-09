@@ -8,8 +8,8 @@ export function formatarVm(vm: string | null | undefined): string {
 /**
  * Versao como as pessoas falam:
  *   PROXIMA1.26.10.0       -> Próxima 10.0
- *   CONTABIL_DERE          -> Contabil Dere
- *   FOLHA_SUSTENTACAO_2026 -> Folha Sustentacao 2026
+ *   CONTABIL_DERE          -> Contábil Dere
+ *   FOLHA_SUSTENTACAO_2026 -> Folha Sustentação 2026
  *   8.05z / 19.4.3         -> 8.05z / 19.4.3 (numero fica como esta)
  */
 export function formatarVersao(versao: string | null | undefined): string {
@@ -22,5 +22,22 @@ export function formatarVersao(versao: string | null | undefined): string {
     .split(/[_\s]+/)
     .filter(Boolean)
     .map((parte) => (/[a-z]/i.test(parte) ? parte.charAt(0).toUpperCase() + parte.slice(1).toLowerCase() : parte))
+    .map((parte) => ACENTOS[parte.toLowerCase()] ?? parte)
     .join(" ");
+}
+
+// Pastas e campos vem sem acento; na tela as palavras conhecidas voltam a ter.
+const ACENTOS: Record<string, string> = {
+  unico: "Único",
+  contabil: "Contábil",
+  sustentacao: "Sustentação",
+  gestao: "Gestão",
+  inovacao: "Inovação",
+  proxima: "Próxima",
+};
+
+/** "Unico" -> "Único" (nome do sistema exibido no cabecalho). */
+export function formatarSistema(sistema: string | null | undefined): string {
+  const texto = (sistema || "").trim();
+  return ACENTOS[texto.toLowerCase()] ?? texto;
 }

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, ChevronLeft, Copy, Server, Clock } from "lucide-react";
+import { PlayCircle, ChevronLeft, Copy, Clock } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
 } from "@/services/data";
@@ -179,14 +179,9 @@ export default function JenkinsRodagemCompleta() {
       </div>
 
       <div className="mb-6 sm:mb-8">
-        <div className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-primary mb-3">
-          <Server className="h-3 w-3" /> Rodagem completa
-        </div>
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold tracking-tight">
-          Nova rodagem <span className="gradient-text">Jenkins</span>
-        </h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Rodagem completa</h1>
         <p className="mt-2 text-sm text-muted-foreground max-w-3xl">
-          Escolha o modo de configuração e envie uma nova rodagem para o Jenkins.
+          Roda um módulo inteiro na VM escolhida, agora ou no horário agendado.
         </p>
       </div>
 
@@ -278,7 +273,7 @@ export default function JenkinsRodagemCompleta() {
 
               <Button
                 size="lg"
-                className="w-full bg-gradient-primary"
+                className="w-full"
                 onClick={submitSimplificada}
                 disabled={submitting || !podeSolicitar || !moduloLiberado}
               >
@@ -337,7 +332,7 @@ export default function JenkinsRodagemCompleta() {
 
             <Button
               size="lg"
-              className="w-full bg-gradient-primary"
+              className="w-full"
               onClick={submitConfigurada}
               disabled={submitting || !podeSolicitar}
             >
@@ -349,7 +344,7 @@ export default function JenkinsRodagemCompleta() {
         </TabsContent>
       </Tabs>
 
-      <JenkinsHistory />
+      <JenkinsHistory defaultExpanded />
     </div>
   );
 }

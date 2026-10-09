@@ -19,6 +19,35 @@ export function formatRelative(date: string | null | undefined): string {
   }
 }
 
+/** Data e hora completas para dicas (title) ao lado de um tempo relativo. */
+export function formatDateTimeLong(date: string | null | undefined): string {
+  if (!date) return "";
+  try {
+    return format(parseISO(date), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Resultado de uma rodagem: casos rodados, quantos passaram e a taxa de sucesso.
+ * Sem total confiavel (menor que as falhas), devolve null em vez de inventar um numero.
+ */
+export function resultadoRodagem(r: { total_analisados: number | null; total_falhas: number | null }) {
+  // Sem um dos dois totais nao da para calcular: total de falhas vazio nao e "nenhuma falha".
+  if (r.total_analisados == null || r.total_falhas == null) return null;
+  const rodados = r.total_analisados;
+  const falhas = r.total_falhas;
+  if (rodados <= 0 || rodados < falhas) return null;
+  const passaram = rodados - falhas;
+  return { rodados, falhas, passaram, taxa: passaram / rodados };
+}
+
+/** 0.9464 -> "94,6%". */
+export function formatPercent(v: number, digits = 1): string {
+  return `${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits })}%`;
+}
+
 const classMap: Record<string, { label: string; className: string }> = {
   automacao: { label: "Automação", className: "bg-automation/15 text-automation border-automation/30" },
   automation: { label: "Automação", className: "bg-automation/15 text-automation border-automation/30" },
