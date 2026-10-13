@@ -10,6 +10,7 @@ import { useHistoricoTempo } from "@/services/queries";
 import { queryClient } from "@/lib/queryClient";
 import { usePermissao, useModulos } from "@/hooks/use-permissao";
 import { formatDateTime } from "@/lib/format";
+import { formatarVersao } from "@/lib/rodagemTexto";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -142,10 +143,14 @@ export function TempoCasoPainel({ caso, moduloSlug, onClose, onBaseTrocada }: {
                   {medicoes.slice(0, visiveis).map((m) => {
                     const tom = tomDoStatus(m.status);
                     const destaque = caso.medido_em === m.medido_em;
+                    const quando = formatDateTime(m.medido_em);
+                    const versao = formatarVersao(m.versao);
                     return (
-                      <li key={m.medido_em} className={`grid grid-cols-[92px_minmax(0,1fr)_52px_48px] items-center gap-2 rounded px-1 py-0.5 text-xs ${destaque ? "bg-muted/60" : ""}`}>
-                        <span className="text-muted-foreground" title={destaque ? "Esta rodagem" : undefined}>
-                          {formatDateTime(m.medido_em).replace(/\/\d{2}(\d{2}) /, "/$1 ")}
+                      <li key={m.medido_em} className={`grid grid-cols-[40px_88px_minmax(0,1fr)_44px_46px] items-center gap-2 rounded px-1 py-0.5 text-xs ${destaque ? "bg-muted/60" : ""}`}>
+                        {/* So dia/mes na linha; data e hora completas ao passar o mouse. */}
+                        <span className="text-muted-foreground" title={`${quando}${destaque ? " (esta rodagem)" : ""}`}>{quando.slice(0, 5)}</span>
+                        <span className={`truncate ${versao ? "" : "text-muted-foreground"}`} title={versao || "Rodagem não registrada no AgenteTC"}>
+                          {versao || "—"}
                         </span>
                         <span className="relative h-1.5 rounded-full bg-muted">
                           <span className={`absolute inset-y-0 left-0 rounded-full ${tom.barra}`} style={{ width: `${Math.max(3, (m.segundos / maior) * 100)}%` }} />

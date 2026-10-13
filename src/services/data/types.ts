@@ -267,5 +267,12 @@ export interface HistoricoTempo {
   base_definida_em: string | null;
   base_definida_por: string | null;
   limite_segundos: number | null;
-  medicoes: { medido_em: string; segundos: number; run_id: string | null; status: "mais_lento" | "mais_rapido" | "igual" }[];
+  medicoes: {
+    medido_em: string;
+    segundos: number;
+    run_id: string | null;
+    /** Versao da rodagem (null quando a rodagem nao foi registrada no AgenteTC). */
+    versao?: string | null;
+    status: "mais_lento" | "mais_rapido" | "igual";
+  }[];
 }

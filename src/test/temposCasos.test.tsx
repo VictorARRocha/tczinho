@@ -41,8 +41,8 @@ const HISTORICO: HistoricoTempo = {
   codigo_teste: "3.2.14", base_segundos: 130, base_origem: "planilha", base_anterior_segundos: null,
   base_definida_em: "2026-10-01T10:00:00-03:00", base_definida_por: null, limite_segundos: 15,
   medicoes: [
-    { medido_em: "2026-10-13T11:12:01-03:00", segundos: 161, run_id: "rod_2", status: "mais_lento" },
-    { medido_em: "2026-10-10T09:00:00-03:00", segundos: 135, run_id: "rod_1", status: "igual" },
+    { medido_em: "2026-10-13T11:12:01-03:00", segundos: 161, run_id: "rod_2", versao: "PROXIMA1.26.10.0", status: "mais_lento" },
+    { medido_em: "2026-10-10T09:00:00-03:00", segundos: 135, run_id: null, versao: null, status: "igual" },
   ],
 };
 
@@ -87,6 +87,10 @@ describe("aba Performance com tempos no banco", () => {
     expect(await within(painel).findByText("da planilha antiga (Tempo Padrão)")).toBeInTheDocument();
     expect(within(painel).getByText("+24%")).toBeInTheDocument();
     expect(within(painel).getByText("+4%")).toBeInTheDocument();
+    // Versao de cada rodagem ao lado do dia; sem rodagem registrada, um traco.
+    expect(within(painel).getByText("Próxima 10.0")).toBeInTheDocument();
+    expect(within(painel).getByTitle("Rodagem não registrada no AgenteTC")).toHaveTextContent("—");
+    expect(within(painel).getByText("13/10")).toHaveAttribute("title", "13/10/2026 11:12 (esta rodagem)");
 
     fireEvent.click(within(painel).getByRole("button", { name: "Usar 02:41 como novo tempo base" }));
     const confirmar = await screen.findByRole("button", { name: "Trocar tempo base" });
