@@ -139,6 +139,13 @@ export interface AtrasoRodagem {
   variacao_pct: number;         // computado
   status: 'mais_lento' | 'mais_rapido' | 'igual';
   created_at: string;
+  // Tempos no banco (rodagens a partir da aba sem planilha); rodagens antigas nao trazem.
+  limite_segundos?: number | null;   // diferenca que dispara o aviso (tabela por faixa, minimo 15s)
+  base_origem?: 'planilha' | 'primeira_medicao' | 'substituida' | null;
+  base_definida_em?: string | null;
+  base_definida_por?: string | null;
+  tendencia?: number[];              // ultimas medicoes ate esta rodagem (segundos, mais antiga primeiro)
+  medido_em?: string;
 }
 
 export interface ProximoPasso {

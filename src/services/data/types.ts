@@ -235,6 +235,10 @@ export interface QaDataSource {
   updateRunPreset(id: string, payload: SaveRunPresetPayload): Promise<RunPreset>;
   deleteRunPreset(id: string): Promise<void>;
 
+  // Tempo de cada caso (aba Performance)
+  fetchHistoricoTempo(nodeId: string): Promise<HistoricoTempo>;
+  trocarBaseTempo(nodeId: string, segundos: number): Promise<HistoricoTempo>;
+
   // Casos de teste desativados (lista da aba Casos de teste)
   fetchCasosDesativados(slug: string): Promise<CasoDesativado[]>;
   desativarCaso(nodeId: string, motivo?: string): Promise<CasoDesativado>;
@@ -252,4 +256,16 @@ export interface QaDataSource {
   createMerge(payload: CreateMergePayload): Promise<MergePedido>;
   confirmMerge(id: string, payload: ConfirmMergePayload): Promise<MergePedido>;
   cancelMerge(id: string): Promise<void>;
+}
+
+/** Historico de tempo de um caso (GET /testcase-times/:id). */
+export interface HistoricoTempo {
+  codigo_teste: string;
+  base_segundos: number | null;
+  base_origem: "planilha" | "primeira_medicao" | "substituida" | null;
+  base_anterior_segundos: number | null;
+  base_definida_em: string | null;
+  base_definida_por: string | null;
+  limite_segundos: number | null;
+  medicoes: { medido_em: string; segundos: number; run_id: string | null; status: "mais_lento" | "mais_rapido" | "igual" }[];
 }

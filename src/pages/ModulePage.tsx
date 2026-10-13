@@ -89,6 +89,12 @@ export default function ModulePage() {
   const newerRunAvailable =
     !loading && !!latestOfModule && historico.length > 0 && !historico.some((r) => r.id === latestOfModule.id);
 
+  // Na aba, o numero e de casos fora do limite (agora a lista traz todos os casos medidos).
+  const foraDoLimite = performance.filter((p) => p.status !== "igual").length;
+  const recarregarPerformance = () => {
+    if (rodagem) fetchPerformanceByRun(rodagem.id).then(setPerformance);
+  };
+
   const clearRunData = () => {
     setFalhas([]); setEvidencias([]); setGrupos([]); setPassos([]);
     setPerformance([]); setGroupLinks({}); setHierarchy([]);
@@ -321,7 +327,7 @@ export default function ModulePage() {
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">{falhas.length}</span></TabsTrigger>
             <TabsTrigger value="casos">Casos de teste</TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
-            <TabsTrigger value="performance">Performance{performance.length > 0 && <span className="ml-1.5 text-xs opacity-60">{performance.length}</span>}</TabsTrigger>
+            <TabsTrigger value="performance">Performance{foraDoLimite > 0 && <span className="ml-1.5 text-xs opacity-60">{foraDoLimite}</span>}</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
             <TabsTrigger value="comparar">Comparar</TabsTrigger>
           </TabsList>
@@ -336,7 +342,7 @@ export default function ModulePage() {
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="casos" className="mt-6"><CasosTab moduloSlug={slug} hierarchy={hierarchy} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
-          <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} /></TabsContent>
+          <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>
           <TabsContent value="comparar" className="mt-6"><CompararTab runs={historico} currentRunId={rodagem.id} onOpenFailure={setSelectedFalha} /></TabsContent>
 

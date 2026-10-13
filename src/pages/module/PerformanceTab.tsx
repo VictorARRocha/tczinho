@@ -1,5 +1,5 @@
-// Aba Performance: tempos dos casos comparados com a planilha de referencia.
-// Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
+// Aba Performance: tempo de cada caso comparado com o tempo base do caso (no banco).
+// Clicar no caso abre o painel com o historico e a troca da base (TempoCasoPainel).
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import type { AtrasoRodagem } from "@/types/db";
@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Empty, Paginacao, SEM_RESULTADO } from "./common";
+import { TempoCasoPainel } from "./TempoCasoPainel";
 
 const PAGE_SIZE = 25;
 
@@ -35,7 +36,33 @@ function PerfBadge({ status }: { status: AtrasoRodagem["status"] }) {
   return <Badge variant="outline" className="bg-muted text-muted-foreground border-border gap-1"><Minus className="h-3 w-3" />Sem variação</Badge>;
 }
 
-export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
+/** Ultimas rodagens do caso em barrinhas (a ultima, desta rodagem, na cor do status). */
+function Tendencia({ d }: { d: AtrasoRodagem }) {
+  const valores = d.tendencia ?? [];
+  if (valores.length < 2) return <span className="text-xs text-muted-foreground">—</span>;
+  const maior = Math.max(...valores, 1);
+  const ultima = d.status === "mais_lento" ? "bg-destructive" : d.status === "mais_rapido" ? "bg-success" : "bg-muted-foreground/60";
+  const resumo = `Últimas ${valores.length} rodagens: ${valores.map((v) => formatDuration(v)).join(" → ")}`;
+  return (
+    <span className="inline-flex h-5 items-end gap-[2px]" role="img" aria-label={resumo} title={resumo}>
+      {valores.map((v, i) => (
+        <span
+          key={i}
+          className={`w-[5px] rounded-[1px] ${i === valores.length - 1 ? ultima : "bg-muted-foreground/30"}`}
+          style={{ height: `${Math.max(15, (v / maior) * 100)}%` }}
+        />
+      ))}
+    </span>
+  );
+}
+
+export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {} }: {
+  data: AtrasoRodagem[];
+  moduloSlug?: string;
+  onBaseTrocada?: () => void;
+}) {
+  const [casoAberto, setCasoAberto] = useState<AtrasoRodagem | null>(null);
+  const temTendencia = data.some((d) => (d.tendencia?.length ?? 0) > 1);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [caseFilter, setCaseFilter] = useState<string>("all");
@@ -212,7 +239,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
               <SelectItem value="all">Status: todos</SelectItem>
               <SelectItem value="mais_lento">Mais lento</SelectItem>
               <SelectItem value="mais_rapido">Mais rápido</SelectItem>
-              
+              {equal.length > 0 && <SelectItem value="igual">Sem variação</SelectItem>}
             </SelectContent>
           </Select>
           {groups.length > 0 && (
@@ -262,8 +289,8 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
                   return (
                     <li key={d.id} className="space-y-1.5 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-mono text-xs">{d.codigo_teste || "—"}</span>
-                        <PerfBadge status={d.status} />
+                        <button type="button" className="font-mono text-xs text-primary hover:underline" onClick={() => setCasoAberto(d)}>{d.codigo_teste || "—"}</button>
+                        <span className="inline-flex items-center gap-2">{temTendencia && <Tendencia d={d} />}<PerfBadge status={d.status} /></span>
                       </div>
                       {hasName && d.nome_teste && <p className="text-sm break-words">{d.nome_teste}</p>}
                       <div className="grid grid-cols-4 gap-2 text-xs">
@@ -289,14 +316,17 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
               <SortableTH label="Tempo atual" k="atual" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
               <SortableTH label="Diferença" k="diff" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
               <SortableTH label="Variação" k="var" active={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+              {temTendencia && <TableHead className="text-muted-foreground">Tendência</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={hasName ? 7 : 6} className="p-0"><Empty text={SEM_RESULTADO} onClear={clearFilters} /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={(hasName ? 7 : 6) + (temTendencia ? 1 : 0)} className="p-0"><Empty text={SEM_RESULTADO} onClear={clearFilters} /></TableCell></TableRow>
             ) : pageRows.map((d) => (
-              <TableRow key={d.id} className="border-border">
-                <TableCell className="py-2.5 font-mono text-xs">{d.codigo_teste || "—"}</TableCell>
+              <TableRow key={d.id} className="cursor-pointer border-border" onClick={() => setCasoAberto(d)}>
+                <TableCell className="py-2.5 font-mono text-xs">
+                  <button type="button" className="text-primary hover:underline" onClick={(e) => { e.stopPropagation(); setCasoAberto(d); }} aria-label={`Ver histórico do caso ${d.codigo_teste}`}>{d.codigo_teste || "—"}</button>
+                </TableCell>
                 {hasName && <TableCell className="py-2.5 text-sm max-w-[320px] truncate" title={d.nome_teste || undefined}>{d.nome_teste || "—"}</TableCell>}
                 <TableCell><PerfBadge status={d.status} /></TableCell>
                 <TableCell className="text-right font-mono text-xs">{d.tempo_padrao || "—"}</TableCell>
@@ -307,6 +337,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
                 <TableCell className="text-right font-mono text-xs text-muted-foreground" title={baseCurta(d) ? BASE_CURTA : undefined}>
                   {fmtVar(d)}
                 </TableCell>
+                {temTendencia && <TableCell className="py-2"><Tendencia d={d} /></TableCell>}
               </TableRow>
             ))}
           </TableBody>
@@ -317,6 +348,7 @@ export function PerformanceTab({ data }: { data: AtrasoRodagem[] }) {
         <p className="-mt-3 text-xs text-muted-foreground">* Tempo base menor que 1 minuto: a porcentagem exagera a diferença.</p>
       )}
       <Paginacao page={page} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
+      {casoAberto && <TempoCasoPainel caso={casoAberto} moduloSlug={moduloSlug} onClose={() => setCasoAberto(null)} onBaseTrocada={onBaseTrocada} />}
     </div>
   );
 }

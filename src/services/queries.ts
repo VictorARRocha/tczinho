@@ -17,6 +17,7 @@ import {
   fetchRerunRequests,
   fetchRunPresets,
   fetchCasosDesativados,
+  fetchHistoricoTempo,
   fetchRegravacaoCandidatos,
   fetchRegravacoes,
   fetchMergeBranches,
@@ -38,6 +39,7 @@ export const queryKeys = {
   rerunRequests: ["rerun-requests"] as const,
   runPresets: ["run-presets"] as const,
   casosDesativados: (slug: string) => ["casos-desativados", slug] as const,
+  historicoTempo: (nodeId: string) => ["historico-tempo", nodeId] as const,
   regravacaoCandidatos: (runId: string) => ["regravacao-candidatos", runId] as const,
   regravacoes: (runId: string) => ["regravacoes", runId] as const,
   mergeBranches: ["merge-branches"] as const,
@@ -106,6 +108,11 @@ export function useRunPresets() {
 
 export function invalidateRunPresets() {
   return queryClient.invalidateQueries({ queryKey: queryKeys.runPresets });
+}
+
+/** Historico de tempo de um caso (painel da aba Performance). */
+export function useHistoricoTempo(nodeId: string | null) {
+  return useQuery({ queryKey: queryKeys.historicoTempo(nodeId || ""), queryFn: () => fetchHistoricoTempo(nodeId as string), enabled: !!nodeId, staleTime: 30_000 });
 }
 
 /** Casos marcados como desativados no modulo (aba Casos de teste). */

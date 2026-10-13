@@ -14,11 +14,12 @@
 //   GET  /run-presets  |  POST /run-presets  |  PATCH /run-presets/:id  |  POST /run-presets/:id/delete
 //   GET  /runs/:id/regravacao  |  GET /regravacoes?run_id=  |  POST /regravacoes  |  POST /regravacoes/:id/cancel
 //   GET  /merge/branches  |  GET /merges  |  POST /merges  |  POST /merges/:id/confirm  |  POST /merges/:id/cancel
+//   GET  /testcase-times/:id  |  POST /testcase-times/:id/base
 //
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
 import type {
-  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload, CasoDesativado,
+  QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload, CasoDesativado, HistoricoTempo,
   RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
   MergeBranches, MergePedido, ConfirmMergePayload, CreateMergePayload,
 } from "./types";
@@ -344,6 +345,11 @@ export const ApiQaDataSource: QaDataSource = {
 
   deleteRunPreset: (id: string) =>
     req<unknown>(`/run-presets/${encodeURIComponent(id)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
+
+  fetchHistoricoTempo: (nodeId: string) => req<HistoricoTempo>(`/testcase-times/${encodeURIComponent(nodeId)}`),
+
+  trocarBaseTempo: (nodeId: string, segundos: number) =>
+    req<HistoricoTempo>(`/testcase-times/${encodeURIComponent(nodeId)}/base`, { method: "POST", body: JSON.stringify({ segundos }) }),
 
   fetchCasosDesativados: (slug: string) =>
     req<CasoDesativado[]>(`/testcase-disabled?module=${encodeURIComponent(slug)}`),
