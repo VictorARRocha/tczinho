@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, ChevronLeft, Copy, Clock } from "lucide-react";
+import { PlayCircle, ChevronLeft, Copy, Clock, AlertTriangle } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
 } from "@/services/data";
-import { invalidateRerunRequests } from "@/services/queries";
+import { invalidateRerunRequests, useMergeBranches } from "@/services/queries";
+import { MANTER_BRANCH, branchDoPedido, opcoesBranch } from "@/lib/branchVm";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { RunPresetBar } from "@/components/RunPresetBar";
 import { SemPermissao } from "@/components/SemPermissao";
@@ -48,6 +49,11 @@ export default function JenkinsRodagemCompleta() {
   const [sNowTick, setSNowTick] = useState(0);
   // Veio de pre-definicao: mantem a versao depois do envio para poder reenviar igual.
   const [sFromPreset, setSFromPreset] = useState(false);
+  // Branch do projeto na VM: "manter" nao mexe; outra faz svn revert + svn switch no Jenkins antes de rodar.
+  const [sBranch, setSBranch] = useState(MANTER_BRANCH);
+  const { data: branchesSvn } = useMergeBranches();
+  const opcoes = useMemo(() => opcoesBranch(branchesSvn?.branches), [branchesSvn]);
+  const nomeBranch = opcoes.find((o) => o.valor === sBranch)?.rotulo || sBranch;
 
   // recalcula data "agora" continuamente
   useEffect(() => {
@@ -78,9 +84,9 @@ export default function JenkinsRodagemCompleta() {
       paralelo: "",
       ct_desmarcar: "[0.3]",
       data_hora: sDataHora,
-      branch: "",
+      branch: branchDoPedido(sBranch),
     }),
-    [sVm, sVersao, sModuloObj, sDataHora],
+    [sVm, sVersao, sModuloObj, sDataHora, sBranch],
   );
 
   const sPresetConfig = useMemo(
@@ -137,11 +143,12 @@ export default function JenkinsRodagemCompleta() {
         paralelo: "",
         ct_desmarcar: "[0.3]",
         data_hora: sDataHora,
-        branch: "",
+        branch: branchDoPedido(sBranch),
       });
       toast.success("Solicitação enviada", { description: "O JenkinsBridge local irá disparar o Jenkins." });
       invalidateRerunRequests();
       if (!sFromPreset) setSVersao("");
+      setSBranch(MANTER_BRANCH); // a troca vale so para este pedido
     } catch (e) {
       toast.error("Falha ao criar solicitação", { description: mensagemDaApi(e) });
     } finally {
@@ -219,6 +226,28 @@ export default function JenkinsRodagemCompleta() {
                     ))}
                   </SelectContent>
                 </Select>
+              </Field>
+
+              <Field label="Branch">
+                <Select value={sBranch} onValueChange={setSBranch}>
+                  <SelectTrigger aria-label="Branch">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[320px]">
+                    <SelectItem value={MANTER_BRANCH}>Manter a branch atual</SelectItem>
+                    {opcoes.map((o) => (
+                      <SelectItem key={o.valor} value={o.valor}>{o.rotulo}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {sBranch !== MANTER_BRANCH && (
+                  <div className="mt-2 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-300" role="note">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>
+                      Antes de rodar, a {sVm.toUpperCase()} <strong>desfaz as alterações locais</strong> em C:\TC\Unico (svn revert) e depois troca para <strong>{nomeBranch}</strong> (svn switch).
+                    </span>
+                  </div>
+                )}
               </Field>
 
               <Field label="Módulo">

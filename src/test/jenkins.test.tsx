@@ -18,6 +18,8 @@ const api = {
   createRunPreset: vi.fn(),
   updateRunPreset: vi.fn(),
   deleteRunPreset: vi.fn(),
+  branches: { branches: [] as { name: string; url: string; kind: "trunk" | "branch" }[], updated_at: null as string | null },
+  runs: [] as Record<string, unknown>[],
 };
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
@@ -32,6 +34,8 @@ vi.mock("@/services/data", async (importOriginal) => {
     createRunPreset: (...args: unknown[]) => api.createRunPreset(...args),
     updateRunPreset: (...args: unknown[]) => api.updateRunPreset(...args),
     deleteRunPreset: (...args: unknown[]) => api.deleteRunPreset(...args),
+    fetchMergeBranches: async () => api.branches,
+    fetchAllRuns: async () => api.runs,
   };
 });
 
@@ -55,6 +59,7 @@ import JenkinsRodagemCompleta from "@/pages/JenkinsRodagemCompleta";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { visibleAfterClear } from "@/lib/historyClear";
 import { parseConfigText, sameConfig, validateConfigForSubmit, withDataHora } from "@/lib/jenkinsConfig";
+import { opcoesBranch } from "@/lib/branchVm";
 
 // Componentes Radix usam APIs de ponteiro/rolagem que o jsdom nao tem.
 beforeAll(() => {
@@ -98,6 +103,8 @@ async function choosePreset(name: string) {
 beforeEach(() => {
   window.localStorage.clear();
   queryClient.clear();
+  api.branches = { branches: [], updated_at: null };
+  api.runs = [];
   api.requests = [];
   api.presets = [];
   api.failPresets = false;
@@ -511,5 +518,74 @@ describe("rodagem completa", () => {
     for (const v of ["P", "PR", "PRO", "PROX"]) fireEvent.change(input, { target: { value: v } });
     expect((input as HTMLInputElement).value).toBe("PROX");
     expect(historyRenders.count).toBe(0);
+  });
+});
+
+describe("branch do projeto na rodagem simplificada", () => {
+  const ROOT = "https://192.168.10.199:8443/svn/testcomplete/unico/ProjetoUnico";
+  beforeEach(() => {
+    api.branches = {
+      updated_at: "2026-10-13T12:00:00Z",
+      branches: [
+        { name: "Unico", url: ROOT + "/Unico", kind: "trunk" },
+        { name: "Proxima10_0", url: ROOT + "/branches/Proxima10_0", kind: "branch" },
+      ],
+    };
+    api.runs = [
+      { id_rodagem: "r1", vm_name: "a07", data_inicio: "2026-10-10T09:00:00-03:00", repository_url: ROOT + "/Unico" },
+      { id_rodagem: "r2", vm_name: "a07", data_inicio: "2026-10-13T09:00:00-03:00", repository_url: ROOT + "/branches/Proxima10_0" },
+      { id_rodagem: "r3", vm_name: "a08", data_inicio: "2026-10-14T09:00:00-03:00", repository_url: ROOT + "/Unico" },
+    ];
+    api.createRerunRequest.mockResolvedValue({});
+  });
+
+  async function escolherBranch(nome: string) {
+    const trigger = screen.getByRole("combobox", { name: "Branch" });
+    fireEvent.keyDown(trigger, { key: "ArrowDown" }); // o Radix abre pelo teclado no jsdom (sem PointerEvent)
+    fireEvent.click(await screen.findByRole("option", { name: nome }));
+  }
+
+  it("padrao mantem a branch atual (nao troca)", async () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(await screen.findByRole("combobox", { name: "Branch" })).toHaveTextContent("Manter a branch atual");
+    expect(screen.getByText(/"branch": ""/)).toBeInTheDocument();
+    expect(screen.queryByText(/desfaz as alterações locais/)).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledWith(expect.objectContaining({ branch: "" })));
+  });
+
+  it("escolher branch avisa do revert antes do switch e envia o nome", async () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    await waitFor(() => expect(queryClient.getQueryState(["merge-branches"])?.status).toBe("success"));
+    await escolherBranch("Proxima10_0");
+    const aviso = screen.getByText(/desfaz as alterações locais/).closest("[role=note]") as HTMLElement;
+    expect(aviso).toHaveTextContent("svn revert");
+    expect(aviso).toHaveTextContent("depois troca para Proxima10_0 (svn switch)");
+    expect(screen.getByText(/"branch": "Proxima10_0"/)).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox", { name: "Versão" }), { target: { value: "PROXIMA" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledWith(expect.objectContaining({ branch: "Proxima10_0", vm_name: "a07" })));
+    // A troca vale so para aquele pedido: volta para "manter".
+    await waitFor(() => expect(screen.getByText(/"branch": ""/)).toBeInTheDocument());
+  });
+
+  it("principal vai como local", async () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    await waitFor(() => expect(queryClient.getQueryState(["merge-branches"])?.status).toBe("success"));
+    await escolherBranch("Unico (principal)");
+    expect(screen.getByText(/"branch": "local"/)).toBeInTheDocument();
+    expect(screen.getByText(/desfaz as alterações locais/)).toBeInTheDocument();
+  });
+});
+
+describe("ordem das branches", () => {
+  it("principal primeiro, depois as com nome em ordem e por ultimo as de solicitacao", () => {
+    const b = (name: string, kind: "trunk" | "branch" = "branch") => ({ name, url: "u/" + name, kind });
+    const opcoes = opcoesBranch([b("252397_ajuste"), b("Proxima10_0"), b("Unico", "trunk"), b("12_teste"), b("contabil_dere"), b("Folha_sustentação"), b("199034_backup")]);
+    expect(opcoes.map((o) => o.rotulo)).toEqual([
+      "Unico (principal)", "contabil_dere", "Folha_sustentação", "Proxima10_0", "12_teste", "199034_backup", "252397_ajuste",
+    ]);
+    expect(opcoes[0].valor).toBe("local");
   });
 });

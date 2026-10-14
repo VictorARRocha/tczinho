@@ -142,6 +142,15 @@
   * {
     @apply border-border;
   }
+  /* Listas e menus (Radix) travam a rolagem do body ao abrir: a barra sumia e o conteudo pulava para o lado.
+     A rolagem fica no html (barra sempre presente), entao travar o body nao muda a largura da pagina
+     e a compensacao do Radix deixa de ser necessaria. */
+  html {
+    overflow-y: scroll;
+  }
+  html body[data-scroll-locked] {
+    margin-right: 0 !important;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: 'Inter', system-ui, sans-serif;
