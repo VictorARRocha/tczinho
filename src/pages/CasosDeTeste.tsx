@@ -1,21 +1,13 @@
 // Casos de teste (menu lateral): primeiro escolhe o modulo, depois a arvore do .mds daquele modulo.
-// As falhas marcadas sao as da ultima rodagem do modulo.
-import { Suspense, lazy, useState } from "react";
+// E so a lista dos casos atuais: o que falhou fica nas abas da rodagem.
 import { Link, useParams } from "react-router-dom";
 import { ChevronLeft, Lock } from "lucide-react";
-import type { Falha } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconeModulo } from "@/components/IconeModulo";
 import { useModulos } from "@/hooks/use-permissao";
-import { formatDateTime } from "@/lib/format";
-import { formatarVm } from "@/lib/rodagemTexto";
-import { useHierarchy, useLatestRuns, useModules, useRunFailures } from "@/services/queries";
+import { useHierarchy, useModules } from "@/services/queries";
 import { CasosTab } from "@/pages/module/CasosTab";
-
-const FailureDetailSheet = lazy(() =>
-  import("@/components/FailureDetailSheet").then((m) => ({ default: m.FailureDetailSheet })),
-);
 
 export default function CasosDeTeste() {
   const { slug } = useParams();
@@ -62,10 +54,6 @@ function CasosDoModulo({ slug }: { slug: string }) {
   const pode = useModulos().pode(slug);
   const modulo = modulos.find((m) => m.slug === slug);
   const { data: hierarquia = [], isLoading } = useHierarchy(pode ? slug : "");
-  const { data: ultimas = [] } = useLatestRuns();
-  const rodagem = ultimas.find((u) => u.modulo.slug === slug)?.rodagem ?? null;
-  const { data: falhas = [] } = useRunFailures(pode ? rodagem?.id : null);
-  const [falhaAberta, setFalhaAberta] = useState<Falha | null>(null);
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
@@ -76,14 +64,7 @@ function CasosDoModulo({ slug }: { slug: string }) {
         <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
           <IconeModulo slug={slug} className="h-7 w-7" />
         </span>
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{modulo?.nome || slug}</h1>
-          {rodagem && pode && (
-            <p className="text-xs text-muted-foreground">
-              Falhas da última rodagem: {formatDateTime(rodagem.data_analise)}{rodagem.maquina ? ` · VM ${formatarVm(rodagem.maquina)}` : ""}
-            </p>
-          )}
-        </div>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{modulo?.nome || slug}</h1>
       </div>
 
       {!pode ? (
@@ -94,13 +75,7 @@ function CasosDoModulo({ slug }: { slug: string }) {
       ) : isLoading ? (
         <div className="space-y-2">{[...Array(8)].map((_, i) => <Skeleton key={i} className="h-9" />)}</div>
       ) : (
-        <CasosTab moduloSlug={slug} hierarchy={hierarquia} falhas={falhas} onSelect={setFalhaAberta} contextoFalhas="na última rodagem" />
-      )}
-
-      {falhaAberta && (
-        <Suspense fallback={null}>
-          <FailureDetailSheet falha={falhaAberta} open={!!falhaAberta} onClose={() => setFalhaAberta(null)} linkRegravar />
-        </Suspense>
+        <CasosTab moduloSlug={slug} hierarchy={hierarquia} />
       )}
     </div>
   );

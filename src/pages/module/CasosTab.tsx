@@ -1,25 +1,16 @@
-// Aba Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, o que falhou na rodagem aberta
-// e os casos marcados aqui como desativados (so visual: o nome fica riscado).
+// Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, e os casos desmarcados
+// no mod_xml.py (so visual: o nome fica riscado).
 import { createContext, useContext, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ExternalLink, Lock, Search, X } from "lucide-react";
-import { toast } from "sonner";
-import { desativarCaso, reativarCaso, type CasoDesativado, type TestcaseHierarchyNode } from "@/services/data";
-import { invalidateCasosDesativados, useCasosDesativados } from "@/services/queries";
-import type { Falha } from "@/types/db";
+import type { CasoDesativado, TestcaseHierarchyNode } from "@/services/data";
+import { useCasosDesativados } from "@/services/queries";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useModulos, usePermissao } from "@/hooks/use-permissao";
-import { mensagemDaApi } from "@/lib/apiErro";
-import { formatDateTime } from "@/lib/format";
-import { modulosDosCasos } from "@/lib/permissoes";
 import { cn } from "@/lib/utils";
-import { extractCaseIdParts } from "./FalhasTab";
 import { Empty, SEM_RESULTADO } from "./common";
 
 const MAX_RESULTADOS = 200;
-const MAX_MOTIVO = 300;
 
 interface No {
   id: string;
@@ -30,7 +21,6 @@ interface No {
   caminho: string[]; // nomes dos grupos acima (sem o modulo)
   filhos: No[];
   casos: number; // casos dentro (o proprio, se for caso)
-  falhas: number; // casos dentro que falharam na rodagem aberta
 }
 
 const compararIds = (a: string, b: string) => {
@@ -46,13 +36,13 @@ const compararIds = (a: string, b: string) => {
 const semAcento = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Monta a arvore; o no do proprio modulo ("[2] Fiscal") some e os grupos dele viram o primeiro nivel. */
-function montarArvore(nodes: TestcaseHierarchyNode[], falhasPorCaso: Map<string, Falha[]>): No[] {
+function montarArvore(nodes: TestcaseHierarchyNode[]): No[] {
   const porId = new Map<string, No>();
   for (const n of nodes) {
     if (!n.node_id || porId.has(n.node_id)) continue;
     porId.set(n.node_id, {
       id: n.node_id, nome: n.node_name || "", descricao: (n.descricao || "").trim(), codigo: codigoDoCaso(n),
-      grupo: n.node_type === "grupo", caminho: [], filhos: [], casos: 0, falhas: 0,
+      grupo: n.node_type === "grupo", caminho: [], filhos: [], casos: 0,
     });
   }
   const raizes: No[] = [];
@@ -67,14 +57,12 @@ function montarArvore(nodes: TestcaseHierarchyNode[], falhasPorCaso: Map<string,
     no.filhos.sort((a, b) => compararIds(a.id, b.id));
     if (!no.grupo && !no.filhos.length) {
       no.casos = 1;
-      no.falhas = falhasPorCaso.has(no.id) ? 1 : 0;
       return;
     }
     no.grupo = true;
     for (const f of no.filhos) {
       contar(f, [...caminho, no.nome]);
       no.casos += f.casos;
-      no.falhas += f.falhas;
     }
   };
   raizes.sort((a, b) => compararIds(a.id, b.id));
@@ -117,13 +105,13 @@ function TextoComLinks({ texto }: { texto: string }) {
   );
 }
 
-/** Desativados que vem da lista fixa do mod_xml.py (a API sincroniza a cada rodagem): nao mudam pelo dashboard. */
+/** Desativados vem so da lista fixa do mod_xml.py (a API sincroniza a cada rodagem): nao mudam pelo dashboard. */
 const MOD_XML = "mod_xml";
 
 /** Desativacao do caso: a dele ou a de um grupo acima (desmarcar o grupo tira tudo de dentro da rodagem). */
 interface Desativacao {
   linha: CasoDesativado;
-  viaGrupo: string | null; // id do grupo que desativou ("" = o proprio caso)
+  viaGrupo: string | null; // id do grupo que desativou (null = o proprio caso)
 }
 
 function desativacaoDe(id: string, desativados: Map<string, CasoDesativado>): Desativacao | null {
@@ -137,88 +125,40 @@ function desativacaoDe(id: string, desativados: Map<string, CasoDesativado>): De
 }
 
 /** O que as linhas precisam sem passar de mao em mao pela arvore. */
-interface Acoes {
-  abrirFalha: (no: No) => void;
-  desativado: (id: string) => Desativacao | null;
-  podeMarcar: (id: string) => boolean;
-  desativar: (id: string, motivo: string) => Promise<boolean>;
-  reativar: (id: string) => void;
-}
-const AcoesCtx = createContext<Acoes | null>(null);
-const useAcoes = () => useContext(AcoesCtx) as Acoes;
+const DesativadoCtx = createContext<(id: string) => Desativacao | null>(() => null);
+const useDesativado = () => useContext(DesativadoCtx);
 
-export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalhas = "nesta rodagem" }: {
+export function CasosTab({ moduloSlug, hierarchy }: {
   moduloSlug: string;
   hierarchy: TestcaseHierarchyNode[];
-  falhas: Falha[];
-  onSelect: (f: Falha) => void;
-  /** De qual rodagem sao as falhas mostradas ("nesta rodagem", "na última rodagem"). */
-  contextoFalhas?: string;
 }) {
   const [busca, setBusca] = useState("");
-  const [filtro, setFiltro] = useState<"" | "falhas" | "desativados">("");
+  const [soDesativados, setSoDesativados] = useState(false);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const { data: listaDesativados = [] } = useCasosDesativados(moduloSlug);
-  const podeRodar = usePermissao("rodagem");
-  const acessoModulos = useModulos();
 
-  const falhasPorCaso = useMemo(() => {
-    const mapa = new Map<string, Falha[]>();
-    for (const f of falhas) {
-      const id = extractCaseIdParts(f.id_caso_teste)?.join(".");
-      if (id) mapa.set(id, [...(mapa.get(id) || []), f]);
-    }
-    return mapa;
-  }, [falhas]);
-  const desativados = useMemo(() => new Map(listaDesativados.map((d) => [d.node_id, d])), [listaDesativados]);
+  // So o mod_xml.py conta como desativado (marcacoes antigas feitas a mao no dashboard ficam de fora).
+  const desativados = useMemo(
+    () => new Map(listaDesativados.filter((d) => d.disabled_by === MOD_XML).map((d) => [d.node_id, d])),
+    [listaDesativados],
+  );
 
-  const arvore = useMemo(() => montarArvore(hierarchy, falhasPorCaso), [hierarchy, falhasPorCaso]);
+  const arvore = useMemo(() => montarArvore(hierarchy), [hierarchy]);
   const casos = useMemo(() => {
     const lista: No[] = [];
     const visitar = (n: No) => (n.grupo ? n.filhos.forEach(visitar) : lista.push(n));
     arvore.forEach(visitar);
     return lista;
   }, [arvore]);
-  const estaDesativado = (c: No) => !!desativacaoDe(c.id, desativados);
-  const totalFalhas = useMemo(() => casos.filter((c) => c.falhas).length, [casos]);
-  const totalDesativados = casos.filter(estaDesativado).length;
+  const desativado = (id: string) => desativacaoDe(id, desativados);
+  const totalDesativados = casos.filter((c) => desativado(c.id)).length;
 
   const termo = semAcento(busca.trim()).replace(/^\[|\]$/g, "");
-  const filtrando = !!termo || !!filtro;
+  const filtrando = !!termo || soDesativados;
   const resultados = !filtrando ? [] : casos.filter((c) =>
-    (filtro !== "falhas" || c.falhas) && (filtro !== "desativados" || estaDesativado(c)) && (!termo
+    (!soDesativados || desativado(c.id)) && (!termo
       || c.id === termo || c.id.startsWith(termo + ".")
-      || semAcento(`${c.nome} ${c.descricao} #${c.codigo} ${desativados.get(c.id)?.reason || ""}`).includes(termo)));
-
-  const acoes: Acoes = {
-    abrirFalha: (no) => {
-      const f = falhasPorCaso.get(no.id)?.[0];
-      if (f) onSelect(f);
-    },
-    desativado: (id) => desativacaoDe(id, desativados),
-    // Quem pode pedir rodagem no modulo do caso (rotina geral [0.x]: so quem tem todos os modulos).
-    podeMarcar: (id) => podeRodar && (acessoModulos.todos || acessoModulos.pode(modulosDosCasos(`[${id}]`)[0])),
-    desativar: async (id, motivo) => {
-      try {
-        await desativarCaso(id, motivo);
-        await invalidateCasosDesativados(moduloSlug);
-        toast.success(`[${id}] marcado como desativado`);
-        return true;
-      } catch (e) {
-        toast.error("Não foi possível desativar", { description: mensagemDaApi(e) });
-        return false;
-      }
-    },
-    reativar: async (id) => {
-      try {
-        await reativarCaso(id);
-        await invalidateCasosDesativados(moduloSlug);
-        toast.success(`[${id}] voltou a ficar ativo`);
-      } catch (e) {
-        toast.error("Não foi possível reativar", { description: mensagemDaApi(e) });
-      }
-    },
-  };
+      || semAcento(`${c.nome} ${c.descricao} #${c.codigo}`).includes(termo)));
 
   if (!hierarchy.length) return <Empty text="A lista de casos aparece depois da próxima rodagem deste módulo." />;
 
@@ -234,20 +174,16 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalh
     arvore.forEach(visitar);
     setAbertos(ids);
   };
-  const alternarFiltro = (f: "falhas" | "desativados") => setFiltro((atual) => (atual === f ? "" : f));
   const algumAberto = abertos.size > 0;
 
   return (
-    <AcoesCtx.Provider value={acoes}>
+    <DesativadoCtx.Provider value={desativado}>
       <div className="space-y-4">
         <Card className="p-3 sm:p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span><strong>{casos.length.toLocaleString("pt-BR")}</strong> <span className="text-muted-foreground">casos cadastrados no módulo</span></span>
-            {totalFalhas > 0 && (
-              <span className="text-destructive"><strong>{totalFalhas}</strong> com falha {contextoFalhas}</span>
-            )}
             {totalDesativados > 0 && (
-              <span className="text-muted-foreground"><strong>{totalDesativados}</strong> {totalDesativados === 1 ? "desativado" : "desativados"}</span>
+              <span className="text-muted-foreground"><strong>{totalDesativados}</strong> {totalDesativados === 1 ? "desmarcado" : "desmarcados"} no mod_xml</span>
             )}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -268,14 +204,9 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalh
                 </button>
               )}
             </div>
-            {totalFalhas > 0 && (
-              <Button size="sm" variant={filtro === "falhas" ? "default" : "outline"} aria-pressed={filtro === "falhas"} onClick={() => alternarFiltro("falhas")}>
-                Só os que falharam
-              </Button>
-            )}
             {totalDesativados > 0 && (
-              <Button size="sm" variant={filtro === "desativados" ? "default" : "outline"} aria-pressed={filtro === "desativados"} onClick={() => alternarFiltro("desativados")}>
-                Só os desativados
+              <Button size="sm" variant={soDesativados ? "default" : "outline"} aria-pressed={soDesativados} onClick={() => setSoDesativados((v) => !v)}>
+                Só os desmarcados
               </Button>
             )}
             {/* Com busca/filtro a lista e plana: o botao fica, desabilitado, para a barra nao pular. */}
@@ -294,7 +225,7 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalh
         <Card className="overflow-hidden">
           {filtrando ? (
             resultados.length === 0 ? (
-              <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setFiltro(""); }} />
+              <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setSoDesativados(false); }} />
             ) : (
               <>
                 <ul className="space-y-0.5 p-1.5" aria-label="Casos encontrados">
@@ -316,11 +247,11 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalh
           )}
         </Card>
       </div>
-    </AcoesCtx.Provider>
+    </DesativadoCtx.Provider>
   );
 }
 
-// Grupo: uma linha (seta, numero, nome, contagens); aberto, os filhos ficam numa linha-guia recuada.
+// Grupo: uma linha (seta, numero, nome, contagem); aberto, os filhos ficam numa linha-guia recuada.
 function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggle: (id: string) => void }) {
   if (!no.grupo) return <li><LinhaCaso no={no} /></li>;
   const vazio = no.casos === 0;
@@ -331,7 +262,7 @@ function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggl
       <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
       <span className={cn("min-w-0 text-sm font-medium sm:truncate", vazio && "text-muted-foreground")}>{no.nome}</span>
       <SeloGrupoDesativado id={no.id} />
-      <Contagens no={no} className="ml-auto shrink-0" />
+      <span className="ml-auto shrink-0 px-1 text-xs text-muted-foreground tabular-nums">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
     </>
   );
   return (
@@ -354,39 +285,26 @@ function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggl
   );
 }
 
-/** Grupo desmarcado (mod_xml ou a mao): tudo dentro fica de fora. */
+/** Grupo desmarcado no mod_xml: tudo dentro fica de fora. */
 function SeloGrupoDesativado({ id }: { id: string }) {
-  const info = useAcoes().desativado(id);
+  const info = useDesativado()(id);
   if (!info || info.viaGrupo) return null;
   return (
     <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400" title={info.linha.reason || undefined}>
-      {info.linha.disabled_by === MOD_XML ? "Desmarcado no mod_xml" : "Desativado"}
+      Desmarcado no mod_xml
     </span>
   );
 }
 
-function Contagens({ no, className }: { no: No; className?: string }) {
-  return (
-    <span className={cn("flex items-center gap-1.5 text-xs", className)}>
-      {no.falhas > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive">{no.falhas} {no.falhas === 1 ? "falhou" : "falharam"}</span>}
-      <span className="px-1 text-muted-foreground tabular-nums">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
-    </span>
-  );
-}
-
-/** Caso: uma linha (numero, nome, chamado, situacao). Clicar abre a descricao e as acoes. */
+/** Caso: uma linha (numero, nome, chamado, situacao). Clicar abre a descricao e o link do Kanboard. */
 function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean }) {
-  const acoes = useAcoes();
+  const info = useDesativado()(no.id);
   const [aberto, setAberto] = useState(false);
-  const info = acoes.desativado(no.id);
   const marcado = info?.linha;
-  const riscado = !!info;
-  // Do mod_xml ou herdado do grupo: so mostra; marcar/desmarcar e para os desativados a mao no proprio caso.
-  const travado = !!info && (marcado?.disabled_by === MOD_XML || !!info.viaGrupo);
   // O codigo do inicio da descricao ja aparece na linha; o resto do texto fica como esta.
   const descricao = no.descricao.replace(/^\s*#\s?\d{4,}\s*[-–:,.]?\s*/, "");
   return (
-    <div className={cn("group rounded-md", aberto && "bg-muted/40", no.falhas > 0 && !aberto && "bg-destructive/5")}>
+    <div className={cn("group rounded-md", aberto && "bg-muted/40")}>
       <div className="flex items-center gap-2">
         <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40">
@@ -397,23 +315,17 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
             {/* No celular quebra como texto (numero, nome e chamado ocupam a largura toda); no computador, uma linha. */}
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-nowrap sm:items-center">
               <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
-              <span className={cn("min-w-0 text-sm sm:truncate", riscado && "line-through text-muted-foreground")}>{no.nome}</span>
-              {no.codigo && <span className="shrink-0 font-mono text-[11px] text-primary/80">#{no.codigo}</span>}
+              <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}>{no.nome}</span>
+              {no.codigo && <span className="shrink-0 font-mono text-[11px] text-foreground">#{no.codigo}</span>}
             </span>
           </span>
         </button>
         <div className="flex shrink-0 items-center gap-1 pr-2">
-          {no.falhas > 0 && (
-            <button type="button" onClick={() => acoes.abrirFalha(no)}
-              className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/25">
-              falhou · ver
-            </button>
-          )}
           {info && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
-              title={info.viaGrupo ? `Desativado pelo grupo [${info.viaGrupo}]` : marcado?.reason || undefined}>
-              {travado && <Lock className="h-3 w-3" aria-hidden />}
-              {info.viaGrupo ? "grupo desativado" : marcado?.disabled_by === MOD_XML ? "mod_xml" : "desativado"}
+              title={info.viaGrupo ? `Desmarcado pelo grupo [${info.viaGrupo}]` : marcado?.reason || undefined}>
+              <Lock className="h-3 w-3" aria-hidden />
+              {info.viaGrupo ? "grupo desmarcado" : "mod_xml"}
             </span>
           )}
           {/* Seta no fim da linha (alinhada em todos os casos): aparece ao passar o mouse ou com o caso aberto. */}
@@ -434,10 +346,8 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
           {marcado && (
             <p className="text-amber-700 dark:text-amber-400">
               {info?.viaGrupo
-                ? `Fica de fora porque o grupo [${info.viaGrupo}] está ${marcado.disabled_by === MOD_XML ? "desmarcado no mod_xml" : "desativado"}.`
-                : marcado.disabled_by === MOD_XML
-                  ? `${marcado.reason || "Desmarcado pelo mod_xml.py"}. Para mudar, edite a lista no mod_xml.py.`
-                  : <>Desativado por {marcado.disabled_by || "—"} em {formatDateTime(marcado.disabled_at)}{marcado.reason ? `: ${marcado.reason}` : ""}</>}
+                ? `Fica de fora porque o grupo [${info.viaGrupo}] está desmarcado no mod_xml.`
+                : `${marcado.reason || "Desmarcado pelo mod_xml.py"}. Para mudar, edite a lista no mod_xml.py.`}
             </p>
           )}
           <div className="flex flex-wrap items-center gap-2">
@@ -450,53 +360,9 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
             ) : (
               <span className="text-muted-foreground">Código do caso de teste não informado</span>
             )}
-            {!travado && acoes.podeMarcar(no.id) && <AcaoDesativar id={no.id} marcado={!!marcado} />}
           </div>
         </div>
       )}
     </div>
-  );
-}
-
-/** "Desativar…" pede um motivo (opcional); "Reativar" volta na hora. So os desativados a mao. */
-function AcaoDesativar({ id, marcado }: { id: string; marcado: boolean }) {
-  const acoes = useAcoes();
-  const [pedindo, setPedindo] = useState(false);
-  const [motivo, setMotivo] = useState("");
-  const [salvando, setSalvando] = useState(false);
-  const confirmar = async () => {
-    setSalvando(true);
-    if (await acoes.desativar(id, motivo.trim())) {
-      setPedindo(false);
-      setMotivo("");
-    }
-    setSalvando(false);
-  };
-  if (marcado) {
-    return <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => acoes.reativar(id)}>Reativar</Button>;
-  }
-  return (
-    <Popover open={pedindo} onOpenChange={setPedindo}>
-      <PopoverTrigger asChild>
-        <Button size="sm" variant="outline" className="h-7 text-xs">Desativar…</Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="w-72 space-y-2">
-        <p className="text-sm font-medium">Desativar [{id}]</p>
-        <p className="text-xs text-muted-foreground">Só marca na lista (o nome fica riscado). Não muda o .mds nem as rodagens.</p>
-        <Input
-          autoFocus
-          value={motivo}
-          maxLength={MAX_MOTIVO}
-          onChange={(e) => setMotivo(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") confirmar(); }}
-          placeholder="Motivo (opcional)"
-          aria-label="Motivo"
-        />
-        <div className="flex justify-end gap-2">
-          <Button size="sm" variant="ghost" onClick={() => setPedindo(false)}>Cancelar</Button>
-          <Button size="sm" onClick={confirmar} disabled={salvando}>Desativar</Button>
-        </div>
-      </PopoverContent>
-    </Popover>
   );
 }
