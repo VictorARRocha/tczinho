@@ -14,7 +14,7 @@ import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
 } from "@/services/data";
 import { invalidateRerunRequests, useMergeBranches } from "@/services/queries";
-import { MANTER_BRANCH, branchDoPedido, opcoesBranch } from "@/lib/branchVm";
+import { MANTER_BRANCH, VM_OPTIONS, branchDoPedido, opcoesBranch } from "@/lib/branchVm";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { RunPresetBar } from "@/components/RunPresetBar";
 import { SemPermissao } from "@/components/SemPermissao";
@@ -23,8 +23,6 @@ import { mensagemDaApi } from "@/lib/apiErro";
 import {
   casosTesteValido, configToText, parseConfigText, trimConfigStrings, validateConfigForSubmit, withDataHora,
 } from "@/lib/jenkinsConfig";
-
-const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
 
 const SIMPLIFIED_LABELS = { vm_name: "VM", modulo: "Módulo", versao: "Versão" };
 

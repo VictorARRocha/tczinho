@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
 import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, type TestcaseHierarchyNode } from "@/services/data";
 import { getHierarchyCached, getModulesCached, useLatestRuns } from "@/services/queries";
@@ -18,7 +18,6 @@ import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab } from "./module/FalhasTab";
 import { HistoricoTab } from "./module/HistoricoTab";
 import { CompararTab } from "./module/CompararTab";
-import { CasosTab } from "./module/CasosTab";
 import { ModuleHeader } from "./module/ModuleHeader";
 import { PerformanceTab } from "./module/PerformanceTab";
 import { ResumoTab } from "./module/ResumoTab";
@@ -32,12 +31,21 @@ const FileComparatorDialog = lazy(() =>
 
 // Aba e filtro de falhas ficam na URL (?tab=falhas&filtro=quebra): link compartilhavel,
 // F5 mantem a aba e o Voltar do navegador volta para a aba anterior.
-const TABS = ["resumo", "falhas", "casos", "agrupamentos", "performance", "historico", "comparar"] as const;
+const TABS = ["resumo", "falhas", "agrupamentos", "performance", "comparar", "historico"] as const;
 type ModuleTab = (typeof TABS)[number];
 const FILTROS = ["todos", "quebra", "diferenca", "quebra_diferenca"] as const;
 type FalhasFiltro = (typeof FILTROS)[number];
 
 export default function ModulePage() {
+  const { slug = "" } = useParams();
+  const [searchParams] = useSearchParams();
+  // Casos de teste saiu das abas do modulo (agora e um item do menu lateral): links antigos vao para la
+  // antes de a pagina do modulo carregar (e trocar a URL para a ultima rodagem).
+  if (searchParams.get("tab") === "casos") return <Navigate to={`/casos-de-teste/${slug}`} replace />;
+  return <PaginaDoModulo />;
+}
+
+function PaginaDoModulo() {
   const { slug = "", rodagemSlug } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -325,11 +333,10 @@ export default function ModulePage() {
           <TabsList className="bg-card border border-border max-w-full overflow-x-auto overflow-y-hidden justify-start [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:w-full">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
             <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">{falhas.length}</span></TabsTrigger>
-            <TabsTrigger value="casos">Casos de teste</TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
             <TabsTrigger value="performance">Performance{foraDoLimite > 0 && <span className="ml-1.5 text-xs opacity-60">{foraDoLimite}</span>}</TabsTrigger>
-            <TabsTrigger value="historico">Histórico</TabsTrigger>
             <TabsTrigger value="comparar">Comparar</TabsTrigger>
+            <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
           {runLoading && (
@@ -340,7 +347,6 @@ export default function ModulePage() {
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
-          <TabsContent value="casos" className="mt-6"><CasosTab moduloSlug={slug} hierarchy={hierarchy} falhas={falhas} onSelect={setSelectedFalha} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>

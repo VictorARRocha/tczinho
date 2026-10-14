@@ -3,6 +3,9 @@
 // vazio nao mexe na VM. "local" e o trunk (ProjetoUnico/Unico).
 import type { SvnBranch } from "@/services/data";
 
+/** VMs que recebem pedido de rodagem (Rodagem completa e reexecucao em outra VM). */
+export const VM_OPTIONS = ["a03", "a04", "a05n", "a06", "a07", "a08", "a09", "a10", "testevsup"];
+
 /** Valor do select para "nao trocar" (o Select nao aceita valor vazio). */
 export const MANTER_BRANCH = "__manter__";
 

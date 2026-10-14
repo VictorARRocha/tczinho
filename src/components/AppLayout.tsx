@@ -15,6 +15,7 @@ function usePageTitle(pathname: string): string {
   if (pathname === "/") return "Visão geral";
   const modulo = pathname.match(/^\/modulo\/([^/]+)/);
   if (modulo) return modulos.find((m) => m.slug === modulo[1])?.nome ?? "Módulo";
+  if (pathname.startsWith("/casos-de-teste")) return "Casos de teste";
   if (pathname === "/jenkins/rodagem-completa") return "Rodagem completa";
   if (pathname === "/jenkins/reexecutar") return "Reexecutar rodagens";
   if (pathname.startsWith("/jenkins")) return "Jenkins";

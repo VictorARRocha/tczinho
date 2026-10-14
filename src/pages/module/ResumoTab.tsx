@@ -9,7 +9,7 @@ import { classifyOccurrence, groupEvidsByFailure } from "@/lib/occurrence";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { formatDuration } from "./PerformanceTab";
 import { isMeaningful, StatCard, Empty } from "./common";
-import { formatPercent, resultadoRodagem } from "@/lib/format";
+import { formatDateTime, formatPercent, formatarTempoTotal, resultadoRodagem, tempoTotalRodagem } from "@/lib/format";
 
 const OCC_COR = {
   quebra: { texto: "text-destructive", barra: "bg-destructive" },
@@ -178,19 +178,37 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
 }
 
 /** Resultado da rodagem: taxa de sucesso e quantos casos de cada tipo. */
+/** Tempo total (inicio ate o fim da rodagem), um pouco maior que os totais ao lado. */
+function TempoTotal({ rodagem }: { rodagem: Rodagem }) {
+  const segundos = tempoTotalRodagem(rodagem);
+  if (segundos == null) return null;
+  const periodo = `De ${formatDateTime(rodagem.data_inicio_rodagem)} até ${formatDateTime(rodagem.data_fim_rodagem)}`;
+  return (
+    <div title={periodo}>
+      <div className="text-xs text-muted-foreground">Tempo total</div>
+      <div className="font-mono text-lg font-semibold">{formatarTempoTotal(segundos)}</div>
+    </div>
+  );
+}
+
 function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: number; diferenca: number; quebra_diferenca: number } }) {
   const r = resultadoRodagem(rodagem);
   if (!r) {
     // Sem os totais para a taxa: mostra o que existe (falhas e, se vier, casos rodados).
     return (
       <Card className="p-4 sm:p-5">
-        <div className="text-sm text-muted-foreground">Falhas nesta rodagem</div>
-        <div className="mt-1 text-3xl font-bold font-mono">{rodagem.total_falhas ?? "—"}</div>
-        {(rodagem.total_analisados ?? 0) > 0 && (
-          <div className="mt-1 text-sm text-muted-foreground">
-            <span className="font-mono text-foreground">{rodagem.total_analisados.toLocaleString("pt-BR")}</span> casos rodados
+        <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+          <div>
+            <div className="text-sm text-muted-foreground">Falhas nesta rodagem</div>
+            <div className="mt-1 text-3xl font-bold font-mono">{rodagem.total_falhas ?? "—"}</div>
+            {(rodagem.total_analisados ?? 0) > 0 && (
+              <div className="mt-1 text-sm text-muted-foreground">
+                <span className="font-mono text-foreground">{rodagem.total_analisados.toLocaleString("pt-BR")}</span> casos rodados
+              </div>
+            )}
           </div>
-        )}
+          <TempoTotal rodagem={rodagem} />
+        </div>
       </Card>
     );
   }
@@ -210,10 +228,13 @@ function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: numb
             <span className="text-sm text-muted-foreground">passaram</span>
           </div>
         </div>
-        <div className="text-sm text-muted-foreground">
-          <span className="font-mono text-foreground">{r.rodados.toLocaleString("pt-BR")}</span> casos rodados
-          {" · "}
-          <span className="font-mono text-destructive">{r.falhas}</span> {r.falhas === 1 ? "falhou" : "falharam"}
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
+          <TempoTotal rodagem={rodagem} />
+          <div className="text-sm text-muted-foreground">
+            <span className="font-mono text-foreground">{r.rodados.toLocaleString("pt-BR")}</span> casos rodados
+            {" · "}
+            <span className="font-mono text-destructive">{r.falhas}</span> {r.falhas === 1 ? "falhou" : "falharam"}
+          </div>
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

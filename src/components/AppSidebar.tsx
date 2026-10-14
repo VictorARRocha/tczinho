@@ -1,35 +1,9 @@
 import { useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import {
-  Activity, LayoutDashboard, History, PlayCircle, Server, RefreshCcw, Upload,
-  Users, Clock, Receipt, BookOpen, Building2, Calculator, Wallet, CheckSquare,
-  PiggyBank, FileText, Bell, Landmark, Timer, BarChart3, Send, Package, Database, Scale, HandCoins, NotebookText, ShieldCheck, GitMerge,
-  type LucideIcon,
-} from "lucide-react";
+import { LayoutDashboard, PlayCircle, RefreshCcw, Upload, ShieldCheck, GitMerge, ListChecks } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
+import { IconeModulo, ImagemMascara } from "@/components/IconeModulo";
 
-function getModuleIcon(nome: string): LucideIcon {
-  const n = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  if (n.includes("practice")) return NotebookText;
-  if (n.includes("suprema")) return PiggyBank;
-  if (n.includes("folha")) return Users;
-  if (n.includes("ponto")) return Clock;
-  if (n.includes("fiscal")) return HandCoins;
-  if (n.includes("contabil")) return Scale;
-  if (n.includes("patrimonio")) return Building2;
-  if (n.includes("lalur")) return Calculator;
-  if (n.includes("financeiro")) return Wallet;
-  if (n.includes("tarefa") || n.includes("gestao")) return CheckSquare;
-  if (n.includes("orcamento")) return PiggyBank;
-  if (n.includes("protocolo")) return FileText;
-  if (n.includes("notificac")) return Bell;
-  if (n.includes("imposto")) return Landmark;
-  if (n.includes("temporizador")) return Timer;
-  if (n.includes("geral")) return Database;
-  if (n.includes("bi")) return BarChart3;
-  if (n.includes("push")) return Send;
-  return Package;
-}
 import {
   Sidebar,
   SidebarContent,
@@ -65,7 +39,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <NavLink to="/" className="flex items-center gap-2.5">
-          <img src="/sci-logo.png" alt="SCI Sistemas" className="h-9 w-9 shrink-0 object-contain" />
+          <ImagemMascara src="/marca/sci.png" rotulo="SCI Sistemas" className="h-9 w-9 text-primary" />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="font-display text-sm font-bold tracking-tight">AgenteTC</span>
@@ -88,9 +62,17 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname.startsWith("/casos-de-teste")}>
+                  <NavLink to="/casos-de-teste">
+                    <ListChecks />
+                    <span>Casos de teste</span>
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
                   <NavLink to="/jenkins">
-                    <img src="/jenkins-logo.webp" alt="" aria-hidden="true" className="h-4 w-4 shrink-0 object-contain" />
+                    <ImagemMascara src="/marca/jenkins.png" className="h-4 w-4" />
                     <span>Jenkins</span>
                   </NavLink>
                 </SidebarMenuButton>
@@ -155,12 +137,11 @@ export function AppSidebar() {
               <SidebarMenu>
                 {visibleModulos.map((m) => {
                   const url = `/modulo/${m.slug}`;
-                  const Icon = getModuleIcon(m.nome);
                   return (
                     <SidebarMenuItem key={m.id}>
                       <SidebarMenuButton asChild isActive={pathname.startsWith(url)}>
                         <NavLink to={url}>
-                          <Icon />
+                          <IconeModulo slug={m.slug} className="h-4 w-4" />
                           <span>{m.nome}</span>
                         </NavLink>
                       </SidebarMenuButton>

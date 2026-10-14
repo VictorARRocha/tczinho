@@ -195,6 +195,16 @@ export function invalidateRegravacao(runId: string) {
   ]);
 }
 
+/** Arvore de casos do .mds do modulo (pagina Casos de teste); mesmo cache da pagina do modulo. */
+export function useHierarchy(slug: string) {
+  return useQuery({
+    queryKey: queryKeys.hierarchy(slug),
+    queryFn: () => fetchTestcaseHierarchy(slug),
+    staleTime: HIERARCHY_STALE_MS,
+    enabled: !!slug,
+  });
+}
+
 /** Para carregamentos imperativos (ModulePage): usa o cache se ainda estiver valido. */
 export function getModulesCached() {
   return queryClient.fetchQuery({ queryKey: queryKeys.modules, queryFn: fetchModules, staleTime: MODULES_STALE_MS });

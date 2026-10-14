@@ -19,6 +19,7 @@ const ModulePage = lazy(() => import("./pages/ModulePage"));
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
 const JenkinsHome = lazy(() => import("./pages/JenkinsHome"));
 const JenkinsRodagemCompleta = lazy(() => import("./pages/JenkinsRodagemCompleta"));
+const CasosDeTeste = lazy(() => import("./pages/CasosDeTeste"));
 const RegravarBases = lazy(() => import("./pages/RegravarBases"));
 const MergeBranches = lazy(() => import("./pages/MergeBranches"));
 const AdminUsuarios = lazy(() => import("./pages/AdminUsuarios"));
@@ -66,6 +67,8 @@ const App = () => (
                 element={withSuspense(<ModulePage />, "Carregando rodagem...", "skeleton-table")}
               />
 
+              <Route path="/casos-de-teste" element={withSuspense(<CasosDeTeste />, "Carregando casos de teste...")} />
+              <Route path="/casos-de-teste/:slug" element={withSuspense(<CasosDeTeste />, "Carregando casos de teste...")} />
               <Route path="/importar" element={<Navigate to="/" replace />} />
               <Route
                 path="/jenkins"

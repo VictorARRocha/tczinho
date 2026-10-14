@@ -100,3 +100,22 @@ export function severityRank(s: string | null | undefined): number {
   if (v.includes("baixa")) return 1;
   return 0;
 }
+
+/**
+ * Tempo total da rodagem (inicio da pasta ate o pipeline do AgenteTC comecar, logo depois do fim).
+ * Rodagens antigas nao tem o fim; valor estranho (negativo ou mais de 2 dias) fica de fora.
+ */
+export function tempoTotalRodagem(r: { data_inicio_rodagem?: string | null; data_fim_rodagem?: string | null }): number | null {
+  if (!r.data_inicio_rodagem || !r.data_fim_rodagem) return null;
+  const segundos = (Date.parse(r.data_fim_rodagem) - Date.parse(r.data_inicio_rodagem)) / 1000;
+  if (!Number.isFinite(segundos) || segundos <= 0 || segundos > 48 * 3600) return null;
+  return Math.round(segundos);
+}
+
+/** 36000 -> "10h00min", 2820 -> "47min", 30 -> "menos de 1min". */
+export function formatarTempoTotal(segundos: number): string {
+  const min = Math.floor(segundos / 60);
+  if (min < 1) return "menos de 1min";
+  const h = Math.floor(min / 60);
+  return h > 0 ? `${h}h${String(min % 60).padStart(2, "0")}min` : `${min}min`;
+}

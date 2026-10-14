@@ -68,23 +68,31 @@ const desativado = (node_id: string, reason = ""): CasoDesativado => ({
 
 const falha = { id: "f1", id_caso_teste: "3.1.10.2" } as Falha;
 
+/** Abre a linha do caso (descricao, Kanboard e acoes ficam ali dentro). */
+function abrirCaso(id: string) {
+  fireEvent.click(screen.getByRole("button", { name: new RegExp("^" + id.replace(/\./g, "\\.") + "(?!\\.)") }));
+}
+
 describe("aba Casos de teste", () => {
   it("mostra os grupos de verdade no primeiro nivel, em ordem numerica, com as contagens", () => {
     renderAba(<CasosTab hierarchy={ARVORE} falhas={[falha]} onSelect={vi.fn()} />);
     expect(screen.getByText("4")).toBeInTheDocument(); // 4 casos
     const grupos = screen.getAllByRole("button", { expanded: false }).map((b) => b.textContent);
     // [3] e [3.1] (so repetem o nome do modulo) somem; 3.1.2 antes de 3.1.10.
-    expect(grupos[0]).toMatch(/^\[3\.1\.2\]Planos/);
-    expect(grupos[1]).toMatch(/^\[3\.1\.10\]Lançamentos.*1 com falha.*2 casos/);
-    expect(grupos[2]).toMatch(/^\[4\.2\]Lalur Mensal/);
+    expect(grupos[0]).toMatch(/^3\.1\.2Planos/);
+    expect(grupos[1]).toMatch(/^3\.1\.10Lançamentos.*1 falhou.*2 casos/);
+    expect(grupos[2]).toMatch(/^4\.2Lalur Mensal/);
   });
 
-  it("abre o grupo e mostra cada caso com o chamado separado da descricao", () => {
+  it("caso em uma linha; clicar abre a descricao com o chamado separado", () => {
     renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
     expect(screen.getByText("Plano de contas")).toBeInTheDocument();
     expect(screen.getByText("#171353")).toBeInTheDocument();
+    expect(screen.queryByText("Cadastra o plano e confere o balancete.")).toBeNull(); // fechado: so a linha
+    abrirCaso("3.1.2.1");
     expect(screen.getByText("Cadastra o plano e confere o balancete.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^3\.1\.2\.1/ })).toHaveAttribute("aria-expanded", "true");
   });
 
   it("busca por numero, nome ou descricao (sem acento) e mostra o caminho", () => {
@@ -101,14 +109,14 @@ describe("aba Casos de teste", () => {
     expect(screen.getByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
   });
 
-  it("so os que falharam, e o botao abre a falha do caso", () => {
+  it("so os que falharam, e o selo abre a falha do caso", () => {
     const onSelect = vi.fn();
     renderAba(<CasosTab hierarchy={ARVORE} falhas={[falha]} onSelect={onSelect} />);
     expect(screen.getByText(/com falha nesta rodagem/)).toHaveTextContent("1 com falha nesta rodagem");
     fireEvent.click(screen.getByRole("button", { name: "Só os que falharam" }));
     const lista = screen.getByRole("list", { name: "Casos encontrados" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
-    fireEvent.click(within(lista).getByRole("button", { name: /Falhou/ }));
+    fireEvent.click(within(lista).getByRole("button", { name: "falhou · ver" }));
     expect(onSelect).toHaveBeenCalledWith(falha);
   });
 
@@ -125,49 +133,82 @@ describe("aba Casos de teste", () => {
     expect(within(screen.getByRole("list", { name: "Casos encontrados" })).getAllByRole("listitem")).toHaveLength(1);
   });
 
-  it("marca como desativado com motivo: fica riscado e mostra quem marcou", async () => {
+  it("desativa com motivo pelo caso aberto: fica riscado e mostra quem marcou", async () => {
     api.desativar.mockImplementation(async (id: string, motivo: string) => {
       api.desativados = [{ ...desativado(id, motivo), disabled_by: "ana" }];
       return api.desativados[0];
     });
     renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
-    const caixa = screen.getByRole("checkbox", { name: "Desativado [3.1.2.1]" });
-    expect(caixa).toHaveAttribute("aria-checked", "false");
-    fireEvent.click(caixa);
+    expect(screen.queryByRole("button", { name: "Desativar…" })).toBeNull(); // so com o caso aberto
+    abrirCaso("3.1.2.1");
+    fireEvent.click(screen.getByRole("button", { name: "Desativar…" }));
     fireEvent.change(await screen.findByRole("textbox", { name: "Motivo" }), { target: { value: "Aguardando o chamado #12345" } });
     fireEvent.click(screen.getByRole("button", { name: "Desativar" }));
     await waitFor(() => expect(api.desativar).toHaveBeenCalledWith("3.1.2.1", "Aguardando o chamado #12345"));
     expect(await screen.findByText(/Desativado por ana em .*: Aguardando o chamado #12345/)).toBeInTheDocument();
     expect(screen.getByText("Plano de contas")).toHaveClass("line-through");
-    expect(screen.getByRole("checkbox", { name: "Desativado [3.1.2.1]" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("desativado", { selector: "span.rounded-full" })).toBeInTheDocument(); // selo na linha
+    expect(screen.getByRole("button", { name: "Reativar" })).toBeInTheDocument();
   });
 
-  it("desmarcar reativa na hora", async () => {
+  it("reativar volta na hora", async () => {
     api.desativados = [desativado("3.1.2.1")];
     api.reativar.mockImplementation(async () => { api.desativados = []; });
     renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
-    const caixa = await screen.findByRole("checkbox", { name: "Desativado [3.1.2.1]", checked: true });
-    fireEvent.click(caixa);
+    await screen.findByText("desativado", { selector: "span.rounded-full" });
+    abrirCaso("3.1.2.1");
+    fireEvent.click(screen.getByRole("button", { name: "Reativar" }));
     await waitFor(() => expect(api.reativar).toHaveBeenCalledWith("3.1.2.1"));
     await waitFor(() => expect(screen.getByText("Plano de contas")).not.toHaveClass("line-through"));
   });
 
-  it("sem a permissao de rodagem ou sem o modulo: nao marca, so ve o selo", async () => {
+  it("sem a permissao de rodagem ou sem o modulo: nao marca, so ve o selo e quem marcou", async () => {
     api.desativados = [desativado("3.1.2.1", "motivo qualquer")];
     for (const perfil of [{ permissions: [], modules: ["contabil"] }, { permissions: ["rodagem"], modules: ["folha"] }]) {
       auth.profile = { username: "ana", ...perfil };
       const { unmount } = renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
       fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
-      expect(await screen.findByText(/Desativado por bia/)).toBeInTheDocument();
-      expect(screen.queryByRole("checkbox")).toBeNull();
-      expect(screen.getByText("Desativado")).toBeInTheDocument();
+      expect(await screen.findByText("desativado", { selector: "span.rounded-full" })).toBeInTheDocument();
+      abrirCaso("3.1.2.1");
+      expect(screen.getByText(/Desativado por bia/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Reativar|Desativar/ })).toBeNull();
       unmount();
     }
   });
 
-  it("codigo do caso vira link do cartao no Kanboard (descricao, procedure ou nao informado)", () => {
+  it("mod_xml: caso e grupo desmarcados aparecem travados e os de dentro do grupo tambem", async () => {
+    const motivo = "Desmarcado em toda rodagem pelo mod_xml.py (exceto na A09)";
+    api.desativados = [
+      { ...desativado("3.1.2.1", motivo), disabled_by: "mod_xml" },
+      { ...desativado("3.1.10", motivo), disabled_by: "mod_xml" },
+    ];
+    renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
+    expect(await screen.findByText("Desmarcado no mod_xml")).toBeInTheDocument(); // selo no grupo [3.1.10]
+    fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Lançamentos/ }));
+    expect(screen.getByText("Plano de contas")).toHaveClass("line-through");
+    expect(screen.getByText("Lançamento em lote")).toHaveClass("line-through");
+    expect(screen.getByText("mod_xml")).toBeInTheDocument();
+    expect(screen.getAllByText("grupo desativado")).toHaveLength(2);
+    abrirCaso("3.1.2.1");
+    expect(screen.getByText(`${motivo}. Para mudar, edite a lista no mod_xml.py.`)).toBeInTheDocument();
+    abrirCaso("3.1.10.2");
+    expect(screen.getByText(/Fica de fora porque o grupo \[3\.1\.10\] está desmarcado no mod_xml/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Reativar|Desativar/ })).toBeNull();
+    // Os casos de dentro contam no filtro dos desativados.
+    expect(screen.getByText("3")).toBeInTheDocument();
+  });
+
+  it("sem o botao de copiar o numero", () => {
+    renderAba(<CasosTab hierarchy={ARVORE} falhas={[]} onSelect={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
+    abrirCaso("3.1.2.1");
+    expect(screen.queryByRole("button", { name: /Copiar/ })).toBeNull();
+  });
+
+  it("codigo do caso na linha e o link do cartao no Kanboard no caso aberto", () => {
     const arvore = [
       no("3", "Contábil", "grupo"),
       no("3.2", "Kanboard", "grupo"),
@@ -177,10 +218,15 @@ describe("aba Casos de teste", () => {
     ];
     renderAba(<CasosTab hierarchy={arvore} falhas={[]} onSelect={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Kanboard/ }));
+    expect(screen.getByText("#252397")).toBeInTheDocument();
+    expect(screen.getByText("#245993")).toBeInTheDocument();
+    abrirCaso("3.2.1");
+    abrirCaso("3.2.2");
+    abrirCaso("3.2.3");
     const link = (nome: RegExp) => screen.getByRole("link", { name: nome });
-    expect(link(/^#252397$/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/252397");
-    expect(link(/^#252397$/)).toHaveAttribute("target", "_blank");
-    expect(link(/^#245993$/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/245993");
+    expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/252397");
+    expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("target", "_blank");
+    expect(link(/Abrir #245993 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/245993");
     // Chamado citado no meio do texto tambem abre, mas nao vira o codigo do caso.
     expect(link(/^#175763$/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/175763");
     expect(screen.getAllByText("Código do caso de teste não informado")).toHaveLength(1);

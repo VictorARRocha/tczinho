@@ -41,3 +41,20 @@ export function formatarSistema(sistema: string | null | undefined): string {
   const texto = (sistema || "").trim();
   return ACENTOS[texto.toLowerCase()] ?? texto;
 }
+
+/** Proxima primeiro (a mais nova antes), depois Pre-clientes, depois o resto em ordem alfabetica. */
+function grupoVersao(v: string): number {
+  if (/^pr[oó]xima/i.test(v)) return 0;
+  if (/^pr[eé][\s_-]?client/i.test(v)) return 1;
+  return 2;
+}
+
+/** Ordem das versoes nos filtros (Reexecutar rodagens). */
+export function ordenarVersoes(versoes: string[]): string[] {
+  return [...versoes].sort((a, b) => {
+    const ga = grupoVersao(a), gb = grupoVersao(b);
+    if (ga !== gb) return ga - gb;
+    const cmp = a.localeCompare(b, "pt-BR", { numeric: true, sensitivity: "base" });
+    return ga === 0 ? -cmp : cmp;
+  });
+}

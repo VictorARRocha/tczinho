@@ -1,7 +1,7 @@
 // Aba Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, o que falhou na rodagem aberta
 // e os casos marcados aqui como desativados (so visual: o nome fica riscado).
 import { createContext, useContext, useMemo, useState } from "react";
-import { Check, ChevronRight, ChevronsDownUp, ChevronsUpDown, Copy, ExternalLink, FolderClosed, FolderOpen, Search, X } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ExternalLink, Lock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { desativarCaso, reativarCaso, type CasoDesativado, type TestcaseHierarchyNode } from "@/services/data";
 import { invalidateCasosDesativados, useCasosDesativados } from "@/services/queries";
@@ -117,17 +117,29 @@ function TextoComLinks({ texto }: { texto: string }) {
   );
 }
 
-function copiarId(id: string) {
-  navigator.clipboard?.writeText(`[${id}]`).then(
-    () => toast.success(`[${id}] copiado`),
-    () => toast.error("Não foi possível copiar"),
-  );
+/** Desativados que vem da lista fixa do mod_xml.py (a API sincroniza a cada rodagem): nao mudam pelo dashboard. */
+const MOD_XML = "mod_xml";
+
+/** Desativacao do caso: a dele ou a de um grupo acima (desmarcar o grupo tira tudo de dentro da rodagem). */
+interface Desativacao {
+  linha: CasoDesativado;
+  viaGrupo: string | null; // id do grupo que desativou ("" = o proprio caso)
+}
+
+function desativacaoDe(id: string, desativados: Map<string, CasoDesativado>): Desativacao | null {
+  const partes = id.split(".");
+  for (let n = partes.length; n >= 1; n--) {
+    const prefixo = partes.slice(0, n).join(".");
+    const linha = desativados.get(prefixo);
+    if (linha) return { linha, viaGrupo: prefixo === id ? null : prefixo };
+  }
+  return null;
 }
 
 /** O que as linhas precisam sem passar de mao em mao pela arvore. */
 interface Acoes {
   abrirFalha: (no: No) => void;
-  desativado: (id: string) => CasoDesativado | undefined;
+  desativado: (id: string) => Desativacao | null;
   podeMarcar: (id: string) => boolean;
   desativar: (id: string, motivo: string) => Promise<boolean>;
   reativar: (id: string) => void;
@@ -135,11 +147,13 @@ interface Acoes {
 const AcoesCtx = createContext<Acoes | null>(null);
 const useAcoes = () => useContext(AcoesCtx) as Acoes;
 
-export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
+export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect, contextoFalhas = "nesta rodagem" }: {
   moduloSlug: string;
   hierarchy: TestcaseHierarchyNode[];
   falhas: Falha[];
   onSelect: (f: Falha) => void;
+  /** De qual rodagem sao as falhas mostradas ("nesta rodagem", "na última rodagem"). */
+  contextoFalhas?: string;
 }) {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<"" | "falhas" | "desativados">("");
@@ -165,7 +179,7 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
     arvore.forEach(visitar);
     return lista;
   }, [arvore]);
-  const estaDesativado = (c: No) => desativados.has(c.id);
+  const estaDesativado = (c: No) => !!desativacaoDe(c.id, desativados);
   const totalFalhas = useMemo(() => casos.filter((c) => c.falhas).length, [casos]);
   const totalDesativados = casos.filter(estaDesativado).length;
 
@@ -181,7 +195,7 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
       const f = falhasPorCaso.get(no.id)?.[0];
       if (f) onSelect(f);
     },
-    desativado: (id) => desativados.get(id),
+    desativado: (id) => desativacaoDe(id, desativados),
     // Quem pode pedir rodagem no modulo do caso (rotina geral [0.x]: so quem tem todos os modulos).
     podeMarcar: (id) => podeRodar && (acessoModulos.todos || acessoModulos.pode(modulosDosCasos(`[${id}]`)[0])),
     desativar: async (id, motivo) => {
@@ -230,7 +244,7 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
             <span><strong>{casos.length.toLocaleString("pt-BR")}</strong> <span className="text-muted-foreground">casos cadastrados no módulo</span></span>
             {totalFalhas > 0 && (
-              <span className="text-destructive"><strong>{totalFalhas}</strong> com falha nesta rodagem</span>
+              <span className="text-destructive"><strong>{totalFalhas}</strong> com falha {contextoFalhas}</span>
             )}
             {totalDesativados > 0 && (
               <span className="text-muted-foreground"><strong>{totalDesativados}</strong> {totalDesativados === 1 ? "desativado" : "desativados"}</span>
@@ -283,7 +297,7 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
               <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setFiltro(""); }} />
             ) : (
               <>
-                <ul className="divide-y divide-border/60" aria-label="Casos encontrados">
+                <ul className="space-y-0.5 p-1.5" aria-label="Casos encontrados">
                   {resultados.slice(0, MAX_RESULTADOS).map((c) => (
                     <li key={c.id}><LinhaCaso no={c} mostrarCaminho /></li>
                   ))}
@@ -296,8 +310,8 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
               </>
             )
           ) : (
-            <ul aria-label="Casos de teste do módulo" className="py-1">
-              {arvore.map((n) => <Ramo key={n.id} no={n} nivel={0} abertos={abertos} onToggle={alternar} />)}
+            <ul aria-label="Casos de teste do módulo" className="p-1.5">
+              {arvore.map((n) => <Ramo key={n.id} no={n} abertos={abertos} onToggle={alternar} />)}
             </ul>
           )}
         </Card>
@@ -306,133 +320,146 @@ export function CasosTab({ moduloSlug, hierarchy, falhas, onSelect }: {
   );
 }
 
-function Ramo({ no, nivel, abertos, onToggle }: { no: No; nivel: number; abertos: Set<string>; onToggle: (id: string) => void }) {
-  const recuo = { paddingLeft: `${12 + nivel * 18}px` };
-  if (!no.grupo) return <li style={recuo}><LinhaCaso no={no} /></li>;
-  // Pasta sem nenhum caso dentro: sem seta e sem abrir/fechar, so mostra que esta vazia.
-  if (no.casos === 0) {
-    return (
-      <li>
-        <div style={recuo} className="flex w-full items-start gap-2 py-2 pr-3 text-left" title="Pasta sem casos de teste">
-          <span className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          <FolderClosed className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground/50" />
-          <span className="min-w-0 flex-1">
-            <span className="font-mono text-xs text-muted-foreground mr-2">[{no.id}]</span>
-            <span className="text-sm font-medium text-muted-foreground">{no.nome}</span>
-            {no.descricao && <span className="block text-xs text-muted-foreground line-clamp-1">{no.descricao}</span>}
-            <Contagens no={no} className="mt-1 sm:hidden" />
-          </span>
-          <Contagens no={no} className="hidden sm:flex shrink-0" />
-        </div>
-      </li>
-    );
-  }
-  const aberto = abertos.has(no.id);
-  const Pasta = aberto ? FolderOpen : FolderClosed;
+// Grupo: uma linha (seta, numero, nome, contagens); aberto, os filhos ficam numa linha-guia recuada.
+function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggle: (id: string) => void }) {
+  if (!no.grupo) return <li><LinhaCaso no={no} /></li>;
+  const vazio = no.casos === 0;
+  const aberto = !vazio && abertos.has(no.id);
+  const conteudo = (
+    <>
+      <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-90", vazio && "invisible")} aria-hidden />
+      <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
+      <span className={cn("min-w-0 text-sm font-medium sm:truncate", vazio && "text-muted-foreground")}>{no.nome}</span>
+      <SeloGrupoDesativado id={no.id} />
+      <Contagens no={no} className="ml-auto shrink-0" />
+    </>
+  );
   return (
     <li>
-      <button
-        type="button"
-        aria-expanded={aberto}
-        onClick={() => onToggle(no.id)}
-        style={recuo}
-        className="flex w-full items-start gap-2 py-2 pr-3 text-left hover:bg-muted/40 transition-colors"
-      >
-        <ChevronRight className={cn("mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-90")} />
-        <Pasta className="mt-0.5 h-4 w-4 shrink-0 text-primary/80" />
-        <span className="min-w-0 flex-1">
-          <span className="font-mono text-xs text-muted-foreground mr-2">[{no.id}]</span>
-          <span className="text-sm font-medium">{no.nome}</span>
-          {no.descricao && <span className="block text-xs text-muted-foreground line-clamp-1">{no.descricao}</span>}
-          {/* No celular as contagens ficam embaixo do nome, para nao cobrir o texto. */}
-          <Contagens no={no} className="mt-1 sm:hidden" />
-        </span>
-        <Contagens no={no} className="hidden sm:flex shrink-0" />
-      </button>
+      {vazio ? (
+        // Pasta sem nenhum caso dentro: sem abrir/fechar, so mostra que esta vazia.
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5" title={no.descricao || "Pasta sem casos de teste"}>{conteudo}</div>
+      ) : (
+        <button type="button" aria-expanded={aberto} onClick={() => onToggle(no.id)} title={no.descricao || undefined}
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40">
+          {conteudo}
+        </button>
+      )}
       {aberto && (
-        <ul>
-          {no.filhos.map((f) => <Ramo key={f.id} no={f} nivel={nivel + 1} abertos={abertos} onToggle={onToggle} />)}
+        <ul className="ml-[15px] border-l border-border pl-2">
+          {no.filhos.map((f) => <Ramo key={f.id} no={f} abertos={abertos} onToggle={onToggle} />)}
         </ul>
       )}
     </li>
   );
 }
 
+/** Grupo desmarcado (mod_xml ou a mao): tudo dentro fica de fora. */
+function SeloGrupoDesativado({ id }: { id: string }) {
+  const info = useAcoes().desativado(id);
+  if (!info || info.viaGrupo) return null;
+  return (
+    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400" title={info.linha.reason || undefined}>
+      {info.linha.disabled_by === MOD_XML ? "Desmarcado no mod_xml" : "Desativado"}
+    </span>
+  );
+}
+
 function Contagens({ no, className }: { no: No; className?: string }) {
   return (
     <span className={cn("flex items-center gap-1.5 text-xs", className)}>
-      {no.falhas > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive">{no.falhas} com falha</span>}
+      {no.falhas > 0 && <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive">{no.falhas} {no.falhas === 1 ? "falhou" : "falharam"}</span>}
       <span className="px-1 text-muted-foreground tabular-nums">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
     </span>
   );
 }
 
+/** Caso: uma linha (numero, nome, chamado, situacao). Clicar abre a descricao e as acoes. */
 function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean }) {
   const acoes = useAcoes();
-  const [inteira, setInteira] = useState(false);
-  const marcado = acoes.desativado(no.id);
-  const riscado = !!marcado;
-  // O codigo do inicio da descricao ja vira a etiqueta com o link; o resto do texto fica como esta.
+  const [aberto, setAberto] = useState(false);
+  const info = acoes.desativado(no.id);
+  const marcado = info?.linha;
+  const riscado = !!info;
+  // Do mod_xml ou herdado do grupo: so mostra; marcar/desmarcar e para os desativados a mao no proprio caso.
+  const travado = !!info && (marcado?.disabled_by === MOD_XML || !!info.viaGrupo);
+  // O codigo do inicio da descricao ja aparece na linha; o resto do texto fica como esta.
   const descricao = no.descricao.replace(/^\s*#\s?\d{4,}\s*[-–:,.]?\s*/, "");
-  const longa = descricao.length > 160;
   return (
-    <div className={cn("group flex items-start gap-2 py-2 pr-3", mostrarCaminho && "px-4 py-3")}>
-      <span className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", no.falhas ? "bg-destructive" : "bg-muted-foreground/50")} aria-hidden />
-      <div className="min-w-0 flex-1">
-        {mostrarCaminho && no.caminho.length > 0 && (
-          <div className="text-[11px] text-muted-foreground truncate">{no.caminho.join(" › ")}</div>
-        )}
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="font-mono text-xs text-muted-foreground">[{no.id}]</span>
-          <span className={cn("text-sm", riscado && "line-through text-muted-foreground")}>{no.nome}</span>
-          {no.codigo ? (
-            <a href={linkKanboard(no.codigo)} target="_blank" rel="noopener noreferrer" title="Abrir o cartão do caso no Kanboard"
-              className="inline-flex items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 font-mono text-[11px] text-primary hover:bg-primary/20">
-              #{no.codigo}<ExternalLink className="h-3 w-3" aria-hidden />
-            </a>
-          ) : (
-            <span className="text-[11px] italic text-muted-foreground">Código do caso de teste não informado</span>
-          )}
-        </div>
-        {descricao && (
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            <span className={cn(!inteira && "line-clamp-2")}><TextoComLinks texto={descricao} /></span>
-            {longa && (
-              <button type="button" onClick={() => setInteira((v) => !v)} className="mt-0.5 text-[11px] text-primary hover:underline">
-                {inteira ? "ver menos" : "ver mais"}
-              </button>
+    <div className={cn("group rounded-md", aberto && "bg-muted/40", no.falhas > 0 && !aberto && "bg-destructive/5")}>
+      <div className="flex items-center gap-2">
+        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40">
+          <span className="min-w-0 flex-1">
+            {mostrarCaminho && no.caminho.length > 0 && (
+              <span className="block truncate text-[11px] text-muted-foreground">{no.caminho.join(" › ")}</span>
             )}
-          </p>
-        )}
-        {marcado && (
-          <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
-            Desativado por {marcado.disabled_by || "—"} em {formatDateTime(marcado.disabled_at)}
-            {marcado.reason ? `: ${marcado.reason}` : ""}
-          </p>
-        )}
+            {/* No celular quebra como texto (numero, nome e chamado ocupam a largura toda); no computador, uma linha. */}
+            <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-nowrap sm:items-center">
+              <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
+              <span className={cn("min-w-0 text-sm sm:truncate", riscado && "line-through text-muted-foreground")}>{no.nome}</span>
+              {no.codigo && <span className="shrink-0 font-mono text-[11px] text-primary/80">#{no.codigo}</span>}
+            </span>
+          </span>
+        </button>
+        <div className="flex shrink-0 items-center gap-1 pr-2">
+          {no.falhas > 0 && (
+            <button type="button" onClick={() => acoes.abrirFalha(no)}
+              className="rounded-full bg-destructive/15 px-2 py-0.5 text-[11px] font-medium text-destructive hover:bg-destructive/25">
+              falhou · ver
+            </button>
+          )}
+          {info && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
+              title={info.viaGrupo ? `Desativado pelo grupo [${info.viaGrupo}]` : marcado?.reason || undefined}>
+              {travado && <Lock className="h-3 w-3" aria-hidden />}
+              {info.viaGrupo ? "grupo desativado" : marcado?.disabled_by === MOD_XML ? "mod_xml" : "desativado"}
+            </span>
+          )}
+          {/* Seta no fim da linha (alinhada em todos os casos): aparece ao passar o mouse ou com o caso aberto. */}
+          <button type="button" tabIndex={-1} aria-hidden onClick={() => setAberto((v) => !v)}
+            className={cn("rounded p-0.5 text-muted-foreground/70 transition-opacity", aberto ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", aberto && "rotate-180")} />
+          </button>
+        </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
-        {no.falhas > 0 && (
-          <Button size="sm" variant="ghost" className="h-8 px-2 text-xs text-destructive hover:text-destructive" onClick={() => acoes.abrirFalha(no)}>
-            Falhou · ver
-          </Button>
-        )}
-        {acoes.podeMarcar(no.id) ? (
-          <CaixaDesativado id={no.id} marcado={!!marcado} />
-        ) : marcado ? (
-          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[11px] text-amber-700 dark:text-amber-400">Desativado</span>
-        ) : null}
-        <Button size="icon" variant="ghost" className="h-7 w-7 opacity-60 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100"
-          aria-label={`Copiar [${no.id}]`} title="Copiar o número" onClick={() => copiarId(no.id)}>
-          <Copy className="h-3.5 w-3.5" />
-        </Button>
-      </div>
+
+      {aberto && (
+        <div className="space-y-2 px-2 pb-3 pl-9 text-xs">
+          {descricao ? (
+            <p className="leading-relaxed text-muted-foreground"><TextoComLinks texto={descricao} /></p>
+          ) : (
+            <p className="text-muted-foreground">Sem descrição no .mds.</p>
+          )}
+          {marcado && (
+            <p className="text-amber-700 dark:text-amber-400">
+              {info?.viaGrupo
+                ? `Fica de fora porque o grupo [${info.viaGrupo}] está ${marcado.disabled_by === MOD_XML ? "desmarcado no mod_xml" : "desativado"}.`
+                : marcado.disabled_by === MOD_XML
+                  ? `${marcado.reason || "Desmarcado pelo mod_xml.py"}. Para mudar, edite a lista no mod_xml.py.`
+                  : <>Desativado por {marcado.disabled_by || "—"} em {formatDateTime(marcado.disabled_at)}{marcado.reason ? `: ${marcado.reason}` : ""}</>}
+            </p>
+          )}
+          <div className="flex flex-wrap items-center gap-2">
+            {no.codigo ? (
+              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+                <a href={linkKanboard(no.codigo)} target="_blank" rel="noopener noreferrer">
+                  Abrir #{no.codigo} no Kanboard <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+              </Button>
+            ) : (
+              <span className="text-muted-foreground">Código do caso de teste não informado</span>
+            )}
+            {!travado && acoes.podeMarcar(no.id) && <AcaoDesativar id={no.id} marcado={!!marcado} />}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-/** Caixinha "Desativado": marcar pede um motivo (opcional); desmarcar reativa na hora. */
-function CaixaDesativado({ id, marcado }: { id: string; marcado: boolean }) {
+/** "Desativar…" pede um motivo (opcional); "Reativar" volta na hora. So os desativados a mao. */
+function AcaoDesativar({ id, marcado }: { id: string; marcado: boolean }) {
   const acoes = useAcoes();
   const [pedindo, setPedindo] = useState(false);
   const [motivo, setMotivo] = useState("");
@@ -445,30 +472,15 @@ function CaixaDesativado({ id, marcado }: { id: string; marcado: boolean }) {
     }
     setSalvando(false);
   };
+  if (marcado) {
+    return <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => acoes.reativar(id)}>Reativar</Button>;
+  }
   return (
-    <Popover open={pedindo} onOpenChange={(aberto) => { if (!aberto) setPedindo(false); }}>
+    <Popover open={pedindo} onOpenChange={setPedindo}>
       <PopoverTrigger asChild>
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={marcado}
-          aria-label={`Desativado [${id}]`}
-          onClick={() => (marcado ? acoes.reativar(id) : setPedindo(true))}
-          className={cn(
-            "flex h-7 items-center gap-1.5 rounded px-1.5 text-xs transition-colors hover:bg-muted/60",
-            marcado ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground",
-          )}
-        >
-          <span className={cn(
-            "flex h-3.5 w-3.5 items-center justify-center rounded-sm border",
-            marcado ? "border-amber-500 bg-amber-500 text-white" : "border-muted-foreground/60",
-          )}>
-            {marcado && <Check className="h-3 w-3" />}
-          </span>
-          Desativado
-        </button>
+        <Button size="sm" variant="outline" className="h-7 text-xs">Desativar…</Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 space-y-2">
+      <PopoverContent align="start" className="w-72 space-y-2">
         <p className="text-sm font-medium">Desativar [{id}]</p>
         <p className="text-xs text-muted-foreground">Só marca na lista (o nome fica riscado). Não muda o .mds nem as rodagens.</p>
         <Input

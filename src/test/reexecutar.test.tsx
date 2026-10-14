@@ -1,0 +1,189 @@
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { MemoryRouter } from "react-router-dom";
+import type { CasoReexecutavel, RodagemListItem } from "@/services/data";
+
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+
+const auth = { isAdmin: false, profile: { username: "ana", permissions: ["rodagem"] as string[], modules: ["*"] as string[] } };
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
+
+const run = (id: string, vm: string, versao: string, slug: string, data: string, falhas: number) =>
+  ({ id_rodagem: id, vm_name: vm, versao, modulo_slug: slug, sistema: slug, data_inicio: data, caminho_logs: `\\\\${vm}\\logs`, total_falhas: falhas, total_clusters: 1, created_at: data }) as RodagemListItem;
+
+const caso = (id: string, nome: string, tipo: CasoReexecutavel["tipo_ocorrencia"]) =>
+  ({ id_falha: `f${id}`, id_caso_teste: id, nome_mds: nome, grupo: "Cadastros", arquivo_origem: null, cluster_id: "c1", cluster_status: null, cluster_titulo: null, cluster_assinatura: null, tipo_ocorrencia: tipo }) as CasoReexecutavel;
+
+const api = {
+  createRerunRequest: vi.fn(),
+};
+vi.mock("@/services/data", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/data")>();
+  return {
+    ...actual,
+    fetchAllRuns: async () => [
+      run("rod_a08", "a08", "PROXIMA1.26.10.0", "contabil", "2026-10-14T06:10:00-03:00", 2),
+      run("rod_a05", "a05n", "FOLHA_SUSTENTACAO_2026", "folha", "2026-10-14T05:52:00-03:00", 1),
+      run("rod_a08_pre", "a08", "PRE-CLIENTES", "contabil", "2026-10-13T06:10:00-03:00", 1),
+      run("rod_a08_old", "a08", "PROXIMA1.26.9.99", "contabil", "2026-10-12T06:10:00-03:00", 1),
+    ],
+    fetchCasosReexecutaveis: async (runId: string) =>
+      runId === "rod_a08"
+        ? [caso("3.1.1", "Cadastro de sócio", "quebra"), caso("3.2.4", "Lançamento em lote", "diferenca")]
+        : [caso("1.1.1", "Admissão", "quebra")],
+    fetchRerunRequests: async () => [],
+    createRerunRequest: (...args: unknown[]) => api.createRerunRequest(...args),
+  };
+});
+
+import { queryClient } from "@/lib/queryClient";
+import { ordenarVersoes } from "@/lib/rodagemTexto";
+import ReexecutarTestes from "@/pages/ReexecutarTestes";
+
+beforeAll(() => {
+  Element.prototype.hasPointerCapture = () => false;
+  Element.prototype.releasePointerCapture = () => {};
+  Element.prototype.scrollIntoView = () => {};
+  globalThis.ResizeObserver ??= class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+});
+
+beforeEach(() => {
+  queryClient.clear();
+  api.createRerunRequest.mockReset().mockResolvedValue({ id: "req1" });
+});
+
+function renderPagina() {
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter><ReexecutarTestes /></MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+async function abrirSelect(nome: string) {
+  fireEvent.keyDown(screen.getByRole("combobox", { name: nome }), { key: "ArrowDown" });
+  return screen.findByRole("listbox");
+}
+
+/** Etapa 1 -> 2 -> marca "Cadastro de sócio" -> 3. */
+async function irParaConfirmacao() {
+  renderPagina();
+  await screen.findAllByRole("radio");
+  fireEvent.click(screen.getByRole("button", { name: /Escolher casos/ }));
+  fireEvent.click(await screen.findByText("Cadastro de sócio"));
+  fireEvent.click(screen.getByRole("button", { name: /Revisar/ }));
+  await screen.findByRole("heading", { name: "Confirme o pedido" });
+}
+
+describe("Reexecutar rodagens (etapas)", () => {
+  it("etapa 1: lista as rodagens com VM e versao; a primeira ja vem escolhida", async () => {
+    renderPagina();
+    const radios = await screen.findAllByRole("radio");
+    expect(radios).toHaveLength(4);
+    expect(radios[0]).toHaveAttribute("aria-checked", "true");
+    expect(within(radios[0]).getByText("A08")).toBeInTheDocument();
+    expect(within(radios[0]).getByText("Próxima 10.0")).toHaveAttribute("title", "PROXIMA1.26.10.0");
+    expect(within(radios[1]).getByText("Folha Sustentação 2026")).toBeInTheDocument();
+    expect(screen.getByText("Selecionada:").parentElement).toHaveTextContent("PROXIMA1.26.10.0");
+    // Casos e confirmacao ficam nas proximas etapas.
+    expect(screen.queryByText("Cadastro de sócio")).toBeNull();
+    expect(screen.queryByRole("button", { name: /Rodar/ })).toBeNull();
+  });
+
+  it("versoes: Proxima (mais nova primeiro), depois Pre-clientes, depois o resto", () => {
+    expect(ordenarVersoes(["FOLHA_SUSTENTACAO_2026", "PRE-CLIENTES", "PROXIMA1.26.9.99", "CONTABIL_DERE", "PROXIMA1.26.10.0"]))
+      .toEqual(["PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES", "CONTABIL_DERE", "FOLHA_SUSTENTACAO_2026"]);
+  });
+
+  it("filtro de VM limita o filtro de versao ao que a VM ja rodou", async () => {
+    renderPagina();
+    await screen.findAllByRole("radio");
+    let lista = await abrirSelect("Filtrar por versão");
+    expect(within(lista).getAllByRole("option").map((o) => o.textContent))
+      .toEqual(["Todas as versões", "PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES", "FOLHA_SUSTENTACAO_2026"]);
+    fireEvent.keyDown(lista, { key: "Escape" });
+
+    lista = await abrirSelect("Filtrar por VM");
+    fireEvent.click(within(lista).getByText("A08"));
+    lista = await abrirSelect("Filtrar por versão");
+    expect(within(lista).getAllByRole("option").map((o) => o.textContent))
+      .toEqual(["Todas as versões", "PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES"]);
+    fireEvent.keyDown(lista, { key: "Escape" });
+    await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(3));
+  });
+
+  it("etapa 2: contagens no 'Marcar so', marcar todos e 'Revisar' so com caso marcado", async () => {
+    renderPagina();
+    await screen.findAllByRole("radio");
+    fireEvent.click(screen.getByRole("button", { name: /Escolher casos/ }));
+    await screen.findByText("Cadastro de sócio");
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /Quebras \(1\)/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Quebra \+ diferença \(0\)/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Marcar todos" }));
+    expect(screen.getByText(/de 2 marcados/)).toHaveTextContent("2 de 2 marcados");
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeEnabled();
+  });
+
+  it("etapa 3: mostra o codigo com o nome e envia para a VM da rodagem", async () => {
+    await irParaConfirmacao();
+    const lista = screen.getByRole("list", { name: "Casos do pedido" });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lista).getByRole("listitem")).toHaveTextContent("3.1.1Cadastro de sócio");
+    expect(screen.queryByLabelText("Reexecutar casos em uma VM específica")).toBeNull();
+    expect(screen.getByText(/Vai rodar na/)).toHaveTextContent("Vai rodar na A08 (a da rodagem)");
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
+      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[0.4], [0.5], [3.1.1]", branch: "",
+    });
+    // Depois de enviar volta para a etapa 1.
+    expect(await screen.findByRole("heading", { name: "Escolha a rodagem" })).toBeInTheDocument();
+  });
+
+  it("restaurar base desligado tira [0.4] e [0.5]", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Restaurar base/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[3.1.1]" });
+  });
+
+  it("VM especifica: so troca o vm_name do pedido", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));
+    const opcao = screen.getByRole("checkbox", { name: "Reexecutar casos em uma VM específica" });
+    expect(opcao).not.toBeChecked();
+    fireEvent.click(opcao);
+    expect(screen.getByRole("button", { name: /Rodar 1 caso de novo/ })).toBeDisabled();
+    const lista = await abrirSelect("VM para reexecutar");
+    expect(within(lista).queryByText("A08")).toBeNull(); // a VM da propria rodagem nao aparece
+    fireEvent.click(within(lista).getByText("A03"));
+    expect(screen.getByText(/Vai rodar na/)).toHaveTextContent("Vai rodar na A03 (escolhida)");
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
+      vm_name: "a03", versao: "proxima1.26.10.0", casos_teste: "[0.4], [0.5], [3.1.1]",
+    });
+  });
+
+  it("voltar e trocar de rodagem limpa as marcacoes e desliga a VM especifica", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Reexecutar casos em uma VM específica" }));
+    fireEvent.click(screen.getByRole("button", { name: /Rodagem/ }));
+    fireEvent.click(screen.getAllByRole("radio")[1]);
+    // Sem caso marcado a etapa 3 fica bloqueada.
+    expect(screen.getByRole("button", { name: /Confirmar/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Escolher casos/ }));
+    fireEvent.click(await screen.findByText("Admissão"));
+    fireEvent.click(screen.getByRole("button", { name: /Revisar/ }));
+    // As opcoes avancadas continuam abertas, mas a VM especifica voltou a ficar desligada.
+    expect(await screen.findByRole("checkbox", { name: "Reexecutar casos em uma VM específica" })).not.toBeChecked();
+  });
+});
