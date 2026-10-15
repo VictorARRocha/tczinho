@@ -13,6 +13,12 @@ const api = {
   candidatos: null as RegravacaoCandidatos | null,
   erroCandidatos: null as Error | null,
   pedidos: [] as RegravacaoPedido[],
+  branchPedida: undefined as string | undefined,
+  branches: [
+    { name: "Unico", url: "https://svn/testcomplete/unico/ProjetoUnico/Unico", kind: "trunk" as const },
+    { name: "minha-branch", url: "https://svn/testcomplete/unico/ProjetoUnico/branches/minha-branch", kind: "branch" as const },
+    { name: "Proxima10_0", url: "https://svn/testcomplete/unico/ProjetoUnico/branches/Proxima10_0", kind: "branch" as const },
+  ],
   createRegravacao: vi.fn(),
   cancelRegravacao: vi.fn(),
 };
@@ -22,10 +28,12 @@ vi.mock("@/services/data", async (importOriginal) => {
     ...actual,
     fetchAllRuns: async () => [{ id_rodagem: "rod_1", versao: "PROXIMA", vm_name: "a07", sistema: "Tarefas", data_inicio: null, caminho_logs: null, total_falhas: 3, total_clusters: 0, created_at: null,
                                    repository_url: "https://svn/testcomplete/unico/ProjetoUnico/branches/minha-branch" }],
-    fetchRegravacaoCandidatos: async () => {
+    fetchRegravacaoCandidatos: async (_runId: string, branchUrl?: string) => {
       if (api.erroCandidatos) throw api.erroCandidatos;
-      return api.candidatos;
+      api.branchPedida = branchUrl;
+      return branchUrl && api.candidatos ? { ...api.candidatos, destino_url: branchUrl } : api.candidatos;
     },
+    fetchMergeBranches: async () => ({ branches: api.branches, updated_at: null }),
     fetchRegravacoes: async () => api.pedidos,
     fetchEvidenceByRun: async () => [],
     fetchEvidenceByFailure: async () => [],
@@ -165,6 +173,58 @@ describe("tela de regravacao", () => {
       difference_ids: ["d1"],
       mensagem: "Ajuste esperado do relatório (#248408)\nPedido {pedido}",
     });
+  });
+
+  it("opcao avancada: regravar em outra branch da lista do SVN", async () => {
+    api.createRegravacao.mockResolvedValue({});
+    renderPage();
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));
+    const opcao = screen.getByRole("checkbox", { name: "Regravar arquivos em outra branch" });
+    expect(opcao).not.toBeChecked();
+    fireEvent.click(opcao);
+    expect(screen.getByRole("button", { name: "Escolha a branch nas opções avançadas" })).toBeDisabled();
+
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Branch para regravar" }), { key: "ArrowDown" });
+    const lista = await screen.findByRole("listbox");
+    // Sem a branch da rodagem; trunk primeiro.
+    expect(within(lista).getAllByRole("option").map((o) => o.textContent)).toEqual(["Unico (principal)", "Proxima10_0"]);
+    fireEvent.click(within(lista).getByText("Proxima10_0"));
+    const proxima = "https://svn/testcomplete/unico/ProjetoUnico/branches/Proxima10_0";
+    // A situacao dos arquivos passa a ser a da outra branch.
+    await waitFor(() => expect(api.branchPedida).toBe(proxima));
+    expect(screen.getByText("Regravar em:")).toBeInTheDocument();
+
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    fireEvent.click(screen.getByRole("button", { name: "Regravar 1 arquivo na branch Proxima10_0" }));
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Destino: branch Proxima10_0 \(outra branch\)/)).toBeInTheDocument();
+    // Confirmacao extra: so libera depois de marcar que nao e a branch da rodagem.
+    const confirmar = within(dialog).getByRole("button", { name: "Confirmar regravação" });
+    expect(confirmar).toBeDisabled();
+    const aceite = within(dialog).getByRole("checkbox", { name: /não é a branch desta rodagem/ });
+    expect(aceite.closest("label")).toHaveTextContent("branch Proxima10_0, que não é a branch desta rodagem (branch minha-branch)");
+    fireEvent.click(aceite);
+    fireEvent.click(confirmar);
+    await waitFor(() => expect(api.createRegravacao).toHaveBeenCalledTimes(1));
+    expect(api.createRegravacao.mock.calls[0][0]).toMatchObject({ run_id: "rod_1", difference_ids: ["d1"], branch_url: proxima });
+  });
+
+  it("clicar em qualquer lugar da linha marca e desmarca (menos nos botoes da linha)", async () => {
+    renderPage();
+    const caixa = await screen.findByLabelText("Selecionar d1_Atual.txt");
+    fireEvent.click(screen.getByText("d1_Atual.txt"));
+    expect(caixa).toBeChecked();
+    expect(caixa.closest("tr")).toHaveAttribute("data-state", "selected");
+    fireEvent.click(screen.getByText("d1_Atual.txt"));
+    expect(caixa).not.toBeChecked();
+    // Comparar e o numero do caso fazem a acao deles, sem marcar.
+    const linha = caixa.closest("tr") as HTMLElement;
+    fireEvent.click(within(linha).getByRole("button", { name: /Comparar/ }));
+    expect(caixa).not.toBeChecked();
+    // Linha que nao pode ser regravada nao marca.
+    fireEvent.click(screen.getByText("d3_Atual.txt"));
+    expect(screen.getByLabelText("Selecionar d3_Atual.txt")).not.toBeChecked();
   });
 
   it("quando o Bridge termina o pedido, a situacao dos arquivos e recarregada", async () => {

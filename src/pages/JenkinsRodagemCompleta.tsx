@@ -226,6 +226,25 @@ export default function JenkinsRodagemCompleta() {
                 </Select>
               </Field>
 
+              <Field label="Módulo">
+                <Select value={sModulo} onValueChange={setSModulo}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {modulosLiberados.map((m) => (
+                      <SelectItem key={m.nome} value={m.nome}>
+                        {m.nome} — <span className="font-mono text-xs">{m.codigo}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+
+              <Field label="Versão">
+                <Input aria-label="Versão" value={sVersao} onChange={(e) => setSVersao(e.target.value)} />
+              </Field>
+
               <Field label="Branch">
                 <Select value={sBranch} onValueChange={setSBranch}>
                   <SelectTrigger aria-label="Branch">
@@ -246,25 +265,6 @@ export default function JenkinsRodagemCompleta() {
                     </span>
                   </div>
                 )}
-              </Field>
-
-              <Field label="Módulo">
-                <Select value={sModulo} onValueChange={setSModulo}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {modulosLiberados.map((m) => (
-                      <SelectItem key={m.nome} value={m.nome}>
-                        {m.nome} — <span className="font-mono text-xs">{m.codigo}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field label="Versão">
-                <Input aria-label="Versão" value={sVersao} onChange={(e) => setSVersao(e.target.value)} />
               </Field>
 
               <Field label="Agendamento">
@@ -346,14 +346,8 @@ export default function JenkinsRodagemCompleta() {
                 className="min-h-[260px] font-mono text-xs leading-relaxed"
                 aria-invalid={!!cParsed.error}
               />
-              {cParsed.error ? (
+              {cParsed.error && (
                 <p className="mt-1 text-[11px] text-red-500">{cParsed.error}</p>
-              ) : (
-                <p className="mt-1 text-[11px] text-muted-foreground">
-                  Obrigatórios: <code>vm_name</code>, <code>versao</code>, <code>casos_teste</code> (com colchetes, ex.: [2] ou
-                  [9.1.4.1.3], [9.1.4.1.4]), <code>ct_desmarcar</code> (padrão [0.3]) e <code>data_hora</code> (dd/MM/yyyy
-                  HH:mm:ss; agora − 1 min dispara imediatamente). <code>branch</code> vazio não troca a branch.
-                </p>
               )}
             </div>
 

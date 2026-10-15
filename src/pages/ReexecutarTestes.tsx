@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { SemPermissao } from "@/components/SemPermissao";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -63,8 +64,8 @@ import {
   type RerunRequest,
 } from "@/services/data";
 import { invalidateRerunRequests, useAllRuns, useRerunRequests } from "@/services/queries";
-import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
-import { HistoryClearControls } from "@/components/HistoryClearControls";
+import { HISTORICO_POR_PAGINA } from "@/components/JenkinsHistory";
+import { Paginacao } from "./module/common";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Mesmas cores do historico da Rodagem completa (JenkinsHistory).
@@ -157,15 +158,18 @@ export default function ReexecutarTestes() {
   );
   const isMobile = useIsMobile();
   const [etapa, setEtapa] = useState<Etapa>(1);
-  const [selectedRunId, setSelectedRunId] = useState<string>("");
+  // ?run= : volta do "Ver falhas desta rodagem" com a mesma rodagem selecionada.
+  const [searchParams] = useSearchParams();
+  const [selectedRunId, setSelectedRunId] = useState<string>(() => searchParams.get("run") || "");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   // Mesmo cache do JenkinsHistory: 10s com pedido ativo, 1 minuto sem.
   const { data: historyData } = useRerunRequests(50);
   // A API pode devolver mais que o pedido; mostra no maximo 50, como na rodagem completa.
-  const allHistory = useMemo(() => (historyData || []).slice(0, 50), [historyData]);
-  const historyClear = useHistoryClear("agenttc.jenkins.reexecucoes.ocultas");
-  const history = useMemo(() => visibleAfterClear(allHistory, historyClear.hiddenIds), [allHistory, historyClear.hiddenIds]);
+  const history = useMemo(() => (historyData || []).slice(0, 50), [historyData]);
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPaginaAtual = Math.min(historyPage, Math.max(1, Math.ceil(history.length / HISTORICO_POR_PAGINA)));
+  const historyDaPagina = history.slice((historyPaginaAtual - 1) * HISTORICO_POR_PAGINA, historyPaginaAtual * HISTORICO_POR_PAGINA);
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -175,11 +179,15 @@ export default function ReexecutarTestes() {
   const [mostrarTodas, setMostrarTodas] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
-  const [restaurarBase, setRestaurarBase] = useState(true);
+  // A rodagem ja restaura e atualiza a base sozinha; "Manter base atual" desmarca as rotinas [0.4] e [0.5].
+  const [manterBase, setManterBase] = useState(false);
   // Opcao avancada (quase nunca usada): manda o pedido para outra VM. Comeca desligada e desliga ao trocar de rodagem.
   const [avancadasOpen, setAvancadasOpen] = useState(false);
   const [outraVm, setOutraVm] = useState(false);
   const [vmEscolhida, setVmEscolhida] = useState("");
+  // Mesma ideia para a versao (ex.: rodar na "clientes" os casos que deram problema numa versao especifica).
+  const [outraVersao, setOutraVersao] = useState(false);
+  const [versaoEscolhida, setVersaoEscolhida] = useState("");
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -280,9 +288,11 @@ export default function ReexecutarTestes() {
   }, [filteredRuns, selectedRunId]);
 
   useEffect(() => {
-    // A troca de VM vale so para o pedido da rodagem em que foi ligada.
+    // A troca de VM e de versao vale so para o pedido da rodagem em que foi ligada.
     setOutraVm(false);
     setVmEscolhida("");
+    setOutraVersao(false);
+    setVersaoEscolhida("");
     if (!selectedRunId) { setCasos([]); return; }
     setLoadingCasos(true);
     setMarcados(new Set());
@@ -297,7 +307,16 @@ export default function ReexecutarTestes() {
   const vmPedido = outraVm ? vmEscolhida : vmName;
   const outrasVms = useMemo(() => VM_OPTIONS.filter((v) => v !== vmName), [vmName]);
 
-  const versao = (selectedRun?.versao || "").toLowerCase();
+  const versaoDaRodagem = (selectedRun?.versao || "").toLowerCase();
+  // Versao que vai no pedido: a da rodagem, ou a digitada nas opcoes avancadas.
+  const versao = outraVersao ? versaoEscolhida.trim().toLowerCase() : versaoDaRodagem;
+  // Sugestoes: as versoes que ja rodaram (Proxima e Pre-clientes primeiro), menos a da rodagem.
+  const outrasVersoes = useMemo(
+    () => ordenarVersoes(Array.from(new Set(runs.map((r) => (r.versao || "").toString()).filter(Boolean))))
+      .filter((v) => v.toLowerCase() !== versaoDaRodagem),
+    [runs, versaoDaRodagem],
+  );
+  const trocas = [outraVm && "a VM", outraVersao && "a versão"].filter(Boolean) as string[];
 
   const toggleAll = (on: boolean) => {
     setMarcados(on ? new Set(casos.map((c) => c.id_falha)) : new Set());
@@ -343,20 +362,19 @@ export default function ReexecutarTestes() {
           .filter(Boolean),
       ),
     );
-    const parts = restaurarBase ? ["[0.4]", "[0.5]"] : [];
-    parts.push(...ids.map((id) => `[${id}]`));
-    return parts.join(", ");
-  }, [casosSelecionados, restaurarBase]);
+    return ids.map((id) => `[${id}]`).join(", ");
+  }, [casosSelecionados]);
+  const ctDesmarcar = manterBase ? "[0.3], [0.4], [0.5]" : "[0.3]";
 
   const configJsonPreview = useMemo(() => ({
     vm_name: vmPedido,
     versao,
     casos_teste: casosTesteString,
     paralelo: "",
-    ct_desmarcar: "[0.3]",
+    ct_desmarcar: ctDesmarcar,
     data_hora: formatNowBr(),
     branch: "",
-  }), [vmPedido, versao, casosTesteString]);
+  }), [vmPedido, versao, casosTesteString, ctDesmarcar]);
 
   const canSubmit = !!selectedRun && casosSelecionados.length > 0 && !!vmPedido && !!versao && !!casosTesteString;
   // Ate onde da para ir: casos precisa de rodagem; confirmar precisa de caso marcado.
@@ -365,6 +383,7 @@ export default function ReexecutarTestes() {
   const handleSubmit = async () => {
     if (!selectedRun) { toast.error("Selecione uma rodagem"); return; }
     if (outraVm && !vmEscolhida) { toast.error("Escolha a VM nas opções avançadas"); return; }
+    if (outraVersao && !versaoEscolhida.trim()) { toast.error("Informe a versão nas opções avançadas"); return; }
     if (!vmPedido) { toast.error("VM não identificada para esta rodagem"); return; }
     if (!versao) { toast.error("Versão ausente na rodagem"); return; }
     if (!casosTesteString) { toast.error("Selecione ao menos um caso de teste"); return; }
@@ -375,7 +394,7 @@ export default function ReexecutarTestes() {
         versao,
         casos_teste: casosTesteString,
         paralelo: "",
-        ct_desmarcar: "[0.3]",
+        ct_desmarcar: ctDesmarcar,
         data_hora: configJsonPreview.data_hora,
         branch: "",
       });
@@ -385,6 +404,8 @@ export default function ReexecutarTestes() {
       setMarcados(new Set());
       setOutraVm(false);
       setVmEscolhida("");
+      setOutraVersao(false);
+      setVersaoEscolhida("");
       setEtapa(1);
       invalidateRerunRequests();
     } catch (e) {
@@ -557,7 +578,7 @@ export default function ReexecutarTestes() {
                 <span className="text-muted-foreground">· {nomeModulo(runModulo(selectedRun)) || "—"} · {formatDateTime(selectedRun.data_inicio)}</span>
                 {(selectedRun.modulo_slug || selectedRun.sistema) && (
                   <Link
-                    to={`/modulo/${selectedRun.modulo_slug || selectedRun.sistema}?run=${encodeURIComponent(selectedRun.id_rodagem)}&tab=falhas`}
+                    to={`/modulo/${selectedRun.modulo_slug || selectedRun.sistema}?run=${encodeURIComponent(selectedRun.id_rodagem)}&tab=falhas&origem=reexecucao`}
                     className="inline-flex items-center gap-1 text-primary hover:underline sm:ml-auto"
                   >
                     Ver falhas desta rodagem <ExternalLink className="h-3 w-3" />
@@ -752,7 +773,10 @@ export default function ReexecutarTestes() {
               <span className="font-mono">{formatarVm(vmPedido) || "—"}</span>
               {outraVm && <span className="ml-1 text-xs font-normal">(escolhida)</span>}
             </Resumo>
-            <Resumo label="Versão"><span className="font-mono" title={selectedRun.versao || ""}>{selectedRun.versao || "—"}</span></Resumo>
+            <Resumo label="Versão" destaque={outraVersao}>
+              <span className="font-mono" title={outraVersao ? versao : selectedRun.versao || ""}>{(outraVersao ? versao : selectedRun.versao) || "—"}</span>
+              {outraVersao && <span className="ml-1 text-xs font-normal">(escolhida)</span>}
+            </Resumo>
             <Resumo label="Módulo">{nomeModulo(runModulo(selectedRun)) || "—"}</Resumo>
             <Resumo label="Casos">{casosDoPedido.length}</Resumo>
           </div>
@@ -766,12 +790,12 @@ export default function ReexecutarTestes() {
             ))}
           </ul>
 
-          <label htmlFor="restaurar-base" className="mb-3 flex w-fit cursor-pointer select-none items-start gap-2">
-            <Checkbox id="restaurar-base" checked={restaurarBase} onCheckedChange={(v) => setRestaurarBase(!!v)} className="mt-0.5" />
+          <label htmlFor="manter-base" className="mb-3 flex w-fit cursor-pointer select-none items-start gap-2">
+            <Checkbox id="manter-base" checked={manterBase} onCheckedChange={(v) => setManterBase(!!v)} className="mt-0.5" />
             <span>
-              <span className="block text-sm font-medium">Restaurar base</span>
+              <span className="block text-sm font-medium">Manter base atual</span>
               <span className="block text-xs text-muted-foreground">
-                Volta a base de dados antes de rodar (inclui as rotinas <code className="font-mono">[0.4]</code> e{" "}
+                Não restaura nem atualiza a base antes de rodar (desmarca as rotinas <code className="font-mono">[0.4]</code> e{" "}
                 <code className="font-mono">[0.5]</code>).
               </span>
             </span>
@@ -782,7 +806,11 @@ export default function ReexecutarTestes() {
               <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
                 <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", avancadasOpen && "rotate-90")} />
                 Opções avançadas
-                {outraVm && <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">VM trocada</span>}
+                {trocas.length > 0 && (
+                  <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">
+                    {outraVm && outraVersao ? "VM e versão trocadas" : outraVm ? "VM trocada" : "versão trocada"}
+                  </span>
+                )}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -796,20 +824,45 @@ export default function ReexecutarTestes() {
                   Reexecutar casos em uma VM específica
                 </label>
                 {outraVm && (
-                  <div className="space-y-2">
-                    <Select value={vmEscolhida} onValueChange={setVmEscolhida}>
-                      <SelectTrigger className="h-9 w-[180px]" aria-label="VM para reexecutar">
-                        <SelectValue placeholder="Escolha a VM" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {outrasVms.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <p className="flex items-start gap-1.5 text-xs text-warning">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      Só a VM muda no pedido. Versão e casos continuam os da rodagem da {formatarVm(vmName) || "VM original"}.
-                    </p>
-                  </div>
+                  <Select value={vmEscolhida} onValueChange={setVmEscolhida}>
+                    <SelectTrigger className="ml-6 h-9 w-[180px]" aria-label="VM para reexecutar">
+                      <SelectValue placeholder="Escolha a VM" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {outrasVms.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                )}
+                <label htmlFor="outra-versao" className="flex w-fit cursor-pointer select-none items-center gap-2 text-sm">
+                  <Checkbox
+                    id="outra-versao"
+                    checked={outraVersao}
+                    onCheckedChange={(v) => { setOutraVersao(!!v); if (!v) setVersaoEscolhida(""); }}
+                  />
+                  Reexecutar casos em outra versão
+                </label>
+                {outraVersao && (
+                  <>
+                    <Input
+                      value={versaoEscolhida}
+                      onChange={(e) => setVersaoEscolhida(e.target.value)}
+                      list="versoes-reexecucao"
+                      placeholder="Ex.: clientes"
+                      aria-label="Versão para reexecutar"
+                      className="ml-6 h-9 w-[260px] max-w-[calc(100%-1.5rem)] font-mono text-sm"
+                    />
+                    <datalist id="versoes-reexecucao">
+                      {outrasVersoes.map((v) => <option key={v} value={v} />)}
+                    </datalist>
+                  </>
+                )}
+                {trocas.length > 0 && (
+                  <p className="flex items-start gap-1.5 text-xs text-warning">
+                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    {trocas.length === 2
+                      ? `A VM e a versão mudam no pedido. Os casos continuam os da rodagem da ${formatarVm(vmName) || "VM original"}.`
+                      : `Só ${trocas[0]} muda no pedido. ${outraVm ? "Versão" : "VM"} e casos continuam os da rodagem da ${formatarVm(vmName) || "VM original"}.`}
+                  </p>
                 )}
               </div>
             </CollapsibleContent>
@@ -835,11 +888,17 @@ export default function ReexecutarTestes() {
             </Button>
             <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
               <span className="text-xs text-muted-foreground">
-                {outraVm
-                  ? vmEscolhida
-                    ? <>Vai rodar na <span className="font-mono font-semibold text-warning">{formatarVm(vmEscolhida)}</span> (escolhida)</>
-                    : <span className="text-warning">Escolha a VM nas opções avançadas.</span>
-                  : <>Vai rodar na <span className="font-mono font-semibold text-foreground">{formatarVm(vmName)}</span> (a da rodagem)</>}
+                {outraVm && !vmEscolhida
+                  ? <span className="text-warning">Escolha a VM nas opções avançadas.</span>
+                  : outraVersao && !versao
+                    ? <span className="text-warning">Informe a versão nas opções avançadas.</span>
+                    : <>
+                        Vai rodar na{" "}
+                        <span className={cn("font-mono font-semibold", outraVm ? "text-warning" : "text-foreground")}>{formatarVm(vmPedido)}</span>
+                        {outraVersao
+                          ? <>, versão <span className="font-mono font-semibold text-warning">{versao}</span></>
+                          : outraVm ? " (escolhida)" : " (a da rodagem)"}
+                      </>}
               </span>
               <Button
                 onClick={handleSubmit}
@@ -863,22 +922,14 @@ export default function ReexecutarTestes() {
               <h2 className="text-base sm:text-lg font-semibold">Histórico de reexecuções</h2>
             </Button>
           </CollapsibleTrigger>
-          <HistoryClearControls
-            hiddenCount={allHistory.length - history.length}
-            canClear={canClearHistory(history)}
-            onClear={() => historyClear.clear(history)}
-            onRestore={historyClear.restore}
-          />
         </div>
         <CollapsibleContent>
           <Card className="overflow-hidden">
             {history.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">
-                {allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}
-              </p>
+              <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma solicitação ainda.</p>
             ) : isMobile ? (
               <ul className="divide-y divide-border/60">
-                {history.map((r) => {
+                {historyDaPagina.map((r) => {
                   const meta = STATUS_META[r.status] || { label: r.status, className: "" };
                   const total = totalCasosDoPedido(r.casos_teste);
                   return (
@@ -925,7 +976,7 @@ export default function ReexecutarTestes() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {history.map((r) => {
+                {historyDaPagina.map((r) => {
                   const meta = STATUS_META[r.status] || { label: r.status, className: "" };
                   const total = totalCasosDoPedido(r.casos_teste);
                   const linkJenkins = r.jenkins_url || r.jenkins_queue_url;
@@ -971,6 +1022,9 @@ export default function ReexecutarTestes() {
             </Table>
             )}
           </Card>
+          <div className="mt-3">
+            <Paginacao page={historyPaginaAtual} pageSize={HISTORICO_POR_PAGINA} total={history.length} onChange={setHistoryPage} />
+          </div>
         </CollapsibleContent>
       </Collapsible>
     </div>

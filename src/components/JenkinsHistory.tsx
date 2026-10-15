@@ -16,13 +16,15 @@ import { Copy, ExternalLink, ChevronDown, ChevronUp, Info, XCircle } from "lucid
 import { cancelRerunRequest, type RerunRequest } from "@/services/data";
 import { invalidateRerunRequests, useRerunRequests } from "@/services/queries";
 import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
-import { canClearHistory, useHistoryClear, visibleAfterClear } from "@/lib/historyClear";
-import { HistoryClearControls } from "@/components/HistoryClearControls";
+import { Paginacao } from "@/pages/module/common";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
 import { mensagemDaApi } from "@/lib/apiErro";
 import { modulosDosCasos, podeNoModulo } from "@/lib/permissoes";
+
+/** Pedidos por pagina nos historicos do Jenkins. */
+export const HISTORICO_POR_PAGINA = 10;
 
 // ---------- Status mapping ----------
 type StatusKey =
@@ -148,23 +150,23 @@ function safeError(s?: string | null): string | null {
 export const JenkinsHistory = memo(function JenkinsHistory({
   title = "Histórico Jenkins",
   limit = 50,
-  clearStorageKey = "agenttc.jenkins.historico.ocultas",
   defaultExpanded = false,
-}: { title?: string; limit?: number; clearStorageKey?: string; defaultExpanded?: boolean }) {
+}: { title?: string; limit?: number; defaultExpanded?: boolean }) {
   // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
   const { data } = useRerunRequests(limit);
   // A API pode devolver mais que o pedido; a tela mostra no maximo `limit`.
   // Cada um ve os pedidos dos seus modulos (pedido so com rotinas gerais [0.x] aparece para todos).
   const { profile, isAdmin } = useAuth();
-  const allHistory = useMemo(
+  const history = useMemo(
     () => (data || [])
       .filter((r) => modulosDosCasos(r.casos_teste).every((slug) => podeNoModulo(profile, isAdmin, slug)))
       .slice(0, limit),
     [data, limit, profile, isAdmin],
   );
-  const hasActive = hasActiveRerun(allHistory);
-  const { hiddenIds, clear, restore } = useHistoryClear(clearStorageKey);
-  const history = useMemo(() => visibleAfterClear(allHistory, hiddenIds), [allHistory, hiddenIds]);
+  const hasActive = hasActiveRerun(history);
+  const [page, setPage] = useState(1);
+  const paginaAtual = Math.min(page, Math.max(1, Math.ceil(history.length / HISTORICO_POR_PAGINA)));
+  const pedidosDaPagina = history.slice((paginaAtual - 1) * HISTORICO_POR_PAGINA, paginaAtual * HISTORICO_POR_PAGINA);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const isMobile = useIsMobile();
@@ -190,12 +192,6 @@ export const JenkinsHistory = memo(function JenkinsHistory({
           )}
         </div>
         <div className="flex items-center gap-1">
-          <HistoryClearControls
-            hiddenCount={allHistory.length - history.length}
-            canClear={canClearHistory(history)}
-            onClear={() => clear(history)}
-            onRestore={restore}
-          />
           <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
             {expanded ? (
               <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Minimizar</>
@@ -208,12 +204,10 @@ export const JenkinsHistory = memo(function JenkinsHistory({
       {expanded && isMobile && (
         <Card className="glass-card backdrop-filter-none overflow-hidden">
           {history.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              {allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}
-            </p>
+            <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma solicitação ainda.</p>
           ) : (
             <ul className="divide-y divide-border/60">
-              {history.map((r) => {
+              {pedidosDaPagina.map((r) => {
                 const status = resolveStatus(r);
                 const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
                 const prog = resolveProgress(r, status);
@@ -282,8 +276,8 @@ export const JenkinsHistory = memo(function JenkinsHistory({
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">{allHistory.length > 0 ? "Nenhuma solicitação desde a última limpeza." : "Nenhuma solicitação ainda."}</TableCell></TableRow>
-                ) : history.map((r) => {
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                ) : pedidosDaPagina.map((r) => {
                   const status = resolveStatus(r);
                   const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
                   const prog = resolveProgress(r, status);
@@ -372,6 +366,11 @@ export const JenkinsHistory = memo(function JenkinsHistory({
             </Table>
           </div>
         </Card>
+      )}
+      {expanded && (
+        <div className="mt-3">
+          <Paginacao page={paginaAtual} pageSize={HISTORICO_POR_PAGINA} total={history.length} onChange={setPage} />
+        </div>
       )}
 
       <DetailDialog request={detail} onClose={() => setDetail(null)} />

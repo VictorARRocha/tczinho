@@ -39,7 +39,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="border-b border-sidebar-border px-4 py-4">
         <NavLink to="/" className="flex items-center gap-2.5">
-          <ImagemMascara src="/marca/sci.png" rotulo="SCI Sistemas" className="h-9 w-9 text-primary" />
+          <ImagemMascara src="/marca/sci.png" rotulo="SCI Sistemas" className="h-9 w-9 text-sky-700 dark:text-sky-300" />
           {!collapsed && (
             <div className="flex flex-col leading-tight">
               <span className="font-display text-sm font-bold tracking-tight">AgenteTC</span>
@@ -72,7 +72,8 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton asChild isActive={pathname === "/jenkins"}>
                   <NavLink to="/jenkins">
-                    <ImagemMascara src="/marca/jenkins.png" className="h-4 w-4" />
+                    {/* Colorido fixo (disco branco, desenho escuro): o mesmo nos temas claro e escuro. */}
+                    <img src="/marca/jenkins.png" alt="" aria-hidden className="h-4 w-4 shrink-0" />
                     <span>Jenkins</span>
                   </NavLink>
                 </SidebarMenuButton>

@@ -296,7 +296,7 @@ function SeloGrupoDesativado({ id }: { id: string }) {
   );
 }
 
-/** Caso: uma linha (numero, nome, chamado, situacao). Clicar abre a descricao e o link do Kanboard. */
+/** Caso: uma linha (numero, nome, chamado com link do Kanboard, situacao). Clicar na linha abre a descricao. */
 function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean }) {
   const info = useDesativado()(no.id);
   const [aberto, setAberto] = useState(false);
@@ -305,21 +305,36 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
   const descricao = no.descricao.replace(/^\s*#\s?\d{4,}\s*[-–:,.]?\s*/, "");
   return (
     <div className={cn("group rounded-md", aberto && "bg-muted/40")}>
-      <div className="flex items-center gap-2">
-        <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40">
+      {/* A linha toda abre o caso; o chamado e um link para o Kanboard (nao abre a linha). */}
+      <div className="flex items-center gap-2" onClick={(e) => { if (!(e.target as HTMLElement).closest("a, button")) setAberto((v) => !v); }}>
+        <div className="flex min-w-0 flex-1 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors hover:bg-muted/40">
           <span className="min-w-0 flex-1">
             {mostrarCaminho && no.caminho.length > 0 && (
               <span className="block truncate text-[11px] text-muted-foreground">{no.caminho.join(" › ")}</span>
             )}
             {/* No celular quebra como texto (numero, nome e chamado ocupam a largura toda); no computador, uma linha. */}
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-nowrap sm:items-center">
-              <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
-              <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}>{no.nome}</span>
-              {no.codigo && <span className="shrink-0 font-mono text-[11px] text-foreground">#{no.codigo}</span>}
+              <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
+                className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-left sm:flex-nowrap sm:items-center">
+                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
+                <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}>{no.nome}</span>
+              </button>
+              {no.codigo && (
+                <a
+                  href={linkKanboard(no.codigo)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Abrir #${no.codigo} no Kanboard`}
+                  title={`Abrir #${no.codigo} no Kanboard`}
+                  className="inline-flex shrink-0 items-center gap-0.5 rounded font-mono text-[11px] text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  #{no.codigo}
+                  <ExternalLink className="h-3 w-3" aria-hidden />
+                </a>
+              )}
             </span>
           </span>
-        </button>
+        </div>
         <div className="flex shrink-0 items-center gap-1 pr-2">
           {info && (
             <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
@@ -350,17 +365,6 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
                 : `${marcado.reason || "Desmarcado pelo mod_xml.py"}. Para mudar, edite a lista no mod_xml.py.`}
             </p>
           )}
-          <div className="flex flex-wrap items-center gap-2">
-            {no.codigo ? (
-              <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-                <a href={linkKanboard(no.codigo)} target="_blank" rel="noopener noreferrer">
-                  Abrir #{no.codigo} no Kanboard <ExternalLink className="h-3 w-3" aria-hidden />
-                </a>
-              </Button>
-            ) : (
-              <span className="text-muted-foreground">Código do caso de teste não informado</span>
-            )}
-          </div>
         </div>
       )}
     </div>

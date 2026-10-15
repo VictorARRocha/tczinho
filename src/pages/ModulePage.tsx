@@ -49,6 +49,8 @@ function PaginaDoModulo() {
   const { slug = "", rodagemSlug } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  // Aberto pelo "Ver falhas desta rodagem" da reexecucao: o link do topo volta para la.
+  const deReexecucao = searchParams.get("origem") === "reexecucao";
   const runParam = searchParams.get("run") || undefined;
   const tabParam = searchParams.get("tab");
   const activeTab: ModuleTab = (TABS as readonly string[]).includes(tabParam || "") ? (tabParam as ModuleTab) : "resumo";
@@ -196,8 +198,11 @@ function PaginaDoModulo() {
   // Trocar rodagem mantem a aba aberta; abrir pelo Historico vai para o Resumo dela.
   const goToRun = (run: Rodagem | null | undefined, keepTab = true) => {
     if (!run) return;
-    const tab = keepTab && activeTab !== "resumo" && activeTab !== "historico" ? `?tab=${activeTab}` : "";
-    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}${tab}`);
+    const params = new URLSearchParams();
+    if (keepTab && activeTab !== "resumo" && activeTab !== "historico") params.set("tab", activeTab);
+    if (deReexecucao) params.set("origem", "reexecucao");
+    const query = params.toString();
+    navigate(`/modulo/${slug}/${rodagemSlugFor(historico, run)}${query ? `?${query}` : ""}`);
   };
   const goToRunId = (id: string) => goToRun(historico.find((r) => r.id === id) || null);
   const openRunFromHistory = (id: string) => goToRun(historico.find((r) => r.id === id) || null, false);
@@ -297,9 +302,18 @@ function PaginaDoModulo() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <Link to="/" className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="h-4 w-4" /> Visão geral
-      </Link>
+      {deReexecucao ? (
+        <Link
+          to={rodagem ? `/jenkins/reexecutar?run=${encodeURIComponent(rodagem.id)}` : "/jenkins/reexecutar"}
+          className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ChevronLeft className="h-4 w-4" /> Voltar à reexecução
+        </Link>
+      ) : (
+        <Link to="/" className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground">
+          <ChevronLeft className="h-4 w-4" /> Visão geral
+        </Link>
+      )}
 
       <ModuleHeader modulo={modulo} rodagem={rodagem} runs={historico} onPickRun={goToRunId} />
 
@@ -345,7 +359,7 @@ function PaginaDoModulo() {
             </div>
           )}
 
-          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
+          <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} historico={historico} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>

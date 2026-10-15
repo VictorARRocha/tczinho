@@ -9,7 +9,8 @@ import { classifyOccurrence, groupEvidsByFailure } from "@/lib/occurrence";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { formatDuration } from "./PerformanceTab";
 import { isMeaningful, StatCard, Empty } from "./common";
-import { formatDateTime, formatPercent, formatarTempoTotal, resultadoRodagem, tempoTotalRodagem } from "@/lib/format";
+import { formatDateTime, formatPercent, formatarTempoTotal, resultadoRodagem, rodagemAnteriorComTempo, tempoTotalRodagem, variacaoTempo } from "@/lib/format";
+import { cn } from "@/lib/utils";
 
 const OCC_COR = {
   quebra: { texto: "text-destructive", barra: "bg-destructive" },
@@ -41,7 +42,9 @@ function OccCard({ label, hint, value, tone, onClick }: { label: string; hint: s
   );
 }
 
-export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance, onOpenFalhas }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; performance: AtrasoRodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void }) {
+export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerformance, onOpenFalhas, historico = [] }: { rodagem: Rodagem; falhas: Falha[]; evidencias: Evidencia[]; performance: AtrasoRodagem[]; onOpenPerformance: () => void; onOpenFalhas: (sub: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void; historico?: Rodagem[] }) {
+  // Rodagem anterior do modulo com tempo total: base da variacao do tempo.
+  const anterior = useMemo(() => rodagemAnteriorComTempo(rodagem, historico), [rodagem, historico]);
   const classData = useMemo(() => [
     { name: "Automação", value: rodagem.total_automacao, color: "hsl(var(--automation))" },
     { name: "Massa/Dados", value: rodagem.total_massa_dados, color: "hsl(var(--data-mass))" },
@@ -93,7 +96,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
         </Card>
       )}
 
-      <ResultadoCard rodagem={rodagem} occ={occCounts} />
+      <ResultadoCard rodagem={rodagem} occ={occCounts} anterior={anterior} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <OccCard label="Quebras de teste" hint="O teste parou com erro" value={occCounts.quebra} tone={OCC_COR.quebra.texto} onClick={() => onOpenFalhas("quebra")} />
@@ -178,20 +181,57 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
 }
 
 /** Resultado da rodagem: taxa de sucesso e quantos casos de cada tipo. */
-/** Tempo total (inicio ate o fim da rodagem), um pouco maior que os totais ao lado. */
-function TempoTotal({ rodagem }: { rodagem: Rodagem }) {
-  const segundos = tempoTotalRodagem(rodagem);
-  if (segundos == null) return null;
-  const periodo = `De ${formatDateTime(rodagem.data_inicio_rodagem)} até ${formatDateTime(rodagem.data_fim_rodagem)}`;
+/** Bloco da direita do Resultado: rotulo em cima, numero grande e um detalhe embaixo (todos alinhados). */
+function Bloco({ label, valor, detalhe, title }: { label: string; valor: string; detalhe: React.ReactNode; title?: string }) {
   return (
-    <div title={periodo}>
-      <div className="text-xs text-muted-foreground">Tempo total</div>
-      <div className="font-mono text-lg font-semibold">{formatarTempoTotal(segundos)}</div>
+    <div className="min-w-0" title={title}>
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="font-mono text-2xl font-semibold leading-tight">{valor}</div>
+      <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">{detalhe}</div>
     </div>
   );
 }
 
-function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: number; diferenca: number; quebra_diferenca: number } }) {
+/** Tempo total (inicio ate o fim) e a variacao em relacao a rodagem anterior do modulo. */
+function TempoTotal({ rodagem, anterior }: { rodagem: Rodagem; anterior: Rodagem | null }) {
+  const segundos = tempoTotalRodagem(rodagem);
+  if (segundos == null) return null;
+  const segundosAnterior = anterior ? tempoTotalRodagem(anterior) : null;
+  const variacao = segundosAnterior ? variacaoTempo(segundos, segundosAnterior) : null;
+  const periodo = `De ${formatDateTime(rodagem.data_inicio_rodagem)} até ${formatDateTime(rodagem.data_fim_rodagem)}`;
+  // Menos de 0,05% (arredonda para 0,0%): fica neutro.
+  const igual = variacao != null && Math.abs(variacao) < 0.0005;
+  const subiu = variacao != null && !igual && variacao > 0;
+  return (
+    <Bloco
+      label="Tempo total"
+      valor={formatarTempoTotal(segundos)}
+      title={periodo}
+      detalhe={
+        variacao == null || !anterior || segundosAnterior == null ? (
+          <span>sem rodagem anterior para comparar</span>
+        ) : (
+          <>
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full px-2 py-0.5 font-mono font-medium",
+                igual ? "bg-muted text-muted-foreground" : subiu ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success",
+              )}
+              aria-label={igual ? "mesmo tempo" : `${subiu ? "aumento" : "redução"} de ${formatPercent(Math.abs(variacao))}`}
+            >
+              {igual ? "=" : subiu ? "▲" : "▼"} {formatPercent(Math.abs(variacao))}
+            </span>
+            <span title={`Rodagem anterior: ${formatDateTime(anterior.data_inicio_rodagem)}`}>
+              vs anterior ({formatarTempoTotal(segundosAnterior)} · {formatDateTime(anterior.data_inicio_rodagem).slice(0, 5)})
+            </span>
+          </>
+        )
+      }
+    />
+  );
+}
+
+function ResultadoCard({ rodagem, occ, anterior }: { rodagem: Rodagem; occ: { quebra: number; diferenca: number; quebra_diferenca: number }; anterior: Rodagem | null }) {
   const r = resultadoRodagem(rodagem);
   if (!r) {
     // Sem os totais para a taxa: mostra o que existe (falhas e, se vier, casos rodados).
@@ -207,7 +247,7 @@ function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: numb
               </div>
             )}
           </div>
-          <TempoTotal rodagem={rodagem} />
+          <TempoTotal rodagem={rodagem} anterior={anterior} />
         </div>
       </Card>
     );
@@ -220,7 +260,7 @@ function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: numb
   ];
   return (
     <Card className="p-4 sm:p-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-2">
+      <div className="flex flex-wrap items-start justify-between gap-x-8 gap-y-4">
         <div>
           <div className="text-sm text-muted-foreground">Resultado da rodagem</div>
           <div className="mt-1 flex items-baseline gap-2">
@@ -228,13 +268,14 @@ function ResultadoCard({ rodagem, occ }: { rodagem: Rodagem; occ: { quebra: numb
             <span className="text-sm text-muted-foreground">passaram</span>
           </div>
         </div>
-        <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
-          <TempoTotal rodagem={rodagem} />
-          <div className="text-sm text-muted-foreground">
-            <span className="font-mono text-foreground">{r.rodados.toLocaleString("pt-BR")}</span> casos rodados
-            {" · "}
-            <span className="font-mono text-destructive">{r.falhas}</span> {r.falhas === 1 ? "falhou" : "falharam"}
-          </div>
+        <div className="flex flex-wrap items-stretch gap-x-6 gap-y-3">
+          <TempoTotal rodagem={rodagem} anterior={anterior} />
+          {tempoTotalRodagem(rodagem) != null && <div className="w-px self-stretch bg-border max-sm:hidden" aria-hidden />}
+          <Bloco
+            label="Casos rodados"
+            valor={r.rodados.toLocaleString("pt-BR")}
+            detalhe={<><span className="font-mono text-destructive">{r.falhas}</span> {r.falhas === 1 ? "falhou" : "falharam"}</>}
+          />
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

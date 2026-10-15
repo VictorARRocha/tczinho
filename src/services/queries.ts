@@ -131,10 +131,11 @@ export function regravacaoRefetchInterval(pedidos: RegravacaoPedido[] | undefine
   return (pedidos || []).some((p) => ACTIVE_REGRAVACAO.has(p.status)) ? 10_000 : 60_000;
 }
 
-export function useRegravacaoCandidatos(runId: string | null) {
+/** Situacao dos arquivos para regravar; com branchUrl, na outra branch (o "ja regravado" vale por branch). */
+export function useRegravacaoCandidatos(runId: string | null, branchUrl?: string) {
   return useQuery({
-    queryKey: queryKeys.regravacaoCandidatos(runId || ""),
-    queryFn: () => fetchRegravacaoCandidatos(runId as string),
+    queryKey: [...queryKeys.regravacaoCandidatos(runId || ""), branchUrl || ""],
+    queryFn: () => fetchRegravacaoCandidatos(runId as string, branchUrl || undefined),
     enabled: !!runId,
     staleTime: 30_000,
   });

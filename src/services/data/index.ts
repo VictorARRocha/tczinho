@@ -59,7 +59,7 @@ export const trocarBaseTempo = (nodeId: string, segundos: number) => qaData.troc
 export const fetchCasosDesativados = (slug: string) => qaData.fetchCasosDesativados(slug);
 export const desativarCaso = (nodeId: string, motivo?: string) => qaData.desativarCaso(nodeId, motivo);
 export const reativarCaso = (nodeId: string) => qaData.reativarCaso(nodeId);
-export const fetchRegravacaoCandidatos = (runId: string) => qaData.fetchRegravacaoCandidatos(runId);
+export const fetchRegravacaoCandidatos = (runId: string, branchUrl?: string) => qaData.fetchRegravacaoCandidatos(runId, branchUrl);
 export const fetchRegravacoes = (runId?: string) => qaData.fetchRegravacoes(runId);
 export const createRegravacao = (payload: import("./types").CreateRegravacaoPayload) => qaData.createRegravacao(payload);
 export const cancelRegravacao = (id: string) => qaData.cancelRegravacao(id);

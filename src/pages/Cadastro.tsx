@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ImagemMascara } from "@/components/IconeModulo";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { ModulosChecklist } from "@/components/ModulosChecklist";
@@ -55,7 +54,7 @@ export default function Cadastro() {
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
-          <ImagemMascara src="/marca/sci.png" rotulo="SCI Sistemas" className="mx-auto block h-16 w-16 text-primary" />
+          <img src="/sci-logo.png" alt="SCI Sistemas" className="mx-auto block h-16 w-16" />
           <CardTitle className="font-display">Criar conta</CardTitle>
           <CardDescription>Sua conta ficará pendente até aprovação do admin</CardDescription>
         </CardHeader>

@@ -1,13 +1,14 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, FileDiff, GitCommitHorizontal, RotateCcw, XCircle } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, FileDiff, GitCommitHorizontal, RotateCcw, XCircle } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -17,13 +18,15 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
 import { podeNoModulo } from "@/lib/permissoes";
 import { mensagemDaApi } from "@/lib/apiErro";
+import { opcoesBranch } from "@/lib/branchVm";
+import { cn } from "@/lib/utils";
 import { SemPermissao } from "@/components/SemPermissao";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
 } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import {
-  invalidateRegravacao, invalidateRegravacaoCandidatos, useAllRuns, useRegravacaoCandidatos, useRegravacoes,
+  invalidateRegravacao, invalidateRegravacaoCandidatos, useAllRuns, useMergeBranches, useRegravacaoCandidatos, useRegravacoes,
   useRunEvidences, useRunFailures,
 } from "@/services/queries";
 import {
@@ -86,6 +89,14 @@ export default function RegravarBases() {
   const runId = params.get("rodagem") || "";
   const rodagemAtual = runs.find((r) => r.id_rodagem === runId) || null;
   const setRunId = (id: string) => setParams(id ? { rodagem: id } : {}, { replace: true });
+  // A lista de rodagens abre sempre para baixo; com pouco espaco embaixo, a pagina sobe antes de abrir.
+  const rodagemTriggerRef = useRef<HTMLButtonElement>(null);
+  const abrirListaRodagens = (aberta: boolean) => {
+    const trigger = rodagemTriggerRef.current;
+    if (!aberta || !trigger) return;
+    const { top, bottom } = trigger.getBoundingClientRect();
+    if (window.innerHeight - bottom < 320) window.scrollBy({ top: top - 80 });
+  };
 
   const vmOptions = useMemo(() => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(), [runs]);
   const moduloOptions = useMemo(() => Array.from(new Set(runs.map(runModulo).filter(Boolean))).sort(), [runs]);
@@ -101,7 +112,23 @@ export default function RegravarBases() {
     [runs, fVm, fModulo, fVersao],
   );
 
-  const { data: candidatos, isLoading: loadingItens, isError: itensError, error: erroItens } = useRegravacaoCandidatos(runId || null);
+  // Opcao avancada: regravar em outra branch do SVN (a base de la tambem precisa ser a da rodagem).
+  const [avancadasOpen, setAvancadasOpen] = useState(false);
+  const [outraBranch, setOutraBranch] = useState(false);
+  const [branchUrl, setBranchUrl] = useState("");
+  const destinoEscolhido = outraBranch && branchUrl ? branchUrl : undefined;
+  const { data: branchesSvn } = useMergeBranches();
+  const { data: candidatos, isLoading: loadingItens, isError: itensError, error: erroItens } = useRegravacaoCandidatos(runId || null, destinoEscolhido);
+  const destinoUrl = candidatos?.destino_url || candidatos?.repository_url || null;
+  const mesmaUrl = (a?: string | null, b?: string | null) => (a || "").replace(/\/+$/, "").toLowerCase() === (b || "").replace(/\/+$/, "").toLowerCase();
+  // Branches do SVN (trunk primeiro, as de solicitacao por ultimo), sem a da rodagem.
+  const outrasBranches = useMemo(() => {
+    const lista = branchesSvn?.branches || [];
+    const urlPorNome = new Map(lista.map((b) => [b.kind === "trunk" ? "local" : b.name, b.url]));
+    return opcoesBranch(lista)
+      .map((o) => ({ url: urlPorNome.get(o.valor) || "", rotulo: o.rotulo }))
+      .filter((o) => o.url && !mesmaUrl(o.url, candidatos?.repository_url));
+  }, [branchesSvn, candidatos?.repository_url]);
   // Aberta por link numa rodagem de outro modulo: a API nao entrega nada e diz por que.
   const foraDoModulo = erroItens instanceof ApiError && erroItens.status === 403;
   const erroItensTexto = foraDoModulo ? mensagemDaApi(erroItens) : "Não foi possível carregar as diferenças desta rodagem.";
@@ -137,16 +164,20 @@ export default function RegravarBases() {
   const [mensagem, setMensagem] = useState("");
   const [mensagemEditada, setMensagemEditada] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Outra branch: alem da confirmacao de sempre, a pessoa marca que sabe que nao e a branch da rodagem.
+  const [aceiteOutraBranch, setAceiteOutraBranch] = useState(false);
   const [enviando, setEnviando] = useState(false);
   const [detalhe, setDetalhe] = useState<RegravacaoPedido | null>(null);
   const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
   const [comparar, setComparar] = useState<ComparisonPair | null>(null);
   const envioRef = useRef<HTMLDivElement>(null);
 
-  // Troca de rodagem limpa a selecao e volta a mensagem para o padrao.
+  // Troca de rodagem limpa a selecao, volta a mensagem para o padrao e desliga a outra branch.
   useEffect(() => {
     setMarcados(new Set());
     setMensagemEditada(false);
+    setOutraBranch(false);
+    setBranchUrl("");
   }, [runId]);
   // Arquivo que deixou de ser regravavel (ex.: entrou num pedido) sai da selecao.
   useEffect(() => {
@@ -196,6 +227,14 @@ export default function RegravarBases() {
       return next;
     });
 
+  // Clicar em qualquer lugar da linha marca/desmarca (menos nos botoes e links dela, e sem atrapalhar quem seleciona texto).
+  const clicarLinha = (e: MouseEvent, item: RegravacaoItem) => {
+    if (!item.regravavel) return;
+    if ((e.target as HTMLElement).closest("button, a, input, label, [role='checkbox']")) return;
+    if (window.getSelection()?.toString()) return;
+    toggle(item.difference_id);
+  };
+
   const abrirComparacao = (item: RegravacaoItem) => {
     const base = evidencias.find((e) => e.id === item.base_evidence_id);
     const atual = evidencias.find((e) => e.id === item.current_evidence_id);
@@ -206,11 +245,13 @@ export default function RegravarBases() {
   const enviar = async () => {
     setEnviando(true);
     try {
-      await createRegravacao({ run_id: runId, difference_ids: [...marcados], mensagem });
+      await createRegravacao({ run_id: runId, difference_ids: [...marcados], mensagem, ...(destinoEscolhido ? { branch_url: destinoEscolhido } : {}) });
       toast.success("Pedido de regravação enviado", { description: "O RegravacaoBridge da D01 vai conferir e gravar no SVN." });
       setConfirmOpen(false);
       setMarcados(new Set());
       setMensagemEditada(false);
+      setOutraBranch(false);
+      setBranchUrl("");
       await invalidateRegravacao(runId);
     } catch (e) {
       toast.error("Não foi possível enviar o pedido", { description: apiMessage(e) });
@@ -261,12 +302,17 @@ export default function RegravarBases() {
             </div>
           ))}
         </div>
-        <Select value={runId} onValueChange={setRunId}>
+        <Select value={runId} onValueChange={setRunId} onOpenChange={abrirListaRodagens}>
           {/* No celular o texto da rodagem quebra linha em vez de ser cortado. */}
-          <SelectTrigger className="w-full max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2" aria-label="Rodagem">
+          <SelectTrigger ref={rodagemTriggerRef} className="w-full max-sm:h-auto max-sm:min-h-10 max-sm:text-left max-sm:[&>span]:line-clamp-2" aria-label="Rodagem">
             <SelectValue placeholder="Selecione uma rodagem analisada" />
           </SelectTrigger>
-          <SelectContent className="max-sm:max-w-[var(--radix-select-trigger-width)]">
+          {/* Sempre abre para baixo (a lista e longa e, aberta para cima, cobria os filtros); a altura vai ate o fim da tela. */}
+          <SelectContent
+            side="bottom"
+            avoidCollisions={false}
+            className="max-h-[min(24rem,var(--radix-select-content-available-height))] max-sm:max-w-[var(--radix-select-trigger-width)]"
+          >
             {filteredRuns.map((r) => (
               <SelectItem key={r.id_rodagem} value={r.id_rodagem} className="max-sm:whitespace-normal">
                 {r.versao || "—"} — {runVm(r) || "—"} — {runModulo(r) || "—"} —{" "}
@@ -297,6 +343,15 @@ export default function RegravarBases() {
                 </span>
               )}
             </dd>
+            {outraBranch && branchUrl && (
+              <>
+                <dt>Regravar em:</dt>
+                <dd>
+                  <strong className="text-amber-600 dark:text-amber-400">{destinoLabel(branchUrl)}</strong>{" "}
+                  <span className="font-mono break-all">{branchUrl}</span>
+                </dd>
+              </>
+            )}
           </dl>
         )}
         {!runId && (
@@ -363,7 +418,11 @@ export default function RegravarBases() {
               ) : (
                 <ul className="divide-y divide-border/60">
                   {visiveis.map((item) => (
-                    <li key={item.difference_id} className={`flex gap-3 p-3 ${item.regravavel ? "" : "text-muted-foreground"}`}>
+                    <li
+                      key={item.difference_id}
+                      onClick={(e) => clicarLinha(e, item)}
+                      className={cn("flex gap-3 p-3", item.regravavel ? "cursor-pointer" : "text-muted-foreground", marcados.has(item.difference_id) && "bg-muted/40")}
+                    >
                       {/* area de toque maior que a caixa */}
                       <label className="-m-2 flex h-10 w-10 shrink-0 items-center justify-center">
                         <Checkbox
@@ -426,7 +485,12 @@ export default function RegravarBases() {
                     {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
                   </TableCell></TableRow>
                 ) : visiveis.map((item) => (
-                  <TableRow key={item.difference_id} className={item.regravavel ? "" : "text-muted-foreground"}>
+                  <TableRow
+                    key={item.difference_id}
+                    onClick={(e) => clicarLinha(e, item)}
+                    data-state={marcados.has(item.difference_id) ? "selected" : undefined}
+                    className={item.regravavel ? "cursor-pointer" : "text-muted-foreground"}
+                  >
                     <TableCell>
                       <Checkbox
                         aria-label={`Selecionar ${item.arquivo_atual}`}
@@ -466,7 +530,7 @@ export default function RegravarBases() {
       )}
 
       {/* Mensagem + envio */}
-      {runId && regravaveis.length > 0 && (
+      {runId && (regravaveis.length > 0 || outraBranch) && (
         <Card ref={envioRef} className="p-4 sm:p-5 mb-5 space-y-3 scroll-mt-20">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-base font-semibold">3. Mensagem do commit</h2>
@@ -491,14 +555,58 @@ export default function RegravarBases() {
             <code className="font-mono">{"{pedido}"}</code> é trocado pelo número do pedido no commit. Enquanto não for editada, a mensagem acompanha
             os arquivos selecionados.
           </p>
+          <Collapsible open={avancadasOpen} onOpenChange={setAvancadasOpen}>
+            <CollapsibleTrigger asChild>
+              <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", avancadasOpen && "rotate-90")} />
+                Opções avançadas
+                {outraBranch && <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">outra branch</span>}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="mt-3 space-y-2 pl-5">
+                <label htmlFor="outra-branch" className="flex w-fit cursor-pointer select-none items-center gap-2 text-sm">
+                  <Checkbox
+                    id="outra-branch"
+                    checked={outraBranch}
+                    onCheckedChange={(v) => { setOutraBranch(!!v); if (!v) setBranchUrl(""); }}
+                  />
+                  Regravar arquivos em outra branch
+                </label>
+                {outraBranch && (
+                  <>
+                    <Select value={branchUrl} onValueChange={setBranchUrl}>
+                      <SelectTrigger className="ml-6 h-9 w-[280px] max-w-[calc(100%-1.5rem)]" aria-label="Branch para regravar">
+                        <SelectValue placeholder="Escolha a branch" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[320px]">
+                        {outrasBranches.map((b) => <SelectItem key={b.url} value={b.url}>{b.rotulo}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {outrasBranches.length === 0 && (
+                      <p className="ml-6 text-xs text-muted-foreground">A lista de branches do SVN ainda não chegou (vem do MergeBridge).</p>
+                    )}
+                    <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      A base nessa branch precisa ser igual à da rodagem. Se for diferente, nada é gravado (mesma conferência de sempre).
+                    </p>
+                  </>
+                )}
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
           <Button
             size="lg"
             className="w-full"
-            disabled={!podeRegravar || foraDoModulo || !marcados.size || !mensagem.trim()}
-            onClick={() => setConfirmOpen(true)}
+            disabled={!podeRegravar || foraDoModulo || !marcados.size || !mensagem.trim() || (outraBranch && !branchUrl)}
+            onClick={() => { setAceiteOutraBranch(false); setConfirmOpen(true); }}
           >
             <GitCommitHorizontal className="h-4 w-4 mr-2" />
-            {marcados.size === 0 ? "Marque os arquivos para regravar" : `Regravar ${marcados.size} ${marcados.size === 1 ? "arquivo" : "arquivos"}`}
+            {outraBranch && !branchUrl
+              ? "Escolha a branch nas opções avançadas"
+              : marcados.size === 0
+                ? "Marque os arquivos para regravar"
+                : `Regravar ${marcados.size} ${marcados.size === 1 ? "arquivo" : "arquivos"}${outraBranch ? ` na ${destinoLabel(branchUrl)}` : ""}`}
           </Button>
           {!podeRegravar && <SemPermissao permissao="regravar" />}
         </Card>
@@ -535,6 +643,9 @@ export default function RegravarBases() {
                         <p className="text-xs text-muted-foreground">
                           {p.requested_by || "—"} · {p.items_json?.length ?? 0} {(p.items_json?.length ?? 0) === 1 ? "arquivo" : "arquivos"}
                           {p.svn_revision && <> · <span className="font-mono text-foreground">r{p.svn_revision}</span></>}
+                          {p.repository_url && candidatos?.repository_url && !mesmaUrl(p.repository_url, candidatos.repository_url) && (
+                            <> · em {destinoLabel(p.repository_url)}</>
+                          )}
                         </p>
                         <div className="flex gap-2">
                           <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetalhe(p)}>Detalhes</Button>
@@ -571,7 +682,12 @@ export default function RegravarBases() {
                       <TableRow key={p.id}>
                         <TableCell className="text-xs">{new Date(p.created_at).toLocaleString("pt-BR")}</TableCell>
                         <TableCell className="text-xs">{p.requested_by || "—"}</TableCell>
-                        <TableCell className="text-xs">{p.items_json?.length ?? 0}</TableCell>
+                        <TableCell className="text-xs">
+                          {p.items_json?.length ?? 0}
+                          {p.repository_url && candidatos?.repository_url && !mesmaUrl(p.repository_url, candidatos.repository_url) && (
+                            <span className="ml-1 text-muted-foreground">· em {destinoLabel(p.repository_url)}</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
                           {p.result_json?.simulacao && <span className="ml-2 text-[10px] text-muted-foreground">simulação</span>}
@@ -618,7 +734,7 @@ export default function RegravarBases() {
           <DialogHeader>
             <DialogTitle>Regravar {selecionados.length} {selecionados.length === 1 ? "arquivo" : "arquivos"}?</DialogTitle>
             <DialogDescription>
-              Destino: {destinoLabel(candidatos?.repository_url || null)}. Se alguma base tiver mudado no SVN desde a rodagem,
+              Destino: {destinoLabel(destinoUrl)}{outraBranch ? " (outra branch)" : ""}. Se alguma base {outraBranch ? "nessa branch for diferente da rodagem" : "tiver mudado no SVN desde a rodagem"},
               nada é gravado.
             </DialogDescription>
           </DialogHeader>
@@ -633,9 +749,26 @@ export default function RegravarBases() {
             <p className="mb-1 text-xs text-muted-foreground">Mensagem do commit</p>
             <pre className="whitespace-pre-wrap break-all rounded-md border border-border bg-muted/40 p-3 text-xs">{mensagem}</pre>
           </div>
+          {outraBranch && (
+            <label
+              htmlFor="aceite-outra-branch"
+              className="flex cursor-pointer select-none items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm"
+            >
+              <Checkbox
+                id="aceite-outra-branch"
+                checked={aceiteOutraBranch}
+                onCheckedChange={(v) => setAceiteOutraBranch(!!v)}
+                className="mt-0.5"
+              />
+              <span>
+                Confirmo que quero regravar na <strong>{destinoLabel(destinoUrl)}</strong>, que <strong>não é a branch desta rodagem</strong>{" "}
+                ({destinoLabel(candidatos?.repository_url || null)}).
+              </span>
+            </label>
+          )}
           <DialogFooter>
             <Button variant="ghost" disabled={enviando} onClick={() => setConfirmOpen(false)}>Cancelar</Button>
-            <Button disabled={enviando} onClick={enviar}>{enviando ? "Enviando…" : "Confirmar regravação"}</Button>
+            <Button disabled={enviando || (outraBranch && !aceiteOutraBranch)} onClick={enviar}>{enviando ? "Enviando…" : "Confirmar regravação"}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

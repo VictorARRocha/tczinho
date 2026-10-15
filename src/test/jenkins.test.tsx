@@ -57,7 +57,6 @@ import { toast } from "sonner";
 import JenkinsHome from "@/pages/JenkinsHome";
 import JenkinsRodagemCompleta from "@/pages/JenkinsRodagemCompleta";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
-import { visibleAfterClear } from "@/lib/historyClear";
 import { parseConfigText, sameConfig, validateConfigForSubmit, withDataHora } from "@/lib/jenkinsConfig";
 import { opcoesBranch } from "@/lib/branchVm";
 
@@ -145,33 +144,27 @@ describe("CONFIG_JSON", () => {
 describe("historico Jenkins", () => {
   const old = (id: string, status = "finalizado_sucesso") => request(id, "2026-10-01T10:00:00Z", status);
 
-  it("oculta por ID: o que rodava na limpeza continua aparecendo ao terminar", () => {
-    const list = [old("fin"), old("ativo", "rodando"), request("nova", "2026-10-05T12:00:00Z", "finalizado_falha")];
-    const hidden = new Set(["fin"]); // "ativo" nao entra: rodava quando limpou
-    expect(visibleAfterClear(list, hidden).map((r) => r.id)).toEqual(["ativo", "nova"]);
-    const terminou = [old("fin"), old("ativo", "finalizado_sucesso")];
-    expect(visibleAfterClear(terminou, hidden).map((r) => r.id)).toEqual(["ativo"]);
-    expect(visibleAfterClear(list, new Set())).toHaveLength(3);
-  });
-
-  it("limpa localmente, lembra ao recarregar e permite mostrar tudo de novo", async () => {
-    api.requests = [old("r1"), old("r2", "finalizado_falha"), old("r3", "rodando")];
-    const view = renderPage(<JenkinsHistory />);
-    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
-    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(4));
-
-    fireEvent.click(screen.getByRole("button", { name: /Ocultar finalizadas/ }));
-    expect(screen.getAllByRole("row")).toHaveLength(2); // cabecalho + pedido ainda rodando
-    expect(screen.getByRole("button", { name: /2 ocultas/ })).toBeInTheDocument();
-    view.unmount();
-
+  it("sem o ocultar finalizadas: o historico vem em paginas de 10", async () => {
+    api.requests = Array.from({ length: 23 }, (_, n) => old(`r${n + 1}`, n === 0 ? "rodando" : "finalizado_sucesso"));
     renderPage(<JenkinsHistory />);
     fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
-    await screen.findByRole("button", { name: /2 ocultas/ });
-    expect(screen.getAllByRole("row")).toHaveLength(2);
-
-    fireEvent.click(screen.getByRole("button", { name: /Mostrar todas/ }));
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(11)); // cabecalho + 10
+    expect(screen.queryByRole("button", { name: /Ocultar finalizadas/ })).toBeNull();
+    expect(screen.getByText("Mostrando 1–10 de 23")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Anterior" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(screen.getByText("Mostrando 21–23 de 23")).toBeInTheDocument();
     expect(screen.getAllByRole("row")).toHaveLength(4);
+    expect(screen.getByRole("button", { name: "Próxima" })).toBeDisabled();
+  }, 15000);
+
+  it("com ate 10 pedidos nao mostra a paginacao", async () => {
+    api.requests = [old("r1"), old("r2")];
+    renderPage(<JenkinsHistory />);
+    fireEvent.click(screen.getByRole("button", { name: /Expandir/ }));
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(3));
+    expect(screen.queryByRole("button", { name: "Próxima" })).toBeNull();
   });
 
   it("nao aparece mais na pagina principal do Jenkins", () => {
@@ -510,8 +503,9 @@ describe("rodagem completa", () => {
   it("digitar no formulario nao re-renderiza o historico, que mostra no maximo 50", async () => {
     api.requests = Array.from({ length: 100 }, (_, i) => request(`r${i}`, "2026-10-01T10:00:00Z", "finalizado_sucesso"));
     renderPage(<JenkinsRodagemCompleta />);
-    // O historico ja abre expandido nesta tela.
-    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(51));
+    // O historico ja abre expandido nesta tela, em paginas de 10.
+    await waitFor(() => expect(screen.getAllByRole("row")).toHaveLength(11));
+    expect(screen.getByText("Mostrando 1–10 de 50")).toBeInTheDocument();
 
     historyRenders.count = 0;
     const input = screen.getByRole("textbox", { name: "Versão" });

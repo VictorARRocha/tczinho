@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import type { Rodagem } from "@/types/db";
-import { formatarTempoTotal, resultadoRodagem, tempoTotalRodagem } from "@/lib/format";
+import { formatarTempoTotal, resultadoRodagem, rodagemAnteriorComTempo, tempoTotalRodagem, variacaoTempo } from "@/lib/format";
 import { ResumoTab } from "@/pages/module/ResumoTab";
 
 describe("resultado da rodagem", () => {
@@ -45,6 +45,41 @@ describe("resultado da rodagem", () => {
     expect(screen.getByText("Tempo total")).toBeInTheDocument();
     expect(screen.getByText("10h06min").parentElement).toHaveAttribute("title", "De 12/10/2026 07:19 até 12/10/2026 17:26");
     expect(screen.getByText("555")).toBeInTheDocument();
+  });
+
+  it("variacao do tempo contra a rodagem anterior do modulo com tempo total", () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const rod = (id: string, inicio: string, fim: string | null) => ({ id, total_analisados: 585, total_falhas: 21, total_automacao: 0,
+      total_massa_dados: 0, total_inconclusivo: 0, total_possivel_funcional: 0, data_inicio_rodagem: inicio, data_fim_rodagem: fim }) as unknown as Rodagem;
+    const atual = rod("r3", "2026-10-14T18:55:00-03:00", "2026-10-15T08:23:00-03:00"); // 13h28min
+    const historico = [
+      atual,
+      rod("r2", "2026-10-10T18:00:00-03:00", null), // sem fim: pula
+      rod("r1", "2026-10-07T18:00:00-03:00", "2026-10-08T06:27:00-03:00"), // 12h27min
+      rod("r0", "2026-10-01T18:00:00-03:00", "2026-10-02T05:00:00-03:00"),
+      rod("r4", "2026-10-16T18:00:00-03:00", "2026-10-17T05:00:00-03:00"), // depois da atual: nao conta
+    ];
+    expect(rodagemAnteriorComTempo(atual, historico)?.id).toBe("r1");
+    expect(variacaoTempo(110, 100)).toBeCloseTo(0.1);
+    render(<ResumoTab rodagem={atual} historico={historico} falhas={[]} evidencias={[]} performance={[]} onOpenPerformance={vi.fn()} onOpenFalhas={vi.fn()} />);
+    expect(screen.getByText("13h28min")).toBeInTheDocument();
+    const selo = screen.getByLabelText(/aumento de 8,2%/);
+    expect(selo).toHaveTextContent("▲ 8,2%");
+    expect(selo).toHaveClass("text-destructive");
+    expect(screen.getByText(/vs anterior/)).toHaveTextContent("vs anterior (12h27min · 07/10)");
+  });
+
+  it("mais rapida: selo verde; sem anterior: explica", () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const rod = (id: string, inicio: string, fim: string) => ({ id, total_analisados: 10, total_falhas: 0, total_automacao: 0,
+      total_massa_dados: 0, total_inconclusivo: 0, total_possivel_funcional: 0, data_inicio_rodagem: inicio, data_fim_rodagem: fim }) as unknown as Rodagem;
+    const atual = rod("b", "2026-10-14T08:00:00-03:00", "2026-10-14T17:00:00-03:00");
+    const { unmount } = render(<ResumoTab rodagem={atual} historico={[atual, rod("a", "2026-10-13T08:00:00-03:00", "2026-10-13T18:00:00-03:00")]}
+      falhas={[]} evidencias={[]} performance={[]} onOpenPerformance={vi.fn()} onOpenFalhas={vi.fn()} />);
+    expect(screen.getByLabelText(/redução de 10,0%/)).toHaveClass("text-success");
+    unmount();
+    render(<ResumoTab rodagem={atual} historico={[atual]} falhas={[]} evidencias={[]} performance={[]} onOpenPerformance={vi.fn()} onOpenFalhas={vi.fn()} />);
+    expect(screen.getByText("sem rodagem anterior para comparar")).toBeInTheDocument();
   });
 
   it("rodagem antiga, sem fim: sem tempo total", () => {

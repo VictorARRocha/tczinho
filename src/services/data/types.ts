@@ -75,7 +75,10 @@ export interface RegravacaoItem {
 
 export interface RegravacaoCandidatos {
   run_id: string;
+  /** Branch em que a rodagem rodou. */
   repository_url: string | null;
+  /** Para onde vai a regravacao (a da rodagem ou a outra branch escolhida). */
+  destino_url?: string | null;
   repository_revision: string | null;
   itens: RegravacaoItem[];
 }
@@ -109,6 +112,8 @@ export interface CreateRegravacaoPayload {
   run_id: string;
   difference_ids: string[];
   mensagem?: string;
+  /** Regravar em outra branch (URL da lista do SVN); vazio = a branch da rodagem. */
+  branch_url?: string;
 }
 
 /** Branch do projeto do TC (lista enviada pelo MergeBridge). "trunk" = principal (Unico). */
@@ -245,7 +250,7 @@ export interface QaDataSource {
   reativarCaso(nodeId: string): Promise<void>;
 
   // Regravacao de bases (SVN)
-  fetchRegravacaoCandidatos(runId: string): Promise<RegravacaoCandidatos>;
+  fetchRegravacaoCandidatos(runId: string, branchUrl?: string): Promise<RegravacaoCandidatos>;
   fetchRegravacoes(runId?: string): Promise<RegravacaoPedido[]>;
   createRegravacao(payload: CreateRegravacaoPayload): Promise<RegravacaoPedido>;
   cancelRegravacao(id: string): Promise<void>;

@@ -17,6 +17,7 @@ const caso = (id: string, nome: string, tipo: CasoReexecutavel["tipo_ocorrencia"
 
 const api = {
   createRerunRequest: vi.fn(),
+  historico: [] as Record<string, unknown>[],
 };
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
@@ -32,7 +33,7 @@ vi.mock("@/services/data", async (importOriginal) => {
       runId === "rod_a08"
         ? [caso("3.1.1", "Cadastro de sócio", "quebra"), caso("3.2.4", "Lançamento em lote", "diferenca")]
         : [caso("1.1.1", "Admissão", "quebra")],
-    fetchRerunRequests: async () => [],
+    fetchRerunRequests: async () => api.historico,
     createRerunRequest: (...args: unknown[]) => api.createRerunRequest(...args),
   };
 });
@@ -55,12 +56,13 @@ beforeAll(() => {
 beforeEach(() => {
   queryClient.clear();
   api.createRerunRequest.mockReset().mockResolvedValue({ id: "req1" });
+  api.historico = [];
 });
 
-function renderPagina() {
+function renderPagina(rota = "/jenkins/reexecutar") {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter><ReexecutarTestes /></MemoryRouter>
+      <MemoryRouter initialEntries={[rota]}><ReexecutarTestes /></MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -83,7 +85,8 @@ async function irParaConfirmacao() {
 describe("Reexecutar rodagens (etapas)", () => {
   it("etapa 1: lista as rodagens com VM e versao; a primeira ja vem escolhida", async () => {
     renderPagina();
-    const radios = await screen.findAllByRole("radio");
+    // Primeiro teste do arquivo: com a suite inteira rodando, o primeiro carregamento pode passar de 1s.
+    const radios = await screen.findAllByRole("radio", {}, { timeout: 5000 });
     expect(radios).toHaveLength(4);
     expect(radios[0]).toHaveAttribute("aria-checked", "true");
     expect(within(radios[0]).getByText("A08")).toBeInTheDocument();
@@ -93,6 +96,33 @@ describe("Reexecutar rodagens (etapas)", () => {
     // Casos e confirmacao ficam nas proximas etapas.
     expect(screen.queryByText("Cadastro de sócio")).toBeNull();
     expect(screen.queryByRole("button", { name: /Rodar/ })).toBeNull();
+  });
+
+  it("ver falhas leva a rodagem marcando que veio da reexecucao", async () => {
+    renderPagina();
+    await screen.findAllByRole("radio");
+    expect(screen.getByRole("link", { name: /Ver falhas desta rodagem/ }))
+      .toHaveAttribute("href", "/modulo/contabil?run=rod_a08&tab=falhas&origem=reexecucao");
+  });
+
+  it("volta da rodagem com ?run=: a mesma rodagem ja vem escolhida", async () => {
+    renderPagina("/jenkins/reexecutar?run=rod_a08_pre");
+    const radios = await screen.findAllByRole("radio");
+    expect(radios[2]).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByText("Selecionada:").parentElement).toHaveTextContent("PRE-CLIENTES");
+  });
+
+  it("historico de reexecucoes em paginas de 10, sem o ocultar finalizadas", async () => {
+    api.historico = Array.from({ length: 12 }, (_, n) => ({
+      id: `p${n}`, created_at: "2026-10-14T10:00:00Z", status: "finalizado_sucesso", vm_name: "a08", versao: "PROXIMA", casos_teste: "[3.1.1]", config_json: {},
+    }));
+    renderPagina();
+    await screen.findAllByRole("radio");
+    expect(screen.queryByRole("button", { name: /Ocultar finalizadas/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Histórico de reexecuções/ }));
+    expect(await screen.findByText("Mostrando 1–10 de 12")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    expect(screen.getByText("Mostrando 11–12 de 12")).toBeInTheDocument();
   });
 
   it("versoes: Proxima (mais nova primeiro), depois Pre-clientes, depois o resto", () => {
@@ -140,18 +170,20 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
-      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[0.4], [0.5], [3.1.1]", branch: "",
+      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]", ct_desmarcar: "[0.3]", branch: "",
     });
     // Depois de enviar volta para a etapa 1.
     expect(await screen.findByRole("heading", { name: "Escolha a rodagem" })).toBeInTheDocument();
   });
 
-  it("restaurar base desligado tira [0.4] e [0.5]", async () => {
+  it("manter base atual (desligado por padrao) desmarca [0.4] e [0.5]", async () => {
     await irParaConfirmacao();
-    fireEvent.click(screen.getByRole("checkbox", { name: /Restaurar base/ }));
+    const manter = screen.getByRole("checkbox", { name: /Manter base atual/ });
+    expect(manter).not.toBeChecked();
+    fireEvent.click(manter);
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
-    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[3.1.1]" });
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[3.1.1]", ct_desmarcar: "[0.3], [0.4], [0.5]" });
   });
 
   it("VM especifica: so troca o vm_name do pedido", async () => {
@@ -168,8 +200,26 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
-      vm_name: "a03", versao: "proxima1.26.10.0", casos_teste: "[0.4], [0.5], [3.1.1]",
+      vm_name: "a03", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]",
     });
+  });
+
+  it("outra versao: so troca a versao do pedido (sugere as que ja rodaram)", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));
+    const opcao = screen.getByRole("checkbox", { name: "Reexecutar casos em outra versão" });
+    expect(opcao).not.toBeChecked();
+    fireEvent.click(opcao);
+    expect(screen.getByRole("button", { name: /Rodar 1 caso de novo/ })).toBeDisabled();
+    expect(screen.getByText("Informe a versão nas opções avançadas.")).toBeInTheDocument();
+    const sugestoes = Array.from(document.querySelectorAll("#versoes-reexecucao option")).map((o) => o.getAttribute("value"));
+    expect(sugestoes).toEqual(["PROXIMA1.26.9.99", "PRE-CLIENTES", "FOLHA_SUSTENTACAO_2026"]); // sem a da rodagem
+    fireEvent.change(screen.getByRole("combobox", { name: "Versão para reexecutar" }), { target: { value: " Clientes " } });
+    expect(screen.getByText(/Vai rodar na/)).toHaveTextContent("Vai rodar na A08, versão clientes");
+    expect(screen.getByText(/Só a versão muda no pedido/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ vm_name: "a08", versao: "clientes", casos_teste: "[3.1.1]" });
   });
 
   it("voltar e trocar de rodagem limpa as marcacoes e desliga a VM especifica", async () => {

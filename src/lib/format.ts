@@ -112,6 +112,28 @@ export function tempoTotalRodagem(r: { data_inicio_rodagem?: string | null; data
   return Math.round(segundos);
 }
 
+/** Rodagem anterior do modulo (comecou antes desta) que tem tempo total, para comparar. */
+export function rodagemAnteriorComTempo<T extends { id: string; data_inicio_rodagem?: string | null; data_fim_rodagem?: string | null }>(
+  atual: T,
+  historico: T[],
+): T | null {
+  const inicio = Date.parse(atual.data_inicio_rodagem || "");
+  if (!Number.isFinite(inicio)) return null;
+  let melhor: T | null = null;
+  let melhorInicio = -Infinity;
+  for (const r of historico) {
+    const t = Date.parse(r.data_inicio_rodagem || "");
+    if (r.id === atual.id || !Number.isFinite(t) || t >= inicio || tempoTotalRodagem(r) == null) continue;
+    if (t > melhorInicio) { melhor = r; melhorInicio = t; }
+  }
+  return melhor;
+}
+
+/** Variacao do tempo total em relacao a outra rodagem (0.082 = 8,2% mais demorada). */
+export function variacaoTempo(atual: number, anterior: number): number | null {
+  return anterior > 0 ? (atual - anterior) / anterior : null;
+}
+
 /** 36000 -> "10h00min", 2820 -> "47min", 30 -> "menos de 1min". */
 export function formatarTempoTotal(segundos: number): string {
   const min = Math.floor(segundos / 60);

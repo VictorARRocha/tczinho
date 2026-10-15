@@ -360,8 +360,10 @@ export const ApiQaDataSource: QaDataSource = {
   reativarCaso: (nodeId: string) =>
     req<unknown>(`/testcase-disabled/${encodeURIComponent(nodeId)}/delete`, { method: "POST", body: "{}" }).then(() => undefined),
 
-  fetchRegravacaoCandidatos: (runId: string) =>
-    req<RegravacaoCandidatos>(`/runs/${encodeURIComponent(runId)}/regravacao`),
+  fetchRegravacaoCandidatos: (runId: string, branchUrl?: string) =>
+    req<RegravacaoCandidatos>(
+      `/runs/${encodeURIComponent(runId)}/regravacao${branchUrl ? `?branch=${encodeURIComponent(branchUrl)}` : ""}`,
+    ),
 
   fetchRegravacoes: (runId?: string) =>
     req<RegravacaoPedido[]>(`/regravacoes${runId ? `?run_id=${encodeURIComponent(runId)}` : ""}`),

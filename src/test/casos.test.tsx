@@ -86,12 +86,22 @@ describe("Casos de teste (lista do modulo)", () => {
     renderAba(<CasosTab hierarchy={ARVORE} />);
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
     expect(screen.getByText("Plano de contas")).toBeInTheDocument();
-    // O codigo na linha fica na cor do texto (nao parece link).
-    expect(screen.getByText("#171353")).toHaveClass("text-foreground");
+    // O codigo na linha e o link do Kanboard (azul, com o icone) e clicar nele nao abre a linha.
+    const link = screen.getByRole("link", { name: "Abrir #171353 no Kanboard" });
+    expect(link).toHaveTextContent("#171353");
+    expect(link).toHaveClass("text-primary");
+    expect(link).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/171353");
+    fireEvent.click(link);
+    expect(screen.queryByText("Cadastra o plano e confere o balancete.")).toBeNull();
     expect(screen.queryByText("Cadastra o plano e confere o balancete.")).toBeNull(); // fechado: so a linha
     abrirCaso("3.1.2.1");
     expect(screen.getByText("Cadastra o plano e confere o balancete.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /^3\.1\.2\.1/ })).toHaveAttribute("aria-expanded", "true");
+    // Sem o botao "Abrir no Kanboard" dentro do caso aberto (o link fica so no codigo).
+    expect(screen.getAllByRole("link", { name: "Abrir #171353 no Kanboard" })).toHaveLength(1);
+    // Clicar no espaco vazio da linha tambem abre/fecha.
+    fireEvent.click(screen.getByText("Plano de contas").closest("button")!.parentElement!.parentElement!);
+    expect(screen.queryByText("Cadastra o plano e confere o balancete.")).toBeNull();
   });
 
   it("sem os botoes de desativar, reativar ou copiar", async () => {
@@ -145,7 +155,7 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.getByText("Plano de contas")).not.toHaveClass("line-through");
   });
 
-  it("codigo do caso na linha e o link do cartao no Kanboard no caso aberto", () => {
+  it("codigo do caso na linha e o link do cartao no Kanboard", () => {
     const arvore = [
       no("3", "Contábil", "grupo"),
       no("3.2", "Kanboard", "grupo"),
@@ -158,15 +168,14 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.getByText("#252397")).toBeInTheDocument();
     expect(screen.getByText("#245993")).toBeInTheDocument();
     abrirCaso("3.2.1");
-    abrirCaso("3.2.2");
-    abrirCaso("3.2.3");
     const link = (nome: RegExp) => screen.getByRole("link", { name: nome });
     expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/252397");
     expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("target", "_blank");
     expect(link(/Abrir #245993 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/245993");
     // Chamado citado no meio do texto tambem abre, mas nao vira o codigo do caso.
     expect(link(/^#175763$/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/175763");
-    expect(screen.getAllByText("Código do caso de teste não informado")).toHaveLength(1);
+    // Sem codigo: nada de link na linha.
+    expect(screen.getAllByRole("link", { name: /no Kanboard/ })).toHaveLength(2);
     // A busca acha pelo codigo, inclusive o que so esta na procedure.
     fireEvent.change(screen.getByRole("textbox", { name: "Buscar casos de teste" }), { target: { value: "245993" } });
     expect(within(screen.getByRole("list", { name: "Casos encontrados" })).getByText("So na procedure")).toBeInTheDocument();
