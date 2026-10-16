@@ -1,5 +1,6 @@
 // Pecas visuais pequenas compartilhadas pelas abas do modulo.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
+import type { ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import type { OccurrenceType } from "@/lib/occurrence";
@@ -52,6 +53,20 @@ export function Paginacao({ page, pageSize, total, onChange }: { page: number; p
 }
 
 /** Mensagem padrao quando busca/filtros nao encontram nada. */
+/** Botao de alternar (ex.: Arvore / Lista). */
+export function ToggleChip({ label, active, onClick, icon }: { label: string; active: boolean; onClick: () => void; icon?: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`h-11 md:h-8 px-3 rounded-md border text-xs inline-flex items-center gap-1.5 transition-[color,background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
+    >
+      {icon}{label}
+    </button>
+  );
+}
+
 export const SEM_RESULTADO = "Nada encontrado com essa busca e esses filtros.";
 
 /**

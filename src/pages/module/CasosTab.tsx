@@ -1,7 +1,7 @@
 // Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, e os casos desmarcados
 // no mod_xml.py (so visual: o nome fica riscado).
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ExternalLink, Lock, Search, X } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ExternalLink, List, Lock, Network, Search, X } from "lucide-react";
 import type { CasoDesativado, TestcaseHierarchyNode } from "@/services/data";
 import { useCasosDesativados } from "@/services/queries";
 import { Card } from "@/components/ui/card";
@@ -9,9 +9,27 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useDebounce } from "@/hooks/useDebounce";
-import { Empty, SEM_RESULTADO } from "./common";
+import { Empty, SEM_RESULTADO, ToggleChip } from "./common";
 
 const MAX_RESULTADOS = 200;
+
+// Arvore (padrao) ou lista plana, como na aba Falhas; a escolha fica guardada no navegador.
+type Visao = "arvore" | "lista";
+const VISAO_KEY = "agenttc.casos.view";
+function lerVisao(): Visao {
+  try {
+    return window.localStorage.getItem(VISAO_KEY) === "lista" ? "lista" : "arvore";
+  } catch {
+    return "arvore";
+  }
+}
+function guardarVisao(v: Visao) {
+  try {
+    window.localStorage.setItem(VISAO_KEY, v);
+  } catch {
+    // sem armazenamento: so nao lembra a escolha
+  }
+}
 
 interface No {
   id: string;
@@ -103,8 +121,8 @@ function TextoComLinks({ texto }: { texto: string }) {
         const codigo = parte.match(/^#\s?(\d{4,})$/)?.[1];
         return codigo ? (
           <a key={i} href={linkKanboard(codigo)} target="_blank" rel="noopener noreferrer"
-            className="text-primary underline-offset-2 hover:underline">#{codigo}</a>
-        ) : parte;
+            className="text-primary underline-offset-2 hover:underline"><Realce texto={`#${codigo}`} /></a>
+        ) : <Realce key={i} texto={parte} />;
       })}
     </>
   );
@@ -132,6 +150,25 @@ function desativacaoDe(id: string, desativados: Map<string, CasoDesativado>): De
 /** O que as linhas precisam sem passar de mao em mao pela arvore. */
 const DesativadoCtx = createContext<(id: string) => Desativacao | null>(() => null);
 const useDesativado = () => useContext(DesativadoCtx);
+/** Termo buscado (sem acento, minusculo) para o realce. */
+const TermoCtx = createContext("");
+
+/** Trecho buscado em amarelo, sem diferenciar acento nem maiusculas. */
+function Realce({ texto }: { texto: string }) {
+  const termo = useContext(TermoCtx);
+  const norm = termo ? semAcento(texto) : "";
+  // Letra que muda de tamanho ao tirar o acento desalinharia as posicoes: fica sem realce.
+  if (!termo || norm.length !== texto.length || !norm.includes(termo)) return <>{texto}</>;
+  const partes: ReactNode[] = [];
+  let i = 0;
+  for (let k = norm.indexOf(termo); k >= 0; k = norm.indexOf(termo, i)) {
+    if (k > i) partes.push(texto.slice(i, k));
+    partes.push(<mark key={k} className="bg-transparent font-semibold text-yellow-600 dark:text-yellow-300">{texto.slice(k, k + termo.length)}</mark>);
+    i = k + termo.length;
+  }
+  partes.push(texto.slice(i));
+  return <>{partes}</>;
+}
 
 export function CasosTab({ moduloSlug, hierarchy }: {
   moduloSlug: string;
@@ -140,6 +177,10 @@ export function CasosTab({ moduloSlug, hierarchy }: {
   const [busca, setBusca] = useState("");
   const [soDesativados, setSoDesativados] = useState(false);
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [visao, setVisao] = useState<Visao>(lerVisao);
+  const mudarVisao = (v: Visao) => { setVisao(v); guardarVisao(v); };
+  // Na busca em arvore os grupos encontrados vem abertos; aqui ficam os que a pessoa fechou.
+  const [fechadosBusca, setFechadosBusca] = useState<Set<string>>(new Set());
   const { data: listaDesativados = [] } = useCasosDesativados(moduloSlug);
 
   // So o mod_xml.py conta como desativado (marcacoes antigas feitas a mao no dashboard ficam de fora).
@@ -168,25 +209,46 @@ export function CasosTab({ moduloSlug, hierarchy }: {
       || c.id === termo || c.id.startsWith(termo + ".")
       || semAcento(`${c.nome} ${c.descricao} ${c.codigos.map((k) => `#${k}`).join(" ")}`).includes(termo)))),
   [filtrando, casos, soDesativados, desativado, termo]);
+  useEffect(() => setFechadosBusca(new Set()), [termo, soDesativados]);
+
+  // Arvore so com os grupos que tem caso encontrado (contagem = encontrados).
+  const arvoreVisivel = useMemo(() => {
+    if (!filtrando) return arvore;
+    const ok = new Set(resultados.map((c) => c.id));
+    const podar = (n: No): No | null => {
+      if (!n.grupo) return ok.has(n.id) ? n : null;
+      const filhos = n.filhos.map(podar).filter((f): f is No => !!f);
+      return filhos.length ? { ...n, filhos, casos: filhos.reduce((soma, f) => soma + f.casos, 0) } : null;
+    };
+    return arvore.map(podar).filter((n): n is No => !!n);
+  }, [filtrando, arvore, resultados]);
 
   if (!hierarchy.length) return <Empty text="A lista de casos aparece depois da próxima rodagem deste módulo." />;
 
-  const alternar = (id: string) => setAbertos((atual) => {
+  const inverter = (atual: Set<string>, id: string) => {
     const novo = new Set(atual);
     if (novo.has(id)) novo.delete(id); else novo.add(id);
     return novo;
-  });
-  const expandirTudo = () => {
-    const ids = new Set<string>();
-    // Pastas sem nenhum caso dentro nao abrem (nao ha o que mostrar).
-    const visitar = (n: No) => { if (n.grupo && n.casos > 0) { ids.add(n.id); n.filhos.forEach(visitar); } };
-    arvore.forEach(visitar);
-    setAbertos(ids);
   };
-  const algumAberto = abertos.size > 0;
+  const alternar = (id: string) => (filtrando ? setFechadosBusca : setAbertos)((atual) => inverter(atual, id));
+  const estaAberto = (id: string) => (filtrando ? !fechadosBusca.has(id) : abertos.has(id));
+  // Pastas sem nenhum caso dentro nao abrem (nao ha o que mostrar).
+  const gruposComCaso = () => {
+    const ids = new Set<string>();
+    const visitar = (n: No) => { if (n.grupo && n.casos > 0) { ids.add(n.id); n.filhos.forEach(visitar); } };
+    arvoreVisivel.forEach(visitar);
+    return ids;
+  };
+  const algumAberto = filtrando ? arvoreVisivel.some((n) => !fechadosBusca.has(n.id)) : abertos.size > 0;
+  const expandirOuRecolher = () => {
+    if (filtrando) setFechadosBusca(algumAberto ? gruposComCaso() : new Set());
+    else setAbertos(algumAberto ? new Set() : gruposComCaso());
+  };
+  const listaPlana = filtrando ? resultados : casos;
 
   return (
     <DesativadoCtx.Provider value={desativado}>
+    <TermoCtx.Provider value={termo}>
       <div className="space-y-4">
         <Card className="p-3 sm:p-4 space-y-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
@@ -218,16 +280,15 @@ export function CasosTab({ moduloSlug, hierarchy }: {
                 Só os desmarcados
               </Button>
             )}
-            {/* Com busca/filtro a lista e plana: o botao fica, desabilitado, para a barra nao pular. */}
-            <Button
-              size="sm"
-              variant="outline"
-              className="sm:ml-auto max-md:h-11"
-              disabled={filtrando}
-              onClick={algumAberto ? () => setAbertos(new Set()) : expandirTudo}
-            >
-              {algumAberto ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Recolher tudo</> : <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir tudo</>}
-            </Button>
+            <div className="flex flex-wrap gap-1 sm:ml-auto">
+              <ToggleChip label="Árvore" icon={<Network className="h-3.5 w-3.5" />} active={visao === "arvore"} onClick={() => mudarVisao("arvore")} />
+              <ToggleChip label="Lista" icon={<List className="h-3.5 w-3.5" />} active={visao === "lista"} onClick={() => mudarVisao("lista")} />
+              {visao === "arvore" && (
+                <Button size="sm" variant="outline" className="max-md:h-11" onClick={expandirOuRecolher}>
+                  {algumAberto ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Recolher tudo</> : <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir tudo</>}
+                </Button>
+              )}
+            </div>
           </div>
           {/* Total da busca lido pelo leitor de tela (antes so aparecia acima de 200). */}
           <p role="status" className={filtrando ? "text-xs text-muted-foreground" : "sr-only"}>
@@ -236,44 +297,43 @@ export function CasosTab({ moduloSlug, hierarchy }: {
         </Card>
 
         <Card className="overflow-hidden">
-          {filtrando ? (
-            resultados.length === 0 ? (
-              <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setSoDesativados(false); }} />
-            ) : (
-              <>
-                <ul className="space-y-0.5 p-1.5" aria-label="Casos encontrados">
-                  {resultados.slice(0, MAX_RESULTADOS).map((c) => (
-                    <li key={c.id}><LinhaCaso no={c} mostrarCaminho /></li>
-                  ))}
-                </ul>
-                {resultados.length > MAX_RESULTADOS && (
-                  <p className="border-t border-border/60 p-3 text-center text-xs text-muted-foreground">
-                    Mostrando {MAX_RESULTADOS} de {resultados.length}. Refine a busca para ver o resto.
-                  </p>
-                )}
-              </>
-            )
+          {filtrando && resultados.length === 0 ? (
+            <Empty text={SEM_RESULTADO} onClear={() => { setBusca(""); setSoDesativados(false); }} />
+          ) : visao === "lista" ? (
+            <>
+              <ul className="space-y-0.5 p-1.5" aria-label={filtrando ? "Casos encontrados" : "Casos de teste do módulo"}>
+                {listaPlana.slice(0, MAX_RESULTADOS).map((c) => (
+                  <li key={c.id}><LinhaCaso no={c} mostrarCaminho /></li>
+                ))}
+              </ul>
+              {listaPlana.length > MAX_RESULTADOS && (
+                <p className="border-t border-border/60 p-3 text-center text-xs text-muted-foreground">
+                  Mostrando {MAX_RESULTADOS} de {listaPlana.length.toLocaleString("pt-BR")}. {filtrando ? "Refine a busca" : "Use a busca ou a árvore"} para ver o resto.
+                </p>
+              )}
+            </>
           ) : (
-            <ul aria-label="Casos de teste do módulo" className="p-1.5">
-              {arvore.map((n) => <Ramo key={n.id} no={n} abertos={abertos} onToggle={alternar} />)}
+            <ul aria-label={filtrando ? "Casos encontrados" : "Casos de teste do módulo"} className="p-1.5">
+              {arvoreVisivel.map((n) => <Ramo key={n.id} no={n} aberto={estaAberto} onToggle={alternar} />)}
             </ul>
           )}
         </Card>
       </div>
+    </TermoCtx.Provider>
     </DesativadoCtx.Provider>
   );
 }
 
 // Grupo: uma linha (seta, numero, nome, contagem); aberto, os filhos ficam numa linha-guia recuada.
-function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggle: (id: string) => void }) {
+function Ramo({ no, aberto: estaAberto, onToggle }: { no: No; aberto: (id: string) => boolean; onToggle: (id: string) => void }) {
   if (!no.grupo) return <li><LinhaCaso no={no} /></li>;
   const vazio = no.casos === 0;
-  const aberto = !vazio && abertos.has(no.id);
+  const aberto = !vazio && estaAberto(no.id);
   const conteudo = (
     <>
       <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-out-strong", aberto && "rotate-90", vazio && "invisible")} aria-hidden />
-      <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
-      <span className={cn("min-w-0 text-sm font-medium sm:truncate", vazio && "text-muted-foreground")}>{no.nome}</span>
+      <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums"><Realce texto={no.id} /></span>
+      <span className={cn("min-w-0 text-sm font-medium sm:truncate", vazio && "text-muted-foreground")}><Realce texto={no.nome} /></span>
       <SeloGrupoDesativado id={no.id} />
       <span className="ml-auto shrink-0 px-1 text-xs text-muted-foreground tabular-nums">{no.casos} {no.casos === 1 ? "caso" : "casos"}</span>
     </>
@@ -291,7 +351,7 @@ function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggl
       )}
       {aberto && (
         <ul className="ml-[15px] border-l border-border pl-2">
-          {no.filhos.map((f) => <Ramo key={f.id} no={f} abertos={abertos} onToggle={onToggle} />)}
+          {no.filhos.map((f) => <Ramo key={f.id} no={f} aberto={estaAberto} onToggle={onToggle} />)}
         </ul>
       )}
     </li>
@@ -323,14 +383,14 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
         <div className="flex min-w-0 flex-1 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors hover:bg-muted/40 max-md:min-h-11">
           <span className="min-w-0 flex-1">
             {mostrarCaminho && no.caminho.length > 0 && (
-              <span className="block truncate text-[11px] text-muted-foreground">{no.caminho.join(" › ")}</span>
+              <span className="block truncate text-[11px] text-muted-foreground"><Realce texto={no.caminho.join(" › ")} /></span>
             )}
             {/* No celular quebra como texto (numero, nome e chamado ocupam a largura toda); no computador, uma linha. */}
             <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5 sm:flex-nowrap sm:items-center">
               <button type="button" aria-expanded={aberto} onClick={() => setAberto((v) => !v)}
                 className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-left sm:flex-nowrap sm:items-center">
-                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
-                <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}>{no.nome}</span>
+                <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums"><Realce texto={no.id} /></span>
+                <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}><Realce texto={no.nome} /></span>
               </button>
               {/* Um link por chamado, lado a lado. */}
               {no.codigos.length > 0 && (
@@ -345,7 +405,7 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
                       title={`Abrir #${codigo} no Kanboard`}
                       className="inline-flex shrink-0 items-center gap-0.5 rounded font-mono text-[11px] text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
-                      #{codigo}
+                      <Realce texto={`#${codigo}`} />
                       <ExternalLink className="h-3 w-3" aria-hidden />
                     </a>
                   ))}

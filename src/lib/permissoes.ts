@@ -44,6 +44,17 @@ export const MODULOS_ACESSO: { slug: string; nome: string; codigos: string[] }[]
   { slug: "practice", nome: "Practice", codigos: ["19"] },
 ];
 
+/** Sistemas legados fora do Unico (Suprema = Fiscal, Practice = Folha): ficam num grupo proprio nos menus. */
+export const LINHA_VISUAL = ["suprema", "practice"];
+
+/** Separa os modulos em Unico e Visual, mantendo a ordem recebida. */
+export function gruposDeSistema<T extends { slug: string }>(modulos: T[]): { titulo: string; modulos: T[] }[] {
+  return [
+    { titulo: "Único", modulos: modulos.filter((m) => !LINHA_VISUAL.includes(m.slug)) },
+    { titulo: "Visual", modulos: modulos.filter((m) => LINHA_VISUAL.includes(m.slug)) },
+  ].filter((g) => g.modulos.length > 0);
+}
+
 export function nomeModulo(slug: string): string {
   return MODULOS_ACESSO.find((m) => m.slug === slug)?.nome || slug;
 }

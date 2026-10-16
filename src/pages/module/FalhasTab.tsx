@@ -12,7 +12,7 @@ import { ClassificationBadge, SeverityBadge } from "@/components/Badges";
 import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { useDebounce } from "@/hooks/useDebounce";
 import { withCaseMetadata, failureDescription, cleanFileName } from "./caseText";
-import { Paginacao, TIPO_COR, TipoBadge } from "./common";
+import { Paginacao, TIPO_COR, TipoBadge, ToggleChip } from "./common";
 
 type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
 
@@ -686,19 +686,6 @@ function OrphanGroup({
         </div>
       )}
     </div>
-  );
-}
-
-function ToggleChip({ label, active, onClick, icon }: { label: string; active: boolean; onClick: () => void; icon?: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onClick}
-      className={`h-11 md:h-8 px-3 rounded-md border text-xs inline-flex items-center gap-1.5 transition-[color,background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
-    >
-      {icon}{label}
-    </button>
   );
 }
 

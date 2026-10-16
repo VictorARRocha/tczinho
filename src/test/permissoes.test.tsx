@@ -23,7 +23,7 @@ vi.mock("@/services/authApi", async (importOriginal) => {
 
 import AdminUsuarios from "@/pages/AdminUsuarios";
 import Cadastro from "@/pages/Cadastro";
-import { modulosDosCasos, podeNoModulo, temPermissao, temTodosModulos } from "@/lib/permissoes";
+import { gruposDeSistema, modulosDosCasos, podeNoModulo, temPermissao, temTodosModulos } from "@/lib/permissoes";
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -76,6 +76,16 @@ describe("regras de permissao e modulo na tela", () => {
     expect(modulosDosCasos("[16.1], [19.2]")).toEqual(["suprema", "practice"]);
     expect(modulosDosCasos("[0.3]")).toEqual([]);
     expect(modulosDosCasos(null)).toEqual([]);
+  });
+
+  it("Suprema e Practice ficam no grupo Visual, separados dos modulos do Unico", () => {
+    const grupos = gruposDeSistema(["fiscal", "suprema", "folha", "practice"].map((slug) => ({ slug })));
+    expect(grupos.map((g) => [g.titulo, g.modulos.map((m) => m.slug)])).toEqual([
+      ["Único", ["fiscal", "folha"]],
+      ["Visual", ["suprema", "practice"]],
+    ]);
+    // Sem nenhum da linha visual (pessoa sem acesso a eles), o grupo nem aparece.
+    expect(gruposDeSistema([{ slug: "fiscal" }]).map((g) => g.titulo)).toEqual(["Único"]);
   });
 });
 

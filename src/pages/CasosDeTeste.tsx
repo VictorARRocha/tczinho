@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { IconeModulo } from "@/components/IconeModulo";
 import { useModulos } from "@/hooks/use-permissao";
+import { gruposDeSistema } from "@/lib/permissoes";
 import { useHierarchy, useModules } from "@/services/queries";
 import { CasosTab } from "@/pages/module/CasosTab";
 
@@ -29,21 +30,28 @@ function EscolherModulo() {
       ) : modulos.length === 0 ? (
         <Card className="p-10 text-center text-sm text-muted-foreground">Você não tem acesso a nenhum módulo. Peça a um administrador.</Card>
       ) : (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {modulos.map((m) => (
-            <li key={m.id}>
-              <Link
-                to={`/casos-de-teste/${m.slug}`}
-                className="group flex aspect-square flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,transform] duration-150 ease-out-strong hover:border-primary/60 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="flex flex-1 items-center justify-center text-primary transition-transform duration-200 ease-out-strong group-hover:scale-105" aria-hidden>
-                  <IconeModulo slug={m.slug} className="h-14 w-14 sm:h-16 sm:w-16" />
-                </span>
-                <span className="border-t border-border bg-muted/50 px-2 py-2 text-center text-sm font-semibold">{m.nome}</span>
-              </Link>
-            </li>
+        <div className="space-y-6">
+          {gruposDeSistema(modulos).map((grupo) => (
+            <section key={grupo.titulo} aria-labelledby={`grupo-${grupo.titulo}`}>
+              <h2 id={`grupo-${grupo.titulo}`} className="mb-3 text-sm font-semibold text-muted-foreground">{grupo.titulo}</h2>
+              <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {grupo.modulos.map((m) => (
+                  <li key={m.id}>
+                    <Link
+                      to={`/casos-de-teste/${m.slug}`}
+                      className="group flex aspect-square flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,transform] duration-150 ease-out-strong hover:border-primary/60 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      <span className="flex flex-1 items-center justify-center text-primary transition-transform duration-200 ease-out-strong group-hover:scale-105" aria-hidden>
+                        <IconeModulo slug={m.slug} className="h-14 w-14 sm:h-16 sm:w-16" />
+                      </span>
+                      <span className="border-t border-border bg-muted/50 px-2 py-2 text-center text-sm font-semibold">{m.nome}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );

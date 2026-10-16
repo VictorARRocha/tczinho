@@ -45,10 +45,17 @@ vi.mock("@/services/data", async (importOriginal) => {
   };
 });
 
+const limites = { arquivos: 2000 };
+vi.mock("@/lib/regravacao", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/regravacao")>()),
+  get LIMITE_ARQUIVOS() { return limites.arquivos; },
+}));
+
 import { queryClient } from "@/lib/queryClient";
 import RegravarBases from "@/pages/RegravarBases";
 import { branchTc, defaultCommitMessage, destinoLabel } from "@/lib/regravacao";
 import { ApiError } from "@/services/data/apiSource";
+import { toast } from "sonner";
 
 beforeAll(() => {
   Element.prototype.hasPointerCapture = () => false;
@@ -403,6 +410,58 @@ describe("auditoria parte 4: regravacao", () => {
     await screen.findByText("Caminho errado no script");
     etapa("Rodagem");
     expect(screen.getByRole("combobox", { name: "Rodagem" })).not.toHaveTextContent(/\b1 falhas\b/);
+  });
+});
+
+describe("limites do pedido (a API recusa com 400)", () => {
+  it("sem editar, a mensagem padrao nao vai no pedido: o Bridge monta a mesma, sem limite de tamanho", async () => {
+    api.createRegravacao.mockResolvedValue({});
+    renderPage();
+    await screen.findByLabelText("Selecionar d1_Atual.txt");
+    fireEvent.click(screen.getByRole("button", { name: "Marcar regraváveis" }));
+    revisar();
+    expect(textarea().value).toContain("Pedido: {pedido}"); // a padrao aparece na tela
+    fireEvent.click(screen.getByRole("button", { name: /Regravar 2 arquivos/ }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Confirmar regravação" }));
+    await waitFor(() => expect(api.createRegravacao).toHaveBeenCalledTimes(1));
+    expect(api.createRegravacao.mock.calls[0][0]).not.toHaveProperty("mensagem");
+  });
+
+  it("mensagem editada acima de 200 mil caracteres: avisa e bloqueia o envio", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
+    fireEvent.change(textarea(), { target: { value: "x".repeat(200_001) } });
+    expect(screen.getByText(/tem 200\.001 caracteres; o máximo é 200\.000/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: /Restaurar padrão/ }));
+    expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).not.toBeDisabled();
+  });
+
+  it("acima do limite de arquivos: avisa e nao deixa revisar", async () => {
+    limites.arquivos = 1; // na tela o limite e 2000; aqui reduzido para o teste ser rapido
+    try {
+      renderPage();
+      fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+      expect(screen.getByRole("button", { name: /Revisar/ })).not.toBeDisabled();
+      fireEvent.click(screen.getByLabelText("Selecionar d2_Atual.txt"));
+      expect(screen.getByText(/No máximo 1 arquivos por pedido \(2 marcados\)/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /Revisar/ })).toBeDisabled();
+    } finally {
+      limites.arquivos = 2000;
+    }
+  });
+
+  it("erro da API mostra o motivo, nao so o codigo", async () => {
+    api.createRegravacao.mockRejectedValue(new ApiError(400, "/regravacoes", "A mensagem pode ter no maximo 4000 caracteres."));
+    renderPage();
+    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
+    fireEvent.click(screen.getByRole("button", { name: /Regravar 1 arquivo/ }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Confirmar regravação" }));
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith(
+      "Não foi possível enviar o pedido", { description: "A mensagem pode ter no maximo 4000 caracteres." },
+    ));
   });
 });
 

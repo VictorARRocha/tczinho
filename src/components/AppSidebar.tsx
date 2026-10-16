@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { LayoutDashboard, PlayCircle, RefreshCcw, Upload, ShieldCheck, GitMerge, ListChecks } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { IconeModulo, ImagemMascara } from "@/components/IconeModulo";
+import { gruposDeSistema } from "@/lib/permissoes";
 
 import {
   Sidebar,
@@ -137,12 +138,12 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {visibleModulos.length > 0 && (
-          <SidebarGroup>
-            <SidebarGroupLabel>Módulos</SidebarGroupLabel>
+        {gruposDeSistema(visibleModulos).map((grupo) => (
+          <SidebarGroup key={grupo.titulo}>
+            <SidebarGroupLabel>{grupo.titulo}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {visibleModulos.map((m) => {
+                {grupo.modulos.map((m) => {
                   const url = `/modulo/${m.slug}`;
                   return (
                     <SidebarMenuItem key={m.id}>
@@ -158,7 +159,7 @@ export function AppSidebar() {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
+        ))}
       </SidebarContent>
 
 

@@ -41,7 +41,8 @@ import {
   useRunEvidences, useRunFailures,
 } from "@/services/queries";
 import {
-  branchTc, caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_CONFLITO, ITEM_STATUS, MOTIVO_CURTO, pedidoStatus,
+  branchTc, caminhoBridge, defaultCommitMessage, destinoLabel, ITEM_CONFLITO, ITEM_STATUS, LIMITE_ARQUIVOS, LIMITE_MENSAGEM,
+  MOTIVO_CURTO, pedidoStatus,
 } from "@/lib/regravacao";
 import type { ComparisonPair } from "@/lib/occurrence";
 import type { Falha } from "@/types/db";
@@ -83,9 +84,9 @@ const sortValue = (item: RegravacaoItem, key: SortKey) =>
   key === "caso" ? item.id_caso_teste || "" : key === "atual" ? item.arquivo_atual || "" : item.caminho_base ? caminhoBridge(item.caminho_base) : "";
 
 function apiMessage(e: unknown): string {
-  if (e instanceof ApiError && e.status === 403) return mensagemDaApi(e);
   if (e instanceof ApiError && e.status === 409) return "Algum arquivo já está num pedido em andamento.";
-  return (e as Error)?.message || "Erro desconhecido";
+  // O motivo que a API devolve (ex.: limite de arquivos), em vez de so "[api 400]".
+  return mensagemDaApi(e);
 }
 
 export default function RegravarBases() {
@@ -181,7 +182,7 @@ export default function RegravarBases() {
   const regravaveis = useMemo(() => itens.filter((i) => i.regravavel), [itens]);
 
   const podeIrPara = (n: Etapa) =>
-    n === 1 || (n === 2 && !!runId) || (n === 3 && !!runId && marcados.size > 0 && !(outraBranch && !branchUrl));
+    n === 1 || (n === 2 && !!runId) || (n === 3 && !!runId && marcados.size > 0 && !arquivosDemais && !(outraBranch && !branchUrl));
 
   // Quando um pedido muda de status (o Bridge pegou/terminou), recarrega a situacao dos arquivos.
   const statusPedidos = pedidos.map((p) => p.id + ":" + p.status).join("|");
@@ -192,11 +193,13 @@ export default function RegravarBases() {
   }, [statusPedidos, runId]);
 
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const arquivosDemais = marcados.size > LIMITE_ARQUIVOS;
   const [soRegravaveis, setSoRegravaveis] = useState(false);
   const [buscaCaso, setBuscaCaso] = useState("");
   const [listaAberta, setListaAberta] = useState(true);
   const [mensagem, setMensagem] = useState("");
   const [mensagemEditada, setMensagemEditada] = useState(false);
+  const mensagemLonga = mensagemEditada && mensagem.length > LIMITE_MENSAGEM;
   const [confirmOpen, setConfirmOpen] = useState(false);
   // Outra branch: alem da confirmacao de sempre, a pessoa marca que sabe que nao e a branch da rodagem.
   const [aceiteOutraBranch, setAceiteOutraBranch] = useState(false);
@@ -281,7 +284,12 @@ export default function RegravarBases() {
   const enviar = async () => {
     setEnviando(true);
     try {
-      await createRegravacao({ run_id: runId, difference_ids: [...marcados], mensagem, ...(destinoEscolhido ? { branch_url: destinoEscolhido } : {}) });
+      // Sem edicao, o Bridge monta a mesma mensagem padrao (com todos os arquivos, sem o limite de tamanho).
+      await createRegravacao({
+        run_id: runId, difference_ids: [...marcados],
+        ...(mensagemEditada ? { mensagem } : {}),
+        ...(destinoEscolhido ? { branch_url: destinoEscolhido } : {}),
+      });
       toast.success("Pedido de regravação enviado", { description: "Ele entra na fila e a base é conferida antes de gravar no SVN." });
       setConfirmOpen(false);
       setMarcados(new Set());
@@ -676,6 +684,11 @@ export default function RegravarBases() {
             </Button>
             <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
               {outraBranch && !branchUrl && <span className="text-xs text-warning">Escolha a branch nas opções avançadas.</span>}
+              {arquivosDemais && (
+                <span className="text-xs text-warning">
+                  No máximo {LIMITE_ARQUIVOS} arquivos por pedido ({marcados.size} marcados). Desmarque alguns e faça outro pedido depois.
+                </span>
+              )}
               <Button onClick={() => setEtapa(3)} disabled={!podeIrPara(3)} className="max-sm:w-full">
                 Revisar <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
@@ -710,16 +723,22 @@ export default function RegravarBases() {
             onChange={(e) => { setMensagem(e.target.value); setMensagemEditada(true); }}
             spellCheck={false}
             className="min-h-[170px] font-mono text-xs"
-            maxLength={4000}
+            aria-describedby="mensagem-commit-ajuda"
           />
-          <p className="text-xs text-muted-foreground">
+          <p id="mensagem-commit-ajuda" className="text-xs text-muted-foreground">
             <code className="font-mono">{"{pedido}"}</code> é trocado pelo número do pedido no commit. Enquanto não for editada, a mensagem acompanha
             os arquivos selecionados.
+            {mensagemLonga && (
+              <span className="mt-1 block text-warning">
+                A mensagem editada tem {mensagem.length.toLocaleString("pt-BR")} caracteres; o máximo é {LIMITE_MENSAGEM.toLocaleString("pt-BR")}.
+                Encurte o texto ou use “Restaurar padrão” (a padrão não tem limite).
+              </span>
+            )}
           </p>
           <Button
             size="lg"
             className="w-full"
-            disabled={!podeRegravar || foraDoModulo || !marcados.size || !mensagem.trim() || (outraBranch && !branchUrl)}
+            disabled={!podeRegravar || foraDoModulo || !marcados.size || arquivosDemais || mensagemLonga || !mensagem.trim() || (outraBranch && !branchUrl)}
             onClick={() => { setAceiteOutraBranch(false); setConfirmOpen(true); }}
           >
             <GitCommitHorizontal className="h-4 w-4 mr-2" />

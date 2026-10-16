@@ -1,6 +1,10 @@
 // Regravacao de bases: textos e regras da tela (a execucao fica no RegravacaoBridge da D01).
 import { TOM_STATUS } from "@/lib/statusPedido";
 
+// Limites que a API confere no pedido (agent_tc_core/regravacao.py: MAX_MESSAGE_LENGTH, MAX_ITEMS).
+export const LIMITE_MENSAGEM = 200_000;
+export const LIMITE_ARQUIVOS = 2000;
+
 export interface ItemMensagem {
   id_caso_teste: string | null;
   caminho_base: string | null;

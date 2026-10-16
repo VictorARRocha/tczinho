@@ -32,6 +32,7 @@ function renderAba(ui: ReactElement) {
 beforeEach(() => {
   queryClient.clear();
   api.desativados = [];
+  window.localStorage.clear();
 });
 
 const no = (node_id: string, node_name: string, node_type: "grupo" | "caso", descricao = ""): TestcaseHierarchyNode => ({
@@ -113,21 +114,54 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.queryByRole("button", { name: /Desativar|Reativar|Copiar/ })).toBeNull();
   });
 
-  it("busca por numero, nome ou descricao (sem acento) e mostra o caminho", async () => {
+  it("busca mantem a arvore: so os grupos com caso encontrado, ja abertos", async () => {
     renderAba(<CasosTab hierarchy={ARVORE} />);
     const busca = screen.getByRole("textbox", { name: "Buscar casos de teste" });
     fireEvent.change(busca, { target: { value: "lancamento" } });
     // A busca espera uma pausa curta na digitacao; o total e anunciado.
-    let lista = await screen.findByRole("list", { name: "Casos encontrados" });
-    expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
+    const arvore = await screen.findByRole("list", { name: "Casos encontrados" });
     expect(screen.getByRole("status")).toHaveTextContent("2 casos encontrados");
+    // O grupo aberto e o unico com aria-expanded=true (o realce muda o nome acessivel, por isso o texto).
+    const grupo = within(arvore).getByRole("button", { expanded: true });
+    expect(grupo).toHaveTextContent(/^3\.1\.10Lançamentos2 casos$/);
+    expect(within(arvore).queryByRole("button", { name: /Planos/ })).toBeNull();
+    expect(within(arvore).getByRole("button", { name: /^3\.1\.10\.1/ })).toBeInTheDocument();
+    // Dá para fechar o grupo durante a busca.
+    fireEvent.click(grupo);
+    expect(within(arvore).queryByRole("button", { name: /^3\.1\.10\.1/ })).toBeNull();
     fireEvent.change(busca, { target: { value: "[4.2.1]" } });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 caso encontrado"));
-    lista = screen.getByRole("list", { name: "Casos encontrados" });
-    expect(within(lista).getByText("Apuração mensal")).toBeInTheDocument();
-    expect(within(lista).getByText("Lalur Mensal")).toBeInTheDocument();
+    expect(screen.getByText("Apuração mensal")).toBeInTheDocument();
+    expect(screen.getByRole("button", { expanded: true })).toHaveTextContent(/^4\.2Lalur Mensal1 caso$/);
     fireEvent.change(busca, { target: { value: "nada disso" } });
     expect(await screen.findByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
+  });
+
+  it("modo lista: os casos encontrados com o caminho; a escolha fica guardada", async () => {
+    const { unmount } = renderAba(<CasosTab hierarchy={ARVORE} />);
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /Expandir tudo/ })).toBeNull();
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar casos de teste" }), { target: { value: "[4.2.1]" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 caso encontrado"));
+    const lista = screen.getByRole("list", { name: "Casos encontrados" });
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
+    expect(within(lista).getByText("Lalur Mensal")).toBeInTheDocument(); // caminho
+    unmount();
+    renderAba(<CasosTab hierarchy={ARVORE} />);
+    expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("o texto buscado fica realcado (sem diferenciar acento)", async () => {
+    const { container } = renderAba(<CasosTab hierarchy={ARVORE} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar casos de teste" }), { target: { value: "lancamento" } });
+    await screen.findByRole("list", { name: "Casos encontrados" });
+    const marcas = () => Array.from(container.querySelectorAll("mark"), (m) => m.textContent);
+    expect(marcas()).toEqual(["Lançamento", "Lançamento", "Lançamento"]); // o grupo "Lançamentos" + os 2 casos
+    abrirCaso("3.1.10.2");
+    expect(marcas()).toContain("lançamento"); // tambem na descricao aberta
+    fireEvent.change(screen.getByRole("textbox", { name: "Buscar casos de teste" }), { target: { value: "#171353" } });
+    await waitFor(() => expect(marcas()).toEqual(["#171353"]));
   });
 
   it("mod_xml: caso e grupo desmarcados aparecem travados e os de dentro do grupo tambem", async () => {
@@ -145,7 +179,8 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.getByText(`${MOTIVO}. Para mudar, edite a lista no mod_xml.py.`)).toBeInTheDocument();
     abrirCaso("3.1.10.2");
     expect(screen.getByText(/Fica de fora porque o grupo \[3\.1\.10\] está desmarcado no mod_xml/)).toBeInTheDocument();
-    // Filtro dos desmarcados.
+    // Filtro dos desmarcados (na lista, um item por caso).
+    fireEvent.click(screen.getByRole("button", { name: "Lista" }));
     fireEvent.click(screen.getByRole("button", { name: "Só os desmarcados" }));
     expect(within(screen.getByRole("list", { name: "Casos encontrados" })).getAllByRole("listitem")).toHaveLength(3);
   });
