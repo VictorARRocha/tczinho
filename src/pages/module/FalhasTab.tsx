@@ -7,12 +7,12 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Search, FolderTree, List, Network } from "lucide-react";
+import { ChevronRight, Search, FolderTree, List, Network } from "lucide-react";
 import { ClassificationBadge, SeverityBadge } from "@/components/Badges";
 import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type ComparisonPair, type OccurrenceType } from "@/lib/occurrence";
 import { useDebounce } from "@/hooks/useDebounce";
 import { withCaseMetadata, failureDescription, cleanFileName } from "./caseText";
-import { TipoBadge } from "./common";
+import { Paginacao, TIPO_COR, TipoBadge } from "./common";
 
 type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
 
@@ -177,6 +177,111 @@ function itemMatches(it: EnrichedItem, q: string): boolean {
   return false;
 }
 
+/**
+ * Falhas da rodagem com as evidencias, o tipo e os pares base/atual. Pastas /comparacao sem falha
+ * vinculada entram como falha sintetica. E o mesmo total do "Todos" e do numero da aba.
+ */
+export function montarItensFalhas(falhas: Falha[], evidencias: Evidencia[], hierMap: Map<string, TestcaseHierarchyNode>): EnrichedItem[] {
+  const evMap = groupEvidsByFailure(evidencias);
+
+  // Calcula pares base/atual uma única vez por falha e reaproveita em tudo abaixo
+  const realPairsByFalha = new Map<string, ComparisonPair[]>();
+  falhas.forEach((f) => { realPairsByFalha.set(f.id, pairBaseAtual(evMap.get(f.id) || [])); });
+  const realPairKeys = new Set<string>();
+  realPairsByFalha.forEach((pairs) => pairs.forEach((p) => realPairKeys.add(p.key)));
+
+  // Agrupa evidências órfãs por pasta /comparacao e monta pares base/atual
+  const byCmpFolder = new Map<string, Evidencia[]>();
+  evidencias.filter((e) => !e.falha_id).forEach((e) => {
+    const path = (e.storage_path || "").replace(/\\/g, "/");
+    const m = path.match(/^(.*\/comparacao)\//i);
+    if (!m) return;
+    const folder = m[1];
+    const arr = byCmpFolder.get(folder) || [];
+    arr.push(e);
+    byCmpFolder.set(folder, arr);
+  });
+  const orphanCmpFolders: { cmpFolder: string; caseName: string; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
+  byCmpFolder.forEach((evs, cmpFolder) => {
+    if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
+    const pairs = pairBaseAtual(evs);
+    if (!pairs.length) return;
+    const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
+    const caseName = caseFolder.split("/").pop() || caseFolder;
+    orphanCmpFolders.push({ cmpFolder, caseName, evs, pairs });
+  });
+
+  // Índice de pastas /comparacao órfãs por id_caso_teste (ex.: "9.1.1.1.1")
+  const orphanByCase = new Map<string, { evs: Evidencia[]; pairs: ComparisonPair[]; cmpFolder: string }>();
+  orphanCmpFolders.forEach((o) => {
+    if (!orphanByCase.has(o.caseName)) orphanByCase.set(o.caseName, o);
+  });
+  const consumed = new Set<string>();
+
+  const real: EnrichedItem[] = falhas.map((f) => {
+    const enrichedFalha = withCaseMetadata(f, hierMap);
+    let evs = evMap.get(f.id) || [];
+    let pairs = realPairsByFalha.get(f.id) || [];
+
+    // Se a falha real não tem pares vinculados mas existe uma pasta
+    // /comparacao órfã com o mesmo id_caso_teste, anexa esses pares.
+    if (pairs.length === 0 && f.id_caso_teste) {
+      const key = String(f.id_caso_teste).trim();
+      const match = orphanByCase.get(key);
+      if (match) {
+        evs = evs.concat(match.evs);
+        pairs = match.pairs;
+        consumed.add(match.cmpFolder);
+      }
+    }
+
+    return { f: enrichedFalha, evs, tipo: classifyOccurrence(f, evs), pairs };
+  });
+
+  // Só sintetiza falhas fantasma para pastas órfãs que não foram
+  // anexadas a nenhuma falha real acima.
+  const synth: EnrichedItem[] = orphanCmpFolders
+    .filter((o) => !consumed.has(o.cmpFolder))
+    .map(({ cmpFolder, caseName, evs, pairs }) => {
+      const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
+      const id = `storage:${caseFolder}`;
+      const f = {
+        id, rodagem_id: evs[0]?.rodagem_id || "", modulo_slug: evs[0]?.modulo_slug || "",
+        ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
+        caso_identificado: false, id_caso_teste: caseName,
+        caso_teste_provavel: `Comparação: ${caseName}`,
+        grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: caseFolder, confianca_associacao: null,
+        erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
+        call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
+        classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
+        cor: null, fato_observado: null, hipotese_principal: null, analise_tecnica: null, analise_funcional: null,
+        impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
+        created_at: "",
+      } as Falha;
+      return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
+    });
+
+  return real.concat(synth);
+}
+
+const ORDEM_SEGMENTO = (a: TreeNode, b: TreeNode) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment);
+
+/** Filtro por tipo: fora do componente (declarado no render, cada letra digitada recriava o botao e o foco se perdia). */
+function SubTabBtn({ ativo, label, count, tone, onClick }: { ativo: boolean; label: string; count: number; tone?: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={onClick}
+      className={`px-3 h-11 md:h-8 rounded-md text-xs font-medium border transition-[color,background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] ${
+        ativo ? "bg-primary/15 border-primary/40 text-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label} <span className={`font-mono ml-1 ${tone || ""}`}>({count})</span>
+    </button>
+  );
+}
+
 export function FalhasTab({
   moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare,
 }: {
@@ -200,100 +305,7 @@ export function FalhasTab({
     return m;
   }, [hierarchy]);
 
-  const evMap = useMemo(() => groupEvidsByFailure(evidencias), [evidencias]);
-
-  // Calcula pares base/atual uma única vez por falha e reaproveita em tudo abaixo
-  const realPairsByFalha = useMemo(() => {
-    const m = new Map<string, ComparisonPair[]>();
-    falhas.forEach((f) => { m.set(f.id, pairBaseAtual(evMap.get(f.id) || [])); });
-    return m;
-  }, [falhas, evMap]);
-
-  const realPairKeys = useMemo(() => {
-    const set = new Set<string>();
-    realPairsByFalha.forEach((pairs) => pairs.forEach((p) => set.add(p.key)));
-    return set;
-  }, [realPairsByFalha]);
-
-  // Agrupa evidências órfãs por pasta /comparacao e monta pares base/atual
-  const orphanCmpFolders = useMemo(() => {
-    const orphan = evidencias.filter((e) => !e.falha_id);
-    const byCmpFolder = new Map<string, Evidencia[]>();
-    orphan.forEach((e) => {
-      const path = (e.storage_path || "").replace(/\\/g, "/");
-      const m = path.match(/^(.*\/comparacao)\//i);
-      if (!m) return;
-      const folder = m[1];
-      const arr = byCmpFolder.get(folder) || [];
-      arr.push(e);
-      byCmpFolder.set(folder, arr);
-    });
-    const out: { cmpFolder: string; caseName: string; evs: Evidencia[]; pairs: ComparisonPair[] }[] = [];
-    byCmpFolder.forEach((evs, cmpFolder) => {
-      if (realPairKeys.has(`cmp:${cmpFolder}`)) return;
-      const pairs = pairBaseAtual(evs);
-      if (!pairs.length) return;
-      const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
-      const caseName = caseFolder.split("/").pop() || caseFolder;
-      out.push({ cmpFolder, caseName, evs, pairs });
-    });
-    return out;
-  }, [evidencias, realPairKeys]);
-
-  const enriched: EnrichedItem[] = useMemo(() => {
-    // Índice de pastas /comparacao órfãs por id_caso_teste (ex.: "9.1.1.1.1")
-    const orphanByCase = new Map<string, { evs: Evidencia[]; pairs: ComparisonPair[]; cmpFolder: string }>();
-    orphanCmpFolders.forEach((o) => {
-      if (!orphanByCase.has(o.caseName)) orphanByCase.set(o.caseName, o);
-    });
-    const consumed = new Set<string>();
-
-    const real: EnrichedItem[] = falhas.map((f) => {
-      const enrichedFalha = withCaseMetadata(f, hierMap);
-      let evs = evMap.get(f.id) || [];
-      let pairs = realPairsByFalha.get(f.id) || [];
-
-      // Se a falha real não tem pares vinculados mas existe uma pasta
-      // /comparacao órfã com o mesmo id_caso_teste, anexa esses pares.
-      if (pairs.length === 0 && f.id_caso_teste) {
-        const key = String(f.id_caso_teste).trim();
-        const match = orphanByCase.get(key);
-        if (match) {
-          evs = evs.concat(match.evs);
-          pairs = match.pairs;
-          consumed.add(match.cmpFolder);
-        }
-      }
-
-      return { f: enrichedFalha, evs, tipo: classifyOccurrence(f, evs), pairs };
-    });
-
-    // Só sintetiza falhas fantasma para pastas órfãs que não foram
-    // anexadas a nenhuma falha real acima.
-    const synth: EnrichedItem[] = orphanCmpFolders
-      .filter((o) => !consumed.has(o.cmpFolder))
-      .map(({ cmpFolder, caseName, evs, pairs }) => {
-        const caseFolder = cmpFolder.replace(/\/comparacao$/i, "");
-        const id = `storage:${caseFolder}`;
-        const f = {
-          id, rodagem_id: evs[0]?.rodagem_id || "", modulo_slug: evs[0]?.modulo_slug || "",
-          ordem_prioridade: null, arquivo_zip: null, arquivo_txt: null, arquivo_print: null,
-          caso_identificado: false, id_caso_teste: caseName,
-          caso_teste_provavel: `Comparação: ${caseName}`,
-          grupo: "Storage", subgrupo: null, rotina_funcional: null, descricao_caso: caseFolder, confianca_associacao: null,
-          erro_titulo: null, erro_principal: null, mensagem_principal: null, trecho_relevante: null,
-          call_stack_resumido: null, tipo_tecnico: "diferenca_arquivo", formulario_ou_tela: null, componente: null,
-          classificacao: null, classificacao_label: null, severidade: null, confianca: null, status_analise: null,
-          cor: null, fato_observado: null, hipotese_principal: null, analise_tecnica: null, analise_funcional: null,
-          impacto_possivel: null, primeira_acao_recomendada: null, informacoes_faltantes: null, tags: null,
-          created_at: "",
-        } as Falha;
-        return { f, evs, tipo: classifyOccurrence(f, evs), pairs };
-      });
-
-    return real.concat(synth);
-  }, [falhas, evMap, realPairsByFalha, orphanCmpFolders, hierMap]);
-
+  const enriched: EnrichedItem[] = useMemo(() => montarItensFalhas(falhas, evidencias, hierMap), [falhas, evidencias, hierMap]);
 
   const counts = useMemo(() => {
     const c = { quebra: 0, diferenca: 0, quebra_diferenca: 0 };
@@ -344,15 +356,13 @@ export function FalhasTab({
   const allIds = useMemo(() => collectAllNodeIds(root), [root]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const hasActiveFilter = Boolean(debouncedQ || subTab !== "todos");
-  // Estado inicial recolhido; ao aplicar filtro, expande apenas o caminho até
-  // o primeiro item encontrado, mantendo os demais recolhidos.
+  // Sem filtro, abre o primeiro nivel (o modulo) para ja mostrar os grupos; ao aplicar filtro,
+  // expande apenas o caminho até o primeiro item encontrado, mantendo os demais recolhidos.
   useEffect(() => {
-    if (!hasActiveFilter) { setExpanded(new Set()); return; }
+    if (!hasActiveFilter) { setExpanded(new Set([...root.children.keys(), ORFAOS_ID])); return; }
     const path: string[] = [];
     const dfs = (n: TreeNode): boolean => {
-      const kids = Array.from(n.children.values()).sort(
-        (a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment),
-      );
+      const kids = Array.from(n.children.values()).sort(ORDEM_SEGMENTO);
       for (const k of kids) {
         path.push(k.id);
         if (k.items.length > 0) return true;
@@ -385,7 +395,7 @@ export function FalhasTab({
       if (n.items.length > 0) return true;
       const kids = Array.from(n.children.values())
         .filter((k) => k.counts.total > 0)
-        .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment));
+        .sort(ORDEM_SEGMENTO);
       for (const k of kids) {
         path.push(k.id);
         if (dfs(k)) return true;
@@ -398,32 +408,23 @@ export function FalhasTab({
   };
 
 
-  const SubTabBtn = ({ id, label, count, tone }: { id: typeof subTab; label: string; count: number; tone?: string }) => (
-    <button
-      onClick={() => setSubTab(id)}
-      className={`px-3 h-8 rounded-md text-xs font-medium transition-smooth border ${
-        subTab === id ? "bg-primary/15 border-primary/40 text-primary" : "bg-background border-border text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {label} <span className={`font-mono ml-1 ${tone || ""}`}>({count})</span>
-    </button>
-  );
-
-  const rootChildren = Array.from(root.children.values()).sort((a, b) => Number(a.segment) - Number(b.segment));
+  const rootChildren = Array.from(root.children.values()).sort(ORDEM_SEGMENTO);
   const isEmpty = filtered.length === 0;
 
   return (
     <div className="space-y-4">
       <Card className="glass-card p-4 space-y-3">
         <div className="flex flex-wrap gap-2">
-          <SubTabBtn id="quebra" label="Quebras" count={counts.quebra} tone="text-destructive" />
-          <SubTabBtn id="diferenca" label="Diferenças" count={counts.diferenca} tone="text-warning" />
-          <SubTabBtn id="quebra_diferenca" label="Quebra + Diferença" count={counts.quebra_diferenca} tone="text-fuchsia-500 dark:text-fuchsia-400" />
-          <SubTabBtn id="todos" label="Todos" count={counts.todos} />
+          <SubTabBtn ativo={subTab === "quebra"} onClick={() => setSubTab("quebra")} label="Quebras" count={counts.quebra} tone={TIPO_COR.quebra.texto} />
+          <SubTabBtn ativo={subTab === "diferenca"} onClick={() => setSubTab("diferenca")} label="Diferenças" count={counts.diferenca} tone={TIPO_COR.diferenca.texto} />
+          <SubTabBtn ativo={subTab === "quebra_diferenca"} onClick={() => setSubTab("quebra_diferenca")} label="Quebra + Diferença" count={counts.quebra_diferenca} tone={TIPO_COR.quebra_diferenca.texto} />
+          <SubTabBtn ativo={subTab === "todos"} onClick={() => setSubTab("todos")} label="Todos" count={counts.todos} />
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Search className="h-4 w-4 text-muted-foreground" />
+          <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
           <Input
+            type="search"
+            aria-label="Buscar falhas"
             placeholder="Buscar por ID, nome, mensagem de erro ou arquivo... (Esc limpa)"
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -435,17 +436,15 @@ export function FalhasTab({
             <ToggleChip label="Lista" icon={<List className="h-3.5 w-3.5" />} active={view === "lista"} onClick={() => changeView("lista")} />
             {view === "arvore" && (
               <>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
-                <Button size="sm" variant="outline" className="h-8 text-xs" onClick={collapseAll}>Recolher tudo</Button>
+                <Button size="sm" variant="outline" className="h-11 text-xs md:h-8" onClick={expandAll}><FolderTree className="h-3.5 w-3.5" /> Expandir tudo</Button>
+                <Button size="sm" variant="outline" className="h-11 text-xs md:h-8" onClick={collapseAll}>Recolher tudo</Button>
               </>
             )}
           </div>
         </div>
-        {hasActiveFilter && (
-          <div className="flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
-            <span className="ml-auto max-sm:ml-0">Mostrando {filtered.length} de {enriched.length} falhas</span>
-          </div>
-        )}
+        <p role="status" className={hasActiveFilter ? "text-right text-xs text-muted-foreground max-sm:text-left" : "sr-only"}>
+          {hasActiveFilter ? `Mostrando ${filtered.length} de ${enriched.length} ${enriched.length === 1 ? "falha" : "falhas"}` : ""}
+        </p>
       </Card>
 
       {isEmpty ? (
@@ -457,7 +456,7 @@ export function FalhasTab({
       ) : view === "lista" ? (
         <FalhasLista items={filtered} onSelect={onSelect} onCompare={onCompare} />
       ) : (
-        <Card className="p-2 md:p-3 max-sm:[--tree-step:8px] bg-card/60 backdrop-blur-xl border-border/70 shadow-[0_8px_32px_-12px_hsl(222_50%_2%/0.5)]">
+        <Card className="p-2 md:p-3 max-sm:[--tree-step:8px]">
           <div className="space-y-0.5">
             {rootChildren.map((c) => (
               <TreeNodeView key={c.id} node={c} depth={0} expanded={expanded} onToggle={toggle} onSmartOpen={smartOpen} onSelect={onSelect} onCompare={onCompare} />
@@ -478,8 +477,8 @@ function CountsPills({ counts }: { counts: TreeNode["counts"] }) {
   const pill = "text-[10px] font-medium px-1.5 py-0 rounded-full border tabular-nums";
   return (
     <div className="flex gap-1 flex-wrap">
-      {counts.quebra > 0 && <Badge variant="outline" className={`${pill} bg-rose-500/10 text-rose-300 border-rose-500/25`}>{counts.quebra} quebra</Badge>}
-      {totalDif > 0 && <Badge variant="outline" className={`${pill} bg-amber-500/10 text-amber-300 border-amber-500/25`}>{totalDif} dif.</Badge>}
+      {counts.quebra > 0 && <Badge variant="outline" className={`${pill} ${TIPO_COR.quebra.selo}`}>{counts.quebra} quebra</Badge>}
+      {totalDif > 0 && <Badge variant="outline" className={`${pill} ${TIPO_COR.diferenca.selo}`}>{totalDif} dif.</Badge>}
     </div>
   );
 }
@@ -509,6 +508,16 @@ function nodeStyleForDepth(depth: number, open: boolean) {
   };
 }
 
+/** Seta unica que gira ao abrir (antes trocava de icone e o giro declarado nunca acontecia). */
+function Seta({ aberto }: { aberto: boolean }) {
+  return (
+    <ChevronRight
+      aria-hidden
+      className={`h-3.5 w-3.5 transition-transform duration-200 ease-out-strong ${aberto ? "rotate-90" : ""}`}
+    />
+  );
+}
+
 function TreeNodeView({
   node, depth, expanded, onToggle, onSmartOpen, onSelect, onCompare,
 }: {
@@ -526,20 +535,23 @@ function TreeNodeView({
 
   return (
     <div>
-      <div
-        className={`group flex items-center gap-2.5 pr-2 rounded-lg cursor-pointer transition-colors hover:bg-secondary/60 ${style.row}`}
+      {/* Botao de verdade: chega pelo Tab, abre com Enter/Espaco e o leitor de tela diz se esta aberto. */}
+      <button
+        type="button"
+        aria-expanded={hasChildren ? open : undefined}
+        disabled={!hasChildren}
+        className={`group flex w-full items-center gap-2.5 pr-2 rounded-lg text-left transition-colors hover:bg-secondary/60 active:bg-secondary disabled:cursor-default max-md:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${style.row}`}
         style={{ paddingLeft: `calc(${indent} + 8px)` }}
-        onClick={() => hasChildren && onSmartOpen(node, depth)}
+        onClick={() => onSmartOpen(node, depth)}
       >
-
-        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground transition-transform" style={{ transform: open ? "rotate(0deg)" : "rotate(0deg)" }}>
-          {hasChildren ? (open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />) : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
+        <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground group-hover:text-foreground">
+          {hasChildren ? <Seta aberto={open} /> : <span className="w-1 h-1 rounded-full bg-muted-foreground/60" />}
         </span>
         <span className={`shrink-0 tabular-nums tracking-tight ${style.idChip}`}>
           [{node.id}]
         </span>
-        <span className={`truncate ${style.label}`}>{node.label}</span>
-      </div>
+        <span className={`truncate ${style.label}`} title={node.label || undefined}>{node.label}</span>
+      </button>
       {open && (
         <div className="relative">
           {/* Linha guia sutil */}
@@ -552,7 +564,7 @@ function TreeNodeView({
             <LeafItemCard key={it.f.id} item={it} depth={depth + 1} onSelect={onSelect} onCompare={onCompare} />
           ))}
           {Array.from(node.children.values())
-            .sort((a, b) => Number(a.segment) - Number(b.segment) || a.segment.localeCompare(b.segment))
+            .sort(ORDEM_SEGMENTO)
             .map((c) => (
               <TreeNodeView key={c.id} node={c} depth={depth + 1} expanded={expanded} onToggle={onToggle} onSmartOpen={onSmartOpen} onSelect={onSelect} onCompare={onCompare} />
             ))}
@@ -571,41 +583,34 @@ function LeafItemCard({
 }) {
   const { f, tipo, pairs } = item;
   const desc = failureDescription(f);
-  const isQuebra = tipo === "quebra" || tipo === "quebra_diferenca";
   const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
   const indent = `calc(var(--tree-step, 16px) * ${depth} + 20px)`;
   const classificacaoKey = (f.classificacao || "").toLowerCase().replace(/\s+/g, "_").replace(/\//g, "_");
   const showClassification = !!f.classificacao && !["test_break", "file_difference", "test_break_file_difference", "break", "difference", "report_difference", "report_diff"].includes(classificacaoKey);
 
-  const accent =
-    tipo === "quebra" ? "border-rose-500/40"
-    : tipo === "diferenca" ? "border-amber-700/50"
-    : "border-fuchsia-500/40";
-
+  // O card inteiro abre o detalhe com o mouse; pelo teclado o caminho e o botao "Detalhes"
+  // (antes o card era role=button com botoes dentro: dois alvos aninhados para o leitor de tela).
   return (
     <div
-      className={`ml-1 my-2 border-l-2 ${accent} bg-card/80 hover:bg-card border border-border/60 hover:border-border rounded-r-lg cursor-pointer transition-colors shadow-sm hover:shadow-md`}
+      className="ml-1 my-2 rounded-lg border border-border/60 bg-card/80 cursor-pointer transition-[background-color,border-color,transform] duration-150 ease-out-strong hover:bg-card hover:border-border active:scale-[0.995]"
       style={{ marginLeft: indent }}
       onClick={() => onSelect(f)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
     >
       <div className="px-4 py-3 space-y-2.5">
-        {/* Cabeçalho: Código + Status */}
-        <div className="flex items-start gap-2.5 flex-wrap">
-          <div className="flex-1 min-w-0" />
+        {/* Tipo, severidade e o botao de detalhe na mesma linha: o card fica mais baixo. */}
+        <div className="flex items-center gap-2 flex-wrap">
           <TipoBadge tipo={tipo} />
+          {f.severidade && <SeverityBadge value={f.severidade} />}
+          {showClassification && <ClassificationBadge value={f.classificacao} />}
+          <Button
+            size="sm"
+            variant="secondary"
+            className="ml-auto h-11 text-xs border border-border/60 md:h-7"
+            onClick={(e) => { e.stopPropagation(); onSelect(f); }}
+          >
+            Detalhes
+          </Button>
         </div>
-
-
-        {/* Metadata secundária */}
-        {(f.severidade || showClassification) && (
-          <div className="flex items-center gap-2 flex-wrap">
-            {f.severidade && <SeverityBadge value={f.severidade} />}
-            {showClassification && <ClassificationBadge value={f.classificacao} />}
-          </div>
-        )}
 
         {/* Descrição */}
         {desc && (
@@ -614,7 +619,7 @@ function LeafItemCard({
 
         {/* Pares de comparação */}
         {isDiff && pairs.length > 0 && (
-          <div className="space-y-1.5 pt-1">
+          <div className="space-y-1.5">
             {pairs.map((p) => {
               const ext = (p.extensao || "").trim().toLowerCase().replace(/^\.+/, "");
               const displayName = cleanFileName(p.base?.nome_arquivo, p.extensao) || cleanFileName(p.atual?.nome_arquivo, p.extensao);
@@ -625,7 +630,7 @@ function LeafItemCard({
                   <Button
                     size="sm"
                     variant="default"
-                    className="h-7 text-xs"
+                    className="h-11 text-xs md:h-7"
                     onClick={(e) => { e.stopPropagation(); onCompare(p, f); }}
                   >
                     Ver diferenças
@@ -638,22 +643,12 @@ function LeafItemCard({
         {isDiff && pairs.length === 0 && (
           <p className="text-[11px] text-muted-foreground italic">Arquivos de comparação não vinculados.</p>
         )}
-
-        {/* Rodapé de ações */}
-        <div className="flex justify-end pt-1">
-          <Button
-            size="sm"
-            variant="secondary"
-            className="h-7 text-xs bg-secondary hover:bg-secondary/80 border border-border/60"
-            onClick={(e) => { e.stopPropagation(); onSelect(f); }}
-          >
-            Detalhes
-          </Button>
-        </div>
       </div>
     </div>
   );
 }
+
+const ORFAOS_ID = "__orphan__";
 
 function OrphanGroup({
   items, expanded, onToggle, onSelect, onCompare,
@@ -663,25 +658,26 @@ function OrphanGroup({
   onSelect: (f: Falha) => void;
   onCompare: (p: ComparisonPair, f: Falha) => void;
 }) {
-  const id = "__orphan__";
-  const open = expanded.has(id) || !expanded.size;
+  const open = expanded.has(ORFAOS_ID);
   const counts = items.reduce(
     (acc, it) => { acc[it.tipo]++; acc.total++; return acc; },
     { quebra: 0, diferenca: 0, quebra_diferenca: 0, total: 0 } as TreeNode["counts"],
   );
   return (
     <div>
-      <div
-        className="group flex items-center gap-2 py-1.5 pr-2 pl-2 rounded-md hover:bg-secondary/40 cursor-pointer"
-        onClick={() => onToggle(id)}
+      <button
+        type="button"
+        aria-expanded={open}
+        className="group flex w-full items-center gap-2 py-1.5 pr-2 pl-2 rounded-md text-left transition-colors hover:bg-secondary/40 active:bg-secondary max-md:min-h-11 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        onClick={() => onToggle(ORFAOS_ID)}
       >
         <span className="w-4 h-4 flex items-center justify-center shrink-0 text-muted-foreground">
-          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          <Seta aberto={open} />
         </span>
         <span className="font-mono text-sm font-bold text-muted-foreground bg-muted/40 border border-border rounded px-2 py-0.5 shrink-0">[sem ID]</span>
         <span className="text-sm text-muted-foreground truncate">Sem identificação numérica</span>
-        <div className="ml-auto"><CountsPills counts={counts} /></div>
-      </div>
+        <span className="ml-auto"><CountsPills counts={counts} /></span>
+      </button>
       {open && (
         <div>
           {items.map((it) => (
@@ -699,7 +695,7 @@ function ToggleChip({ label, active, onClick, icon }: { label: string; active: b
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`h-8 px-3 rounded-md border text-xs transition-smooth inline-flex items-center gap-1.5 ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
+      className={`h-11 md:h-8 px-3 rounded-md border text-xs inline-flex items-center gap-1.5 transition-[color,background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] ${active ? "border-primary bg-primary/10 text-primary" : "border-border bg-background text-muted-foreground hover:text-foreground"}`}
     >
       {icon}{label}
     </button>
@@ -719,6 +715,8 @@ function compareCaseIds(a: string | null, b: string | null): number {
   return 0;
 }
 
+const LISTA_POR_PAGINA = 50;
+
 /** Modo lista: uma linha por falha, ordenada pelo ID do caso. */
 function FalhasLista({
   items, onSelect, onCompare,
@@ -731,46 +729,51 @@ function FalhasLista({
     () => [...items].sort((a, b) => compareCaseIds(a.f.id_caso_teste, b.f.id_caso_teste)),
     [items],
   );
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => { setPagina(1); }, [items]);
+  const visiveis = ordenados.slice((pagina - 1) * LISTA_POR_PAGINA, pagina * LISTA_POR_PAGINA);
   return (
-    <Card className="glass-card divide-y divide-border/60 overflow-hidden">
-      {ordenados.map(({ f, tipo, pairs }) => {
-        const desc = failureDescription(f);
-        const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
-        return (
-          <div
-            key={f.id}
-            className="flex flex-col gap-2 px-4 py-2.5 hover:bg-secondary/40 cursor-pointer md:flex-row md:items-center md:gap-4"
-            role="button"
-            tabIndex={0}
-            onClick={() => onSelect(f)}
-            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(f); } }}
-          >
-            <div className="flex items-center gap-2 shrink-0 md:w-52">
-              <TipoBadge tipo={tipo} />
-              {f.id_caso_teste && <Badge variant="outline" className="font-mono text-[11px]">#{f.id_caso_teste}</Badge>}
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium truncate">{f.caso_teste_provavel || "Caso sem nome no MDS"}</div>
-              {desc && desc !== f.caso_teste_provavel && <div className="text-xs text-muted-foreground line-clamp-1">{desc}</div>}
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              {isDiff && pairs.length > 0 && (
-                <Button size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); onCompare(pairs[0], f); }}>
-                  Ver diferenças{pairs.length > 1 ? ` (${pairs.length})` : ""}
+    <div className="space-y-3">
+      <Card className="glass-card divide-y divide-border/60 overflow-hidden">
+        {visiveis.map(({ f, tipo, pairs }) => {
+          const desc = failureDescription(f);
+          const isDiff = tipo === "diferenca" || tipo === "quebra_diferenca";
+          const nome = f.caso_teste_provavel || "Caso sem nome no MDS";
+          // Linha clicavel com o mouse; pelo teclado, os botoes da direita (sem botao dentro de botao).
+          return (
+            <div
+              key={f.id}
+              className="flex flex-col gap-2 px-4 py-2.5 cursor-pointer transition-colors hover:bg-secondary/40 active:bg-secondary/70 md:flex-row md:items-center md:gap-4"
+              onClick={() => onSelect(f)}
+            >
+              <div className="flex items-center gap-2 shrink-0 md:w-52">
+                <TipoBadge tipo={tipo} />
+                {f.id_caso_teste && <Badge variant="outline" className="font-mono text-[11px]">#{f.id_caso_teste}</Badge>}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium truncate" title={nome}>{nome}</div>
+                {desc && desc !== f.caso_teste_provavel && <div className="text-xs text-muted-foreground line-clamp-1" title={desc}>{desc}</div>}
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {isDiff && pairs.length > 0 && (
+                  <Button size="sm" className="h-11 text-xs md:h-7" onClick={(e) => { e.stopPropagation(); onCompare(pairs[0], f); }}>
+                    Ver diferenças{pairs.length > 1 ? ` (${pairs.length})` : ""}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-11 text-xs border border-border/60 md:h-7"
+                  onClick={(e) => { e.stopPropagation(); onSelect(f); }}
+                >
+                  Detalhes
                 </Button>
-              )}
-              <Button
-                size="sm"
-                variant="secondary"
-                className="h-7 text-xs border border-border/60"
-                onClick={(e) => { e.stopPropagation(); onSelect(f); }}
-              >
-                Detalhes
-              </Button>
+              </div>
             </div>
-          </div>
-        );
-      })}
-    </Card>
+          );
+        })}
+      </Card>
+      <Paginacao page={pagina} pageSize={LISTA_POR_PAGINA} total={ordenados.length} onChange={setPagina} />
+    </div>
   );
 }

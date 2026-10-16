@@ -281,10 +281,13 @@ describe("rodagem completa", () => {
     api.deleteRunPreset.mockImplementation(async () => {
       api.presets = [];
     });
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     openConfigurada();
     await openPresetList();
     fireEvent.click(screen.getByRole("button", { name: "Excluir Casos NFe" }));
+    // Confirma numa janela propria (antes window.confirm).
+    const janela = await screen.findByRole("dialog", { name: "Excluir pré-definição?" });
+    expect(api.deleteRunPreset).not.toHaveBeenCalled();
+    fireEvent.click(within(janela).getByRole("button", { name: "Excluir" }));
     await waitFor(() => expect(api.deleteRunPreset).toHaveBeenCalledWith("p1"));
     expect(await screen.findByText("Nenhuma pré-definição salva")).toBeInTheDocument();
   });
@@ -360,11 +363,12 @@ describe("rodagem completa", () => {
     auth.isAdmin = true;
     api.presets = [{ ...preset("p2", "NFe do Joao", "configurada", { vm_name: "a02" }), created_by: "joao" }];
     api.deleteRunPreset.mockResolvedValue(undefined);
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     openConfigurada();
     await openPresetList();
     fireEvent.click(screen.getByRole("button", { name: "Excluir NFe do Joao" }));
-    expect(confirm.mock.calls[0][0]).toMatch(/de joao/);
+    const janela = await screen.findByRole("dialog", { name: "Excluir pré-definição?" });
+    expect(janela).toHaveTextContent(/de joao e some para todos/);
+    fireEvent.click(within(janela).getByRole("button", { name: "Excluir" }));
     await waitFor(() => expect(api.deleteRunPreset).toHaveBeenCalledWith("p2"));
   });
 
@@ -581,5 +585,54 @@ describe("ordem das branches", () => {
       "Unico (principal)", "contabil_dere", "Folha_sustentação", "Proxima10_0", "12_teste", "199034_backup", "252397_ajuste",
     ]);
     expect(opcoes[0].valor).toBe("local");
+  });
+});
+
+describe("auditoria parte 3: rodagem completa", () => {
+  it("data agendada: trocar Agora/Agendar nao deixa data escondida no pedido", async () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    fireEvent.change(screen.getByLabelText("Versão"), { target: { value: "PROXIMA" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Agendar" }));
+    const futuro = new Date(Date.now() + 86_400_000);
+    const p = (n: number) => String(n).padStart(2, "0");
+    const valor = `${futuro.getFullYear()}-${p(futuro.getMonth() + 1)}-${p(futuro.getDate())}T22:30`;
+    fireEvent.change(screen.getByLabelText("Data e hora do agendamento"), { target: { value: valor } });
+    fireEvent.click(screen.getByRole("radio", { name: "Agora" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Agendar" }));
+    // O campo volta com a data escolhida (antes voltava vazio e a data seguia escondida no pedido).
+    expect(screen.getByLabelText("Data e hora do agendamento")).toHaveValue(valor);
+    fireEvent.change(screen.getByLabelText("Data e hora do agendamento"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Escolha a data e a hora.");
+    expect(api.createRerunRequest).not.toHaveBeenCalled();
+  });
+
+  it("versao vazia: erro embaixo do campo e o campo marcado", async () => {
+    renderPage(<JenkinsRodagemCompleta />);
+    fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Informe a versão.");
+    expect(screen.getByLabelText("Versão")).toHaveAttribute("aria-invalid", "true");
+    expect(api.createRerunRequest).not.toHaveBeenCalled();
+  });
+
+  it("VM e Modulo tem nome; status em portugues e acoes do historico com nome", async () => {
+    api.requests = [request("r1", "2026-10-01T10:00:00Z", "na_fila"), request("r2", "2026-10-01T09:00:00Z", "finalizado_sucesso")];
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(screen.getByRole("combobox", { name: "VM" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Módulo" })).toBeInTheDocument();
+    expect(await screen.findByText("Na fila")).toBeInTheDocument();
+    expect(screen.getByText("Finalizado")).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Copiar a configuração enviada" })).toHaveLength(2);
+    expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+  });
+
+  it("cancelar pede confirmacao numa janela com os dados do pedido", async () => {
+    api.requests = [request("r1", "2026-10-01T10:00:00Z", "rodando")];
+    renderPage(<JenkinsRodagemCompleta />);
+    fireEvent.click(await screen.findByRole("button", { name: /Cancelar/ }));
+    const janela = await screen.findByRole("dialog", { name: "Cancelar esta rodagem?" });
+    expect(janela).toHaveTextContent("a07");
+    fireEvent.click(within(janela).getByRole("button", { name: "Voltar" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 });

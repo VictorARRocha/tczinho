@@ -16,7 +16,11 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
-import { podeNoModulo } from "@/lib/permissoes";
+import { nomeModulo, podeNoModulo } from "@/lib/permissoes";
+import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
+import { TOM_STATUS } from "@/lib/statusPedido";
+import { useUltimoValor } from "@/hooks/usePainel";
+import { ConfirmarAcao } from "@/components/ConfirmarAcao";
 import { mensagemDaApi } from "@/lib/apiErro";
 import { opcoesBranch } from "@/lib/branchVm";
 import { cn } from "@/lib/utils";
@@ -100,10 +104,16 @@ export default function RegravarBases() {
 
   const vmOptions = useMemo(() => Array.from(new Set(runs.map(runVm).filter(Boolean))).sort(), [runs]);
   const moduloOptions = useMemo(() => Array.from(new Set(runs.map(runModulo).filter(Boolean))).sort(), [runs]);
+  // Versoes na mesma ordem da Reexecucao e so as que a VM (e o modulo) escolhidos ja rodaram.
   const versaoOptions = useMemo(
-    () => Array.from(new Set(runs.map((r) => (r.versao || "").toString()).filter(Boolean))).sort(),
-    [runs],
+    () => ordenarVersoes(Array.from(new Set(runs
+      .filter((r) => (fVm === "all" || runVm(r) === fVm) && (fModulo === "all" || runModulo(r) === fModulo))
+      .map((r) => (r.versao || "").toString()).filter(Boolean)))),
+    [runs, fVm, fModulo],
   );
+  useEffect(() => {
+    if (fVersao !== "all" && !versaoOptions.includes(fVersao)) setFVersao("all");
+  }, [fVersao, versaoOptions]);
   const filteredRuns = useMemo(
     () => runs.filter((r) =>
       (fVm === "all" || runVm(r) === fVm) &&
@@ -136,9 +146,11 @@ export default function RegravarBases() {
   const { data: evidencias = [] } = useRunEvidences(runId || null);
   const { data: falhas = [] } = useRunFailures(runId || null);
   const [casoAberto, setCasoAberto] = useState<Falha | null>(null);
+  // Paineis montados depois de abertos uma vez: a saida anima inteira (o foco ja volta pelo proprio painel).
+  const casoPainel = useUltimoValor(casoAberto);
   const evidenciasDoCaso = useMemo(
-    () => (casoAberto ? evidencias.filter((e) => e.falha_id === casoAberto.id) : []),
-    [casoAberto, evidencias],
+    () => (casoPainel ? evidencias.filter((e) => e.falha_id === casoPainel.id) : []),
+    [casoPainel, evidencias],
   );
   // Mesmo painel da aba Falhas: abre a falha (caso) dona da diferenca.
   const abrirCaso = (item: RegravacaoItem) => {
@@ -170,6 +182,9 @@ export default function RegravarBases() {
   const [detalhe, setDetalhe] = useState<RegravacaoPedido | null>(null);
   const [avisoOculto, setAvisoOculto] = useState<string | null>(null);
   const [comparar, setComparar] = useState<ComparisonPair | null>(null);
+  const compararPainel = useUltimoValor(comparar);
+  const [paraCancelar, setParaCancelar] = useState<RegravacaoPedido | null>(null);
+  const [cancelando, setCancelando] = useState(false);
   const envioRef = useRef<HTMLDivElement>(null);
 
   // Troca de rodagem limpa a selecao, volta a mensagem para o padrao e desliga a outra branch.
@@ -246,7 +261,7 @@ export default function RegravarBases() {
     setEnviando(true);
     try {
       await createRegravacao({ run_id: runId, difference_ids: [...marcados], mensagem, ...(destinoEscolhido ? { branch_url: destinoEscolhido } : {}) });
-      toast.success("Pedido de regravação enviado", { description: "O RegravacaoBridge da D01 vai conferir e gravar no SVN." });
+      toast.success("Pedido de regravação enviado", { description: "Ele entra na fila e a base é conferida antes de gravar no SVN." });
       setConfirmOpen(false);
       setMarcados(new Set());
       setMensagemEditada(false);
@@ -260,14 +275,19 @@ export default function RegravarBases() {
     }
   };
 
-  const cancelar = async (pedido: RegravacaoPedido) => {
-    if (!window.confirm("Cancelar este pedido de regravação?")) return;
+  // Confirmacao numa janela propria, com os arquivos do pedido (antes window.confirm).
+  const cancelar = async () => {
+    if (!paraCancelar) return;
+    setCancelando(true);
     try {
-      await cancelRegravacao(pedido.id);
+      await cancelRegravacao(paraCancelar.id);
       toast.success("Pedido cancelado");
+      setParaCancelar(null);
       await invalidateRegravacao(runId);
     } catch (e) {
       toast.error("Não foi possível cancelar", { description: apiMessage(e) });
+    } finally {
+      setCancelando(false);
     }
   };
 
@@ -315,8 +335,8 @@ export default function RegravarBases() {
           >
             {filteredRuns.map((r) => (
               <SelectItem key={r.id_rodagem} value={r.id_rodagem} className="max-sm:whitespace-normal">
-                {r.versao || "—"} — {runVm(r) || "—"} — {runModulo(r) || "—"} —{" "}
-                {r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—"} — {r.total_falhas ?? 0} falhas
+                {formatarVersao(r.versao) || "—"} — {formatarVm(runVm(r)) || "—"} — {nomeModulo(runModulo(r)) || "—"} —{" "}
+                {r.data_inicio ? new Date(r.data_inicio).toLocaleString("pt-BR") : "—"} — {r.total_falhas ?? 0} {(r.total_falhas ?? 0) === 1 ? "falha" : "falhas"}
                 {" "}— TC: {branchTc(r.repository_url) || "sem branch registrada"}
               </SelectItem>
             ))}
@@ -338,7 +358,7 @@ export default function RegravarBases() {
                   {candidatos.repository_revision && <> (rodagem na revisão {candidatos.repository_revision})</>}
                 </>
               ) : (
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className="text-warning">
                   esta rodagem não registrou a branch do TC; não é possível regravar.
                 </span>
               )}
@@ -347,7 +367,7 @@ export default function RegravarBases() {
               <>
                 <dt>Regravar em:</dt>
                 <dd>
-                  <strong className="text-amber-600 dark:text-amber-400">{destinoLabel(branchUrl)}</strong>{" "}
+                  <strong className="text-warning">{destinoLabel(branchUrl)}</strong>{" "}
                   <span className="font-mono break-all">{branchUrl}</span>
                 </dd>
               </>
@@ -366,21 +386,22 @@ export default function RegravarBases() {
       {/* Arquivos */}
       {runId && (
         <Card className="overflow-hidden mb-5">
+          <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">2. Arquivos</h2>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" disabled={!regravaveis.length}
+              <Button size="sm" variant="outline" className="max-md:h-11" disabled={!regravaveis.length}
                 onClick={() => setMarcados(new Set(regravaveis.map((i) => i.difference_id)))}>
                 Marcar regraváveis
               </Button>
-              <Button size="sm" variant="outline" disabled={!marcados.size} onClick={() => setMarcados(new Set())}>
+              <Button size="sm" variant="outline" className="max-md:h-11" disabled={!marcados.size} onClick={() => setMarcados(new Set())}>
                 Desmarcar
               </Button>
-              <label className="inline-flex h-9 items-center gap-2 px-1 text-sm text-muted-foreground cursor-pointer">
+              <label className="inline-flex h-11 items-center gap-2 px-1 text-sm text-muted-foreground cursor-pointer md:h-9">
                 <Checkbox checked={soRegravaveis} onCheckedChange={(v) => setSoRegravaveis(v === true)} />
                 Mostrar só os regraváveis
               </label>
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground" role="status">
               <span className="font-mono text-foreground">{marcados.size}</span> {marcados.size === 1 ? "marcado" : "marcados"} · <span>{`${regravaveis.length} de ${itens.length} ${regravaveis.length === 1 ? "regravável" : "regraváveis"}`}</span>
             </span>
           </div>
@@ -391,7 +412,7 @@ export default function RegravarBases() {
                   value={sortKey ?? "none"}
                   onValueChange={(v) => { setSortKey(v === "none" ? null : (v as SortKey)); setSortDir("asc"); }}
                 >
-                  <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">Ordem original</SelectItem>
                     {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
@@ -400,7 +421,7 @@ export default function RegravarBases() {
                   </SelectContent>
                 </Select>
                 <Button
-                  size="icon" variant="outline" className="h-9 w-9 shrink-0" disabled={!sortKey}
+                  size="icon" variant="outline" className="h-11 w-11 shrink-0" disabled={!sortKey}
                   aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
                   onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
                 >
@@ -408,7 +429,7 @@ export default function RegravarBases() {
                 </Button>
               </div>
               {loadingItens ? (
-                <p className="py-8 text-center text-sm text-muted-foreground">Carregando…</p>
+                <p className="py-8 text-center text-sm text-muted-foreground" role="status">Carregando…</p>
               ) : itensError ? (
                 <p className="py-8 text-center text-sm text-destructive">{erroItensTexto}</p>
               ) : visiveis.length === 0 ? (
@@ -435,7 +456,7 @@ export default function RegravarBases() {
                       </label>
                       <div className="min-w-0 flex-1 space-y-1.5">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <button type="button" className="font-mono text-xs text-primary hover:underline" onClick={() => abrirCaso(item)}>
+                          <button type="button" className="-my-3 inline-flex min-h-11 items-center font-mono text-xs text-primary hover:underline" onClick={() => abrirCaso(item)} aria-label={`Abrir o caso ${item.id_caso_teste}`}>
                             {item.id_caso_teste}
                           </button>
                           <SituacaoBadge item={item} />
@@ -445,13 +466,13 @@ export default function RegravarBases() {
                           {item.caminho_base ? caminhoBridge(item.caminho_base) : "Sem base no repositório"}
                         </p>
                         {!item.regravavel && item.motivo_texto && (
-                          <p className="text-[11px] text-amber-700 dark:text-amber-400">{item.motivo_texto}</p>
+                          <p className="text-[11px] text-warning">{item.motivo_texto}</p>
                         )}
                         <div className="flex items-center justify-between gap-2">
                           <span className="text-[11px] text-muted-foreground">
                             {item.linhas_alteradas ?? "—"} {item.linhas_alteradas === 1 ? "linha alterada" : "linhas alteradas"}
                           </span>
-                          <Button size="sm" variant="outline" className="h-8" onClick={() => abrirComparacao(item)}>
+                          <Button size="sm" variant="outline" className="h-11" onClick={() => abrirComparacao(item)}>
                             <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
                           </Button>
                         </div>
@@ -477,7 +498,7 @@ export default function RegravarBases() {
               </TableHeader>
               <TableBody>
                 {loadingItens ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">Carregando…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground"><span role="status">Carregando…</span></TableCell></TableRow>
                 ) : itensError ? (
                   <TableRow><TableCell colSpan={7} className="py-8 text-center text-destructive">{erroItensTexto}</TableCell></TableRow>
                 ) : visiveis.length === 0 ? (
@@ -536,7 +557,7 @@ export default function RegravarBases() {
             <h2 className="text-base font-semibold">3. Mensagem do commit</h2>
             <div className="flex items-center gap-2">
               {mensagemEditada && (
-                <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400">Editada</Badge>
+                <Badge variant="outline" className={`text-[10px] ${TOM_STATUS.aviso}`}>Editada</Badge>
               )}
               <Button size="sm" variant="ghost" disabled={!mensagemEditada} onClick={() => setMensagemEditada(false)}>
                 <RotateCcw className="h-3.5 w-3.5 mr-1" /> Restaurar padrão
@@ -557,10 +578,10 @@ export default function RegravarBases() {
           </p>
           <Collapsible open={avancadasOpen} onOpenChange={setAvancadasOpen}>
             <CollapsibleTrigger asChild>
-              <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", avancadasOpen && "rotate-90")} />
+              <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:min-h-0">
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", avancadasOpen && "rotate-90")} aria-hidden />
                 Opções avançadas
-                {outraBranch && <span className="ml-1 rounded-full bg-amber-500/15 px-1.5 text-[10px] text-amber-700 dark:text-amber-400">outra branch</span>}
+                {outraBranch && <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">outra branch</span>}
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
@@ -584,10 +605,10 @@ export default function RegravarBases() {
                       </SelectContent>
                     </Select>
                     {outrasBranches.length === 0 && (
-                      <p className="ml-6 text-xs text-muted-foreground">A lista de branches do SVN ainda não chegou (vem do MergeBridge).</p>
+                      <p className="ml-6 text-xs text-muted-foreground">A lista de branches do SVN ainda não chegou. Tente de novo em alguns minutos.</p>
                     )}
-                    <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                    <p className="flex items-start gap-1.5 text-xs text-warning">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
                       A base nessa branch precisa ser igual à da rodagem. Se for diferente, nada é gravado (mesma conferência de sempre).
                     </p>
                   </>
@@ -648,9 +669,9 @@ export default function RegravarBases() {
                           )}
                         </p>
                         <div className="flex gap-2">
-                          <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetalhe(p)}>Detalhes</Button>
+                          <Button size="sm" variant="outline" className="h-11 flex-1" onClick={() => setDetalhe(p)}>Detalhes</Button>
                           {podeCancelar(p) && p.status === "solicitado" && (
-                            <Button size="sm" variant="outline" className="h-8 flex-1 text-red-500" onClick={() => cancelar(p)}>
+                            <Button size="sm" variant="outline" className="h-11 flex-1 text-destructive" onClick={() => setParaCancelar(p)}>
                               <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
                             </Button>
                           )}
@@ -697,7 +718,7 @@ export default function RegravarBases() {
                           <div className="flex justify-end gap-1">
                             <Button size="sm" variant="ghost" onClick={() => setDetalhe(p)}>Detalhes</Button>
                             {podeCancelar(p) && p.status === "solicitado" && (
-                              <Button size="sm" variant="ghost" className="text-red-500" onClick={() => cancelar(p)}>
+                              <Button size="sm" variant="ghost" className="text-destructive" onClick={() => setParaCancelar(p)}>
                                 <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
                               </Button>
                             )}
@@ -718,9 +739,9 @@ export default function RegravarBases() {
       {isMobile && marcados.size > 0 && (
         <>
           <div className="h-16" />
-          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 py-3">
+          <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] animate-in slide-in-from-bottom fade-in-0 duration-200 ease-out-strong">
             <span className="text-sm">{marcados.size} {marcados.size === 1 ? "marcado" : "marcados"}</span>
-            <Button size="sm"
+            <Button size="sm" className="h-11"
               onClick={() => envioRef.current?.scrollIntoView({ block: "start" })}>
               <GitCommitHorizontal className="h-4 w-4 mr-1" /> Ir para regravar
             </Button>
@@ -752,7 +773,7 @@ export default function RegravarBases() {
           {outraBranch && (
             <label
               htmlFor="aceite-outra-branch"
-              className="flex cursor-pointer select-none items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm"
+              className="flex cursor-pointer select-none items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm"
             >
               <Checkbox
                 id="aceite-outra-branch"
@@ -789,7 +810,7 @@ export default function RegravarBases() {
               {detalhe.result_json?.conflito ? (
                 <ConflitoAviso pedido={detalhe} destino={detalhe.repository_url || candidatos?.repository_url || null} />
               ) : (
-                detalhe.error_message && <p className="text-red-500 text-xs">{detalhe.error_message}</p>
+                detalhe.error_message && <p className="text-destructive text-xs">{detalhe.error_message}</p>
               )}
               <ul className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
                 {(detalhe.items_json || []).map((item) => {
@@ -818,10 +839,10 @@ export default function RegravarBases() {
         </DialogContent>
       </Dialog>
 
-      {casoAberto && (
+      {casoPainel && (
         <Suspense fallback={null}>
           <FailureDetailSheet
-            falha={casoAberto}
+            falha={casoPainel}
             open={!!casoAberto}
             onClose={() => setCasoAberto(null)}
             evidencias={evidenciasDoCaso}
@@ -829,11 +850,29 @@ export default function RegravarBases() {
         </Suspense>
       )}
 
-      {comparar && (
+      {compararPainel && (
         <Suspense fallback={null}>
-          <FileComparatorDialog open={!!comparar} pair={comparar} onClose={() => setComparar(null)} />
+          <FileComparatorDialog open={!!comparar} pair={compararPainel} onClose={() => setComparar(null)} />
         </Suspense>
       )}
+
+      <ConfirmarAcao
+        aberto={!!paraCancelar}
+        titulo="Cancelar este pedido de regravação?"
+        descricao="O pedido sai da fila e nada é gravado no SVN."
+        acao="Cancelar pedido"
+        ocupado={cancelando}
+        onConfirmar={cancelar}
+        onFechar={() => setParaCancelar(null)}
+      >
+        {paraCancelar && (
+          <ul className="rounded-md border border-border px-3 py-2 text-xs space-y-1">
+            {(paraCancelar.items_json || []).map((i) => (
+              <li key={i.difference_id} className="break-all"><span className="font-mono">{i.id_caso_teste}</span> — {i.caminho_base}</li>
+            ))}
+          </ul>
+        )}
+      </ConfirmarAcao>
     </div>
   );
 }
@@ -842,13 +881,13 @@ export default function RegravarBases() {
 function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedido; destino: string | null; onOcultar?: () => void }) {
   const arquivos = (pedido.result_json?.itens || []).filter((r) => ITEM_CONFLITO.includes(r.status));
   return (
-    <div role="alert" className="mb-3 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 sm:p-4 text-sm space-y-2">
+    <div role="region" aria-label="Conflito no SVN" className="mb-3 rounded-lg border border-warning/40 bg-warning/10 p-3 sm:p-4 text-sm space-y-2">
       <div className="flex items-start justify-between gap-2">
-        <p className="flex items-center gap-2 font-semibold text-amber-700 dark:text-amber-400">
-          <AlertTriangle className="h-4 w-4 shrink-0" /> Conflito no SVN: faça a regravação manualmente
+        <p className="flex items-center gap-2 font-semibold text-warning">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden /> Conflito no SVN: faça a regravação manualmente
         </p>
         {onOcultar && (
-          <Button size="sm" variant="ghost" className="h-7 shrink-0 text-xs" onClick={onOcultar}>Ocultar</Button>
+          <Button size="sm" variant="ghost" className="h-11 shrink-0 text-xs md:h-7" onClick={onOcultar}>Ocultar</Button>
         )}
       </div>
       <p className="text-xs text-muted-foreground">
@@ -856,7 +895,7 @@ function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedid
         gravou o arquivo). Para não sobrescrever o trabalho de ninguém, <strong>nada foi gravado</strong>.
       </p>
       {arquivos.length > 0 && (
-        <ul className="rounded-md border border-amber-500/30 bg-background/60 px-3 py-2 text-xs space-y-1">
+        <ul className="rounded-md border border-warning/30 bg-background/60 px-3 py-2 text-xs space-y-1">
           {arquivos.map((r) => (
             <li key={r.difference_id} className="break-all font-mono">{caminhoBridge(r.caminho_base || "")}</li>
           ))}
@@ -876,9 +915,9 @@ function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedid
 
 function SituacaoBadge({ item }: { item: RegravacaoItem }) {
   return item.regravavel ? (
-    <Badge variant="outline" className="whitespace-nowrap border-green-500/40 text-green-600 dark:text-green-400">Regravável</Badge>
+    <Badge variant="outline" className={`whitespace-nowrap ${TOM_STATUS.sucesso}`}>Regravável</Badge>
   ) : (
-    <Badge variant="outline" className="whitespace-nowrap border-amber-500/40 text-amber-700 dark:text-amber-400" title={item.motivo_texto || ""}>
+    <Badge variant="outline" className={`whitespace-nowrap ${TOM_STATUS.aviso}`} title={item.motivo_texto || ""}>
       {MOTIVO_CURTO[item.motivo || ""] || item.motivo}
     </Badge>
   );

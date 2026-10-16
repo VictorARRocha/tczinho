@@ -36,14 +36,14 @@ function JenkinsAction({ to, icon, title, description }: {
   return (
     <Link
       to={to}
-      className="group flex items-center gap-4 rounded-lg border border-border bg-card p-4 transition-smooth hover:border-primary/50 hover:bg-card/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex items-center gap-4 rounded-lg border border-border bg-card p-4 transition-[border-color,background-color,transform] duration-150 ease-out-strong hover:border-primary/50 hover:bg-card/80 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">{icon}</span>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary" aria-hidden>{icon}</span>
       <span className="min-w-0 flex-1">
         <span className="block font-semibold">{title}</span>
         <span className="block text-sm text-muted-foreground">{description}</span>
       </span>
-      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-150 ease-out-strong group-hover:translate-x-0.5 group-hover:text-foreground" aria-hidden />
     </Link>
   );
 }

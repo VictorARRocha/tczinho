@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle, ArrowLeftRight, ArrowRight, CheckCircle2, ChevronsUpDown, GitMerge, Loader2, Plus, RotateCcw, X, XCircle,
@@ -16,6 +16,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
 import { SemPermissao } from "@/components/SemPermissao";
+import { ConfirmarAcao } from "@/components/ConfirmarAcao";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cancelMerge, createMerge, type MergePedido, type SvnBranch } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateMerges, useMergeBranches, useMerges } from "@/services/queries";
@@ -123,7 +125,7 @@ export default function MergeBranches() {
     }
     if (criados) {
       toast.success(criados > 1 ? `${criados} merges solicitados` : "Merge solicitado", {
-        description: "O MergeBridge da D01 faz um de cada vez. Se algum tiver conflito, só ele é barrado.",
+        description: "Os merges são feitos um de cada vez. Se algum tiver conflito, só ele é barrado.",
       });
     }
     // Ficam na lista so as linhas que falharam (para corrigir e tentar de novo).
@@ -158,7 +160,7 @@ export default function MergeBranches() {
               {linhas.length > 1 && (
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-xs font-medium text-muted-foreground">Merge {index + 1}</span>
-                  <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive" onClick={() => removerLinha(linha.id)}
+                  <Button size="sm" variant="ghost" className="h-11 text-xs text-destructive md:h-8" onClick={() => removerLinha(linha.id)}
                     aria-label={`Remover merge ${index + 1}`}>
                     <X className="h-3.5 w-3.5 mr-1" /> Remover
                   </Button>
@@ -183,8 +185,8 @@ export default function MergeBranches() {
                 <p className="mt-2 text-xs text-destructive">Este merge está repetido na lista.</p>
               )}
               {linha.destino && linha.destino === trunk?.url && linha.origem !== linha.destino && (
-                <p className="mt-2 flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                <p className="mt-2 flex items-start gap-2 text-xs text-warning">
+                  <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
                   O destino é a {trunk.name} (principal): o merge altera a base usada por todos.
                 </p>
               )}
@@ -194,7 +196,7 @@ export default function MergeBranches() {
                     {linhas.length > 1 ? `Mensagem do commit do merge ${index + 1}` : "Mensagem do commit"}
                   </span>
                   {linha.editada && (
-                    <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setLinha(linha.id, { editada: false, mensagem: "" })}>
+                    <Button size="sm" variant="ghost" className="h-11 text-xs md:h-8" onClick={() => setLinha(linha.id, { editada: false, mensagem: "" })}>
                       <RotateCcw className="h-3 w-3 mr-1" /> Restaurar padrão
                     </Button>
                   )}
@@ -213,19 +215,19 @@ export default function MergeBranches() {
           ))}
         </div>
         {!loadingBranches && branches.length === 0 && (
-          <p className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+          <p className="mt-3 text-xs text-warning">
             O MergeBridge da D01 ainda não enviou a lista de branches. Confira se a tarefa "AgenteTC - MergeBridge" está rodando.
           </p>
         )}
         {temTrunk && (
-          <label className="mt-4 flex items-start gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 p-3 text-sm cursor-pointer">
+          <label className="mt-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-3 text-sm cursor-pointer">
             <Checkbox checked={confirmaTrunk} onCheckedChange={(v) => setConfirmaTrunk(v === true)} className="mt-0.5" aria-label="Confirmo alterar a principal" />
             <span><strong>Entendo que vou alterar a {trunk?.name || "principal"}</strong> (principal), que é a base de todas as branches.</span>
           </label>
         )}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-3">
-            <Button variant="outline" size="sm" onClick={adicionarLinha} disabled={branches.length === 0} className="max-sm:w-full">
+            <Button variant="outline" size="sm" onClick={adicionarLinha} disabled={branches.length === 0} className="max-sm:w-full max-md:h-11">
               <Plus className="h-4 w-4 mr-1" /> Adicionar outro merge
             </Button>
             <span className="text-xs text-muted-foreground">
@@ -252,8 +254,8 @@ export default function MergeBranches() {
       {/* Historico */}
       <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base sm:text-lg font-semibold">Histórico de merges</h2>
-        <span className="text-xs text-muted-foreground">Passe o mouse no resultado para ver o que ele quer dizer.</span>
       </div>
+      <TooltipProvider delayDuration={400}>
       <Card className="overflow-hidden">
         {merges.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Nenhum merge ainda.</p>
@@ -265,8 +267,9 @@ export default function MergeBranches() {
                   <span className="text-xs">{dataCurta(m.created_at)}</span>
                   <ResultadoBadge pedido={m} />
                 </div>
-                <p className="break-all text-sm">{m.source_name} <ArrowRight className="inline h-3 w-3" /> {m.target_name}</p>
+                <p className="break-all text-sm">{m.source_name} <ArrowRight className="inline h-3 w-3" aria-label="para" /> {m.target_name}</p>
                 <p className="text-xs text-muted-foreground">{m.requested_by || "—"}</p>
+                {mergeStatus(m).dica && <p className="text-xs text-muted-foreground">{mergeStatus(m).dica}</p>}
               </li>
             ))}
           </ul>
@@ -289,7 +292,7 @@ export default function MergeBranches() {
                       {m.source_name} <ArrowRight className="inline h-3 w-3 text-muted-foreground" /> <strong>{m.target_name}</strong>
                     </TableCell>
                     <TableCell className="py-2.5 text-sm">{m.requested_by || "—"}</TableCell>
-                    <TableCell className="py-2.5"><ResultadoBadge pedido={m} /></TableCell>
+                    <TableCell className="py-2.5"><ResultadoBadge pedido={m} comDica /></TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -297,6 +300,7 @@ export default function MergeBranches() {
           </div>
         )}
       </Card>
+      </TooltipProvider>
       <div className="mt-3">
         <Paginacao page={histPaginaAtual} pageSize={HIST_PAGE} total={merges.length} onChange={setHistPage} />
       </div>
@@ -304,10 +308,22 @@ export default function MergeBranches() {
   );
 }
 
-/** Resultado no historico: "Merge realizado", "Conflito" (ou o andamento/erro). */
-function ResultadoBadge({ pedido }: { pedido: MergePedido }) {
+/** Resultado no historico: "Merge realizado", "Conflito" (ou o andamento/erro). Com dica, o selo
+ *  recebe foco e a explicacao aparece no teclado tambem (antes era so o title, com o mouse). */
+function ResultadoBadge({ pedido, comDica = false }: { pedido: MergePedido; comDica?: boolean }) {
   const meta = mergeStatus(pedido);
-  return <Badge variant="outline" className={`whitespace-nowrap ${meta.className}`} title={meta.dica}>{meta.label}</Badge>;
+  const selo = <Badge variant="outline" className={`whitespace-nowrap ${meta.className}`}>{meta.label}</Badge>;
+  if (!comDica || !meta.dica) return selo;
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button type="button" className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {selo}<span className="sr-only">: {meta.dica}</span>
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>{meta.dica}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 /* ---------------------------------------------------------------- seletor de branch */
@@ -317,13 +333,31 @@ function BranchPicker({ label, branches, value, onChange, placeholder, loading }
 }) {
   const [open, setOpen] = useState(false);
   const [busca, setBusca] = useState("");
+  const [ativa, setAtiva] = useState(0);
   const buscaRef = useRef<HTMLInputElement>(null);
+  const listaId = useId();
   const atual = branches.find((b) => b.url === value) || null;
   const visiveis = branches.filter((b) => combinaBusca(b.name, busca));
+  const indiceAtivo = Math.min(ativa, Math.max(0, visiveis.length - 1));
+  const escolher = (url: string) => { onChange(url); setOpen(false); setBusca(""); };
+  const mover = (passo: number) => {
+    if (!visiveis.length) return;
+    const proximo = (indiceAtivo + passo + visiveis.length) % visiveis.length;
+    setAtiva(proximo);
+    document.getElementById(`${listaId}-${proximo}`)?.scrollIntoView({ block: "nearest" });
+  };
   return (
     <div className="min-w-0 space-y-1">
       <div className="text-sm font-medium">{label}</div>
-      <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setBusca(""); }}>
+      <Popover
+        open={open}
+        onOpenChange={(o) => {
+          setOpen(o);
+          if (!o) setBusca("");
+          // Abre com a branch escolhida ativa (ou a primeira).
+          else setAtiva(Math.max(0, branches.findIndex((b) => b.url === value)));
+        }}
+      >
         <PopoverTrigger asChild>
           <Button variant="outline" role="combobox" aria-label={label} className="w-full justify-between font-normal">
             <span className="truncate">
@@ -340,20 +374,25 @@ function BranchPicker({ label, branches, value, onChange, placeholder, loading }
         >
           <div className="border-b border-border p-2">
             <Input
-              ref={buscaRef} placeholder="Buscar branch… (Enter escolhe a primeira)" value={busca} className="h-9" aria-label="Buscar branch"
-              onChange={(e) => setBusca(e.target.value)}
+              ref={buscaRef} placeholder="Buscar branch… (setas escolhem, Enter confirma)" value={busca} className="h-11 md:h-9" aria-label="Buscar branch"
+              role="combobox" aria-expanded aria-controls={listaId} aria-autocomplete="list"
+              aria-activedescendant={visiveis.length ? `${listaId}-${indiceAtivo}` : undefined}
+              onChange={(e) => { setBusca(e.target.value); setAtiva(0); }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && visiveis[0]) { e.preventDefault(); onChange(visiveis[0].url); setOpen(false); setBusca(""); }
+                if (e.key === "ArrowDown") { e.preventDefault(); mover(1); }
+                else if (e.key === "ArrowUp") { e.preventDefault(); mover(-1); }
+                else if (e.key === "Enter" && visiveis[indiceAtivo]) { e.preventDefault(); escolher(visiveis[indiceAtivo].url); }
               }}
             />
           </div>
-          <div className="max-h-72 overflow-auto p-1" role="listbox" aria-label={label}>
+          <div id={listaId} className="max-h-72 overflow-auto p-1" role="listbox" aria-label={label}>
             {visiveis.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma branch encontrada.</p>}
-            {visiveis.map((b) => (
+            {visiveis.map((b, i) => (
               <button
-                key={b.url} type="button" role="option" aria-selected={b.url === value}
-                onClick={() => { onChange(b.url); setOpen(false); setBusca(""); }}
-                className={`flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left hover:bg-secondary/60 ${b.url === value ? "bg-primary/10" : ""}`}
+                key={b.url} id={`${listaId}-${i}`} type="button" role="option" aria-selected={b.url === value} tabIndex={-1}
+                onClick={() => escolher(b.url)}
+                onMouseMove={() => setAtiva(i)}
+                className={`flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left max-md:min-h-11 ${b.url === value ? "bg-primary/10" : ""} ${i === indiceAtivo ? "bg-secondary/80 ring-1 ring-inset ring-border" : ""}`}
               >
                 <span className="text-sm">
                   {b.name}
@@ -378,78 +417,96 @@ function BranchPicker({ label, branches, value, onChange, placeholder, loading }
 function PedidoPainel({ pedido, podeCancelar, onFechar }: { pedido: MergePedido; podeCancelar: boolean; onFechar: () => void }) {
   const meta = mergeStatus(pedido);
   const isTrunk = pedido.target_kind === "trunk";
+  const tituloId = useId();
+  const [confirmando, setConfirmando] = useState(false);
+  const [cancelando, setCancelando] = useState(false);
 
   const cancelar = async () => {
-    if (!window.confirm("Cancelar este merge?")) return;
+    setCancelando(true);
     try {
       await cancelMerge(pedido.id);
       toast.success("Merge cancelado");
+      setConfirmando(false);
       await invalidateMerges();
     } catch (e) {
       toast.error("Não foi possível cancelar", { description: apiMessage(e) });
+    } finally {
+      setCancelando(false);
     }
   };
 
   const conflitos = pedido.result_json?.conflitos?.length ? pedido.result_json.conflitos : pedido.preview_json?.conflitos || [];
 
   return (
-    <Card className="p-4 sm:p-5 mb-5 space-y-3" aria-label="Merge aberto">
+    <Card className="p-4 sm:p-5 mb-5 space-y-3" role="region" aria-labelledby={tituloId}>
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-base font-semibold break-all">
-            {pedido.source_name} <ArrowRight className="inline h-4 w-4 text-muted-foreground" /> {pedido.target_name}
-            {isTrunk && <Badge variant="outline" className="ml-2 border-amber-500/50 text-amber-700 dark:text-amber-400">principal</Badge>}
-          </div>
+          <h3 id={tituloId} className="text-base font-semibold break-all">
+            {pedido.source_name} <ArrowRight className="inline h-4 w-4 text-muted-foreground" aria-label="para" /> {pedido.target_name}
+            {isTrunk && <Badge variant="outline" className="ml-2 border-warning/40 text-warning">principal</Badge>}
+          </h3>
           <p className="text-[11px] text-muted-foreground">Pedido por {pedido.requested_by || "—"} em {dataCurta(pedido.created_at)}</p>
         </div>
         <div className="flex items-center gap-2">
           <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-          <Button size="sm" variant="ghost" onClick={onFechar}>Fechar</Button>
+          <Button size="sm" variant="ghost" className="max-md:h-11" onClick={onFechar}>Fechar</Button>
         </div>
       </div>
 
+      {/* Andamento anunciado ao mudar (na fila, fazendo, gravado...). */}
+      <div role="status" className="space-y-3">
       {MERGE_EM_ANDAMENTO.has(pedido.status) && (
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           {pedido.status === "processando" || pedido.status === "previa_processando"
-            ? "O MergeBridge está atualizando a origem, fazendo o merge e o commit."
-            : "Na fila do MergeBridge (ele faz um merge de cada vez)."}
+            ? "Atualizando a origem, fazendo o merge e o commit."
+            : "Na fila (os merges são feitos um de cada vez)."}
         </p>
       )}
 
       {pedido.status === "concluido" && (
-        <p className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-          <CheckCircle2 className="h-4 w-4" /> Merge gravado em {pedido.target_name} na revisão <span className="font-mono">r{pedido.svn_revision}</span>.
+        <p className="flex items-center gap-2 text-sm text-success">
+          <CheckCircle2 className="h-4 w-4" aria-hidden /> Merge gravado em {pedido.target_name} na revisão <span className="font-mono">r{pedido.svn_revision}</span>.
         </p>
       )}
       {pedido.status === "sem_alteracoes" && (
         <p className="text-sm text-muted-foreground">{pedido.error_message || "O destino já está atualizado; não há o que fazer."}</p>
       )}
       {pedido.status === "erro" && (
-        <p className={`text-sm ${pedido.result_json?.simulacao ? "text-muted-foreground" : "text-red-500"}`}>{pedido.error_message}</p>
+        <p className={`text-sm ${pedido.result_json?.simulacao ? "text-muted-foreground" : "text-destructive"}`}>{pedido.error_message}</p>
       )}
       {pedido.status === "conflito" && <ConflitoMerge conflitos={conflitos} />}
+      </div>
 
       {podeCancelar && (
-        <Button variant="outline" size="sm" className="text-red-500" onClick={cancelar}>
-          <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+        <Button variant="outline" size="sm" className="text-destructive max-md:h-11" onClick={() => setConfirmando(true)}>
+          <XCircle className="h-3.5 w-3.5 mr-1" aria-hidden /> Cancelar
         </Button>
       )}
+      <ConfirmarAcao
+        aberto={confirmando}
+        titulo="Cancelar este merge?"
+        descricao={`${pedido.source_name} → ${pedido.target_name}. O pedido sai da fila e nada é gravado.`}
+        acao="Cancelar merge"
+        ocupado={cancelando}
+        onConfirmar={cancelar}
+        onFechar={() => setConfirmando(false)}
+      />
     </Card>
   );
 }
 
 function ConflitoMerge({ conflitos }: { conflitos: { caminho: string; tipo: string }[] }) {
   return (
-    <div role="alert" className="rounded-lg border border-red-500/50 bg-red-500/10 p-3 sm:p-4 text-sm space-y-2">
-      <p className="flex items-center gap-2 font-semibold text-red-600 dark:text-red-400">
-        <AlertTriangle className="h-4 w-4 shrink-0" /> Conflito: faça o merge manualmente
+    <div role="region" aria-label="Conflito no merge" className="rounded-lg border border-warning/40 bg-warning/10 p-3 sm:p-4 text-sm space-y-2">
+      <p className="flex items-center gap-2 font-semibold text-warning">
+        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden /> Conflito: faça o merge manualmente
       </p>
       <p className="text-xs text-muted-foreground">
         Os arquivos abaixo foram alterados nas duas branches. Para não sobrescrever o trabalho de ninguém, <strong>nada foi gravado</strong> neste merge.
       </p>
       {conflitos.length > 0 && (
-        <ul className="rounded-md border border-red-500/30 bg-background/60 px-3 py-2 text-xs space-y-1">
+        <ul className="rounded-md border border-warning/30 bg-background/60 px-3 py-2 text-xs space-y-1">
           {conflitos.map((c) => (
             <li key={c.caminho} className="break-all">
               <span className="font-mono">{c.caminho}</span>

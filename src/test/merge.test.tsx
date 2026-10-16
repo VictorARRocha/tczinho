@@ -194,10 +194,10 @@ describe("tela de merge", () => {
   it("acompanhamento: na fila, fazendo e concluido com a revisao", async () => {
     api.merges = [pedido({ status: "solicitado" })];
     renderPage();
-    expect(await screen.findByText(/Na fila do MergeBridge/)).toBeInTheDocument();
+    expect(await screen.findByText(/Na fila \(os merges são feitos um de cada vez\)/)).toBeInTheDocument();
     api.merges = [pedido({ status: "processando" })];
     await queryClient.invalidateQueries({ queryKey: ["merges"] });
-    expect(await screen.findByText(/atualizando a origem, fazendo o merge e o commit/)).toBeInTheDocument();
+    expect(await screen.findByText(/Atualizando a origem, fazendo o merge e o commit/)).toBeInTheDocument();
     api.merges = [pedido({ status: "concluido", svn_revision: "23560" })];
     await queryClient.invalidateQueries({ queryKey: ["merges"] });
     expect(await screen.findByText("r23560", { selector: "span" })).toBeInTheDocument();
@@ -209,18 +209,19 @@ describe("tela de merge", () => {
       pedido({ id: "m2", status: "solicitado", target_url: FOLHA, target_name: "Folha_sustentação" }),
     ];
     renderPage();
-    expect(await screen.findAllByLabelText("Merge aberto")).toHaveLength(2);
+    expect(await screen.findAllByRole("region", { name: /^Unico/ })).toHaveLength(2);
     api.merges = [
       pedido({ id: "m1", status: "conflito", result_json: { conflitos: [{ caminho: "Script/Rotinas.sd", tipo: "texto" }] }, error_message: "Conflito no merge" }),
       pedido({ id: "m2", status: "concluido", svn_revision: "23561", target_url: FOLHA, target_name: "Folha_sustentação" }),
     ];
     await queryClient.invalidateQueries({ queryKey: ["merges"] });
-    const aviso = await screen.findByRole("alert");
+    const aviso = await screen.findByRole("region", { name: "Conflito no merge" });
     expect(within(aviso).getByText(/faça o merge manualmente/)).toBeInTheDocument();
     expect(within(aviso).getByText("Script/Rotinas.sd")).toBeInTheDocument();
     expect(within(aviso).queryByText(/Merge a range of revisions/)).toBeNull(); // sem o passo a passo
-    expect(aviso.className).toContain("border-red-500");
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    // Mesma cor de aviso da Regravacao (conflito pede acao manual, nao e erro do sistema).
+    expect(aviso.className).toContain("border-warning");
+    expect(screen.getAllByRole("region", { name: "Conflito no merge" })).toHaveLength(1);
     expect(screen.getByText("r23561", { selector: "span" })).toBeInTheDocument();
   });
 
@@ -232,16 +233,16 @@ describe("tela de merge", () => {
     ];
     renderPage();
     expect(await screen.findByRole("table")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Merge aberto")).toBeNull();
+    expect(screen.queryByRole("region", { name: /^Unico/ })).toBeNull();
   });
 
   it("fechar um merge em andamento nao reabre na proxima atualizacao", async () => {
     api.merges = [pedido({ status: "processando" })];
     renderPage();
-    const painel = await screen.findByLabelText("Merge aberto");
+    const painel = await screen.findByRole("region", { name: /^Unico/ });
     fireEvent.click(within(painel).getByRole("button", { name: "Fechar" }));
     await queryClient.invalidateQueries({ queryKey: ["merges"] });
-    await waitFor(() => expect(screen.queryByLabelText("Merge aberto")).toBeNull());
+    await waitFor(() => expect(screen.queryByRole("region", { name: /^Unico/ })).toBeNull());
   });
 
   it("historico com o resultado (merge realizado ou conflito), sem Revisao e Abrir", async () => {
@@ -265,18 +266,22 @@ describe("tela de merge", () => {
     await escolher(/Destino/, "proxima", /Proxima10_0/);
     expect(screen.getByRole("button", { name: /Fazer merge de Unico → Proxima10_0/ })).toBeDisabled();
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para fazer merge");
-    expect(await screen.findByLabelText("Merge aberto")).toBeInTheDocument();
+    expect(await screen.findByRole("region", { name: /^Unico/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Cancelar/ })).toBeNull();
     expect(screen.getByRole("table")).toBeInTheDocument();
     expect(api.createMerge).not.toHaveBeenCalled();
   });
 
   it("cancelar: quem pediu cancela o que ainda esta na fila", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     api.cancelMerge.mockResolvedValue(undefined);
     api.merges = [pedido({ status: "solicitado" })];
     renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /Cancelar/ }));
+    // Confirma numa janela propria, com origem e destino (antes window.confirm).
+    const janela = await screen.findByRole("dialog", { name: "Cancelar este merge?" });
+    expect(janela).toHaveTextContent("Unico → Proxima10_0");
+    expect(api.cancelMerge).not.toHaveBeenCalled();
+    fireEvent.click(within(janela).getByRole("button", { name: "Cancelar merge" }));
     await waitFor(() => expect(api.cancelMerge).toHaveBeenCalledWith("m1"));
   });
 
@@ -292,5 +297,32 @@ describe("tela de merge", () => {
     await queryClient.invalidateQueries();
     await waitFor(() => expect(screen.getAllByText(/^Destino_\d+$/).length).toBeGreaterThanOrEqual(10));
     expect(screen.queryByText(/Mostrando/)).toBeNull();
+  });
+});
+
+describe("auditoria parte 4: merge", () => {
+  it("seletor de branch: setas mudam a opcao ativa e Enter escolhe a ativa", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("combobox", { name: /^Destino \(branch/ }));
+    const busca = await screen.findByLabelText("Buscar branch");
+    const ativa = () => document.getElementById(busca.getAttribute("aria-activedescendant") || "");
+    const primeira = ativa()?.textContent;
+    fireEvent.keyDown(busca, { key: "ArrowDown" });
+    expect(ativa()?.textContent).not.toBe(primeira);
+    const escolhida = ativa()!.textContent!;
+    fireEvent.keyDown(busca, { key: "Enter" });
+    const nome = escolhida.replace(/principal.*$/, "").replace(/última alteração.*$/, "").trim();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /^Destino \(branch/ })).toHaveTextContent(nome));
+    // As opcoes nao entram no Tab (so a busca).
+    fireEvent.click(screen.getByRole("combobox", { name: /^Destino \(branch/ }));
+    for (const o of await screen.findAllByRole("option")) expect(o).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("resultado do historico explicado sem depender do mouse", async () => {
+    api.merges = [pedido({ id: "m1", status: "sem_alteracoes", requested_by: "joao" })];
+    renderPage();
+    const tabela = await screen.findByRole("table");
+    expect(screen.queryByText(/Passe o mouse/)).toBeNull();
+    expect(within(tabela).getByRole("button", { name: /Já atualizado\s*: O destino já tinha tudo da origem/ })).toBeInTheDocument();
   });
 });

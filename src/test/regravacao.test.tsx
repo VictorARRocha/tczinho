@@ -337,7 +337,7 @@ describe("tela de regravacao", () => {
     api.candidatos!.itens[0] = { ...api.candidatos!.itens[0], regravavel: false, motivo: "conflito_svn" };
     renderPage();
 
-    const aviso = await screen.findByRole("alert");
+    const aviso = await screen.findByRole("region", { name: "Conflito no SVN" });
     expect(within(aviso).getByText(/faça a regravação manualmente/)).toBeInTheDocument();
     expect(within(aviso).getByText("Files/Tarefas/A.txt")).toBeInTheDocument();
     expect(within(aviso).getByText("branch Proxima 10.0")).toBeInTheDocument();
@@ -347,7 +347,7 @@ describe("tela de regravacao", () => {
     expect(screen.getByLabelText("Selecionar d1_Atual.txt")).toBeDisabled();
 
     fireEvent.click(within(aviso).getByRole("button", { name: "Ocultar" }));
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Conflito no SVN" })).toBeNull();
   });
 
   it("erro que nao e conflito continua aparecendo como Erro, sem o aviso", async () => {
@@ -358,11 +358,10 @@ describe("tela de regravacao", () => {
     }];
     renderPage();
     expect(await screen.findByText("Erro")).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Conflito no SVN" })).toBeNull();
   });
 
   it("mostra os pedidos da rodagem e cancela o que esta na fila", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     api.cancelRegravacao.mockResolvedValue(undefined);
     const base = { run_id: "rod_1", requested_by: "ana", repository_url: "u", commit_message: null, error_message: null,
                    updated_at: "", finished_at: null, result_json: {}, svn_revision: null,
@@ -376,6 +375,22 @@ describe("tela de regravacao", () => {
     expect(screen.getByText("Na fila")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /Cancelar/ })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: /Cancelar/ }));
+    // Janela propria com os arquivos do pedido (antes window.confirm).
+    const janela = await screen.findByRole("dialog", { name: "Cancelar este pedido de regravação?" });
+    expect(janela).toHaveTextContent("Files/A.txt");
+    fireEvent.click(within(janela).getByRole("button", { name: "Cancelar pedido" }));
     await waitFor(() => expect(api.cancelRegravacao).toHaveBeenCalledWith("p1"));
+  });
+});
+
+describe("auditoria parte 4: regravacao", () => {
+  it("passos 1, 2 e 3 com titulo e a rodagem escrita como no resto do app", async () => {
+    renderPage();
+    await screen.findByText("Caminho errado no script");
+    fireEvent.click(screen.getByLabelText("Selecionar d1_Atual.txt"));
+    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(
+      expect.arrayContaining(["1. Rodagem", "2. Arquivos", "3. Mensagem do commit"]),
+    );
+    expect(screen.getByRole("combobox", { name: "Rodagem" })).not.toHaveTextContent(/\b1 falhas\b/);
   });
 });

@@ -41,7 +41,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
             {runs.length > 0 && (
               <Popover open={open} onOpenChange={setOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-2 h-8">
+                  <Button variant="outline" size="sm" className="gap-2 h-11 md:h-8">
                     <ChevronsUpDown className="h-3.5 w-3.5" /> Trocar rodagem
                   </Button>
                 </PopoverTrigger>
@@ -54,7 +54,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
                       const active = r.id === rodagem?.id;
                       const h = getHealthStatus(r.status_label || r.status_geral, r.score_saude);
                       return (
-                        <button key={r.id} onClick={() => { onPickRun(r.id); setOpen(false); }} className={`w-full text-left px-3 py-2.5 hover:bg-secondary/60 transition-smooth border-b border-border/50 ${active ? "bg-primary/5" : ""}`}>
+                        <button key={r.id} type="button" aria-current={active ? "true" : undefined} onClick={() => { onPickRun(r.id); setOpen(false); }} className={`w-full text-left px-3 py-2.5 hover:bg-secondary/60 active:bg-secondary transition-colors border-b border-border/50 ${active ? "bg-primary/5" : ""}`}>
                           <div className="flex items-center gap-2">
                             {active && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                             <span className="text-sm font-medium truncate flex-1">{formatDateTime(r.data_analise)}</span>

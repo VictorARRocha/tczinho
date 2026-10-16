@@ -50,15 +50,21 @@ export default function AguardandoAprovacao() {
       : { icon: Clock, title: "Cadastro pendente de aprovação", desc: "Um administrador precisa aprovar seu acesso. Volte em instantes." };
 
   const Icon = view.icon;
+  const STATUS_TEXTO: Record<string, string> = {
+    pending: "Aguardando aprovação",
+    approved: "Aprovado",
+    rejected: "Rejeitado",
+    disabled: "Desativado",
+  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-svh flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
             <Icon className="h-5 w-5" />
           </div>
-          <CardTitle className="font-display">{view.title}</CardTitle>
+          <CardTitle as="h1" className="font-display">{view.title}</CardTitle>
           <CardDescription>{view.desc}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -66,7 +72,7 @@ export default function AguardandoAprovacao() {
             <div className="rounded-md border border-border bg-muted/40 p-3 text-sm">
               <div><span className="text-muted-foreground">Usuário:</span> <span className="font-mono">{profile.username}</span></div>
               {profile.first_name && <div><span className="text-muted-foreground">Nome:</span> {profile.first_name} {profile.last_name}</div>}
-              <div><span className="text-muted-foreground">Status:</span> {profile.status}</div>
+              <div><span className="text-muted-foreground">Status:</span> {STATUS_TEXTO[profile.status] ?? profile.status}</div>
             </div>
           )}
           {session ? (

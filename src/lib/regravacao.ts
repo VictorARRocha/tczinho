@@ -1,4 +1,5 @@
 // Regravacao de bases: textos e regras da tela (a execucao fica no RegravacaoBridge da D01).
+import { TOM_STATUS } from "@/lib/statusPedido";
 
 export interface ItemMensagem {
   id_caso_teste: string | null;
@@ -46,15 +47,16 @@ export function destinoLabel(url: string | null): string {
   return /\/branches\//.test(url) ? `branch ${nome}` : `principal (${nome})`;
 }
 
+// Mesmos tons do Jenkins e do Merge (tokens com contraste nos dois temas).
 export const PEDIDO_STATUS: Record<string, { label: string; className: string }> = {
-  solicitado: { label: "Na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400" },
-  processando: { label: "Processando", className: "border-purple-500/40 text-purple-600 dark:text-purple-400" },
-  concluido: { label: "Concluído", className: "border-green-500/40 text-green-600 dark:text-green-400" },
-  erro: { label: "Erro", className: "border-red-500/40 text-red-600 dark:text-red-400" },
-  cancelado: { label: "Cancelado", className: "border-orange-500/40 text-orange-600 dark:text-orange-400" },
+  solicitado: { label: "Na fila", className: TOM_STATUS.andamento },
+  processando: { label: "Processando", className: TOM_STATUS.andamento },
+  concluido: { label: "Concluído", className: TOM_STATUS.sucesso },
+  erro: { label: "Erro", className: TOM_STATUS.erro },
+  cancelado: { label: "Cancelado", className: TOM_STATUS.espera },
 };
 
-const CONFLITO_STATUS = { label: "Conflito", className: "border-amber-500/50 text-amber-700 dark:text-amber-400" };
+const CONFLITO_STATUS = { label: "Conflito", className: TOM_STATUS.aviso };
 
 /** Status para mostrar: erro por conflito no SVN aparece como "Conflito". */
 export function pedidoStatus(p: { status: string; result_json?: { conflito?: boolean } | null }) {

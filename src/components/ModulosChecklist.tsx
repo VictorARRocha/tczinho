@@ -32,18 +32,18 @@ export function ModulosChecklist({
           id={id}
           type="button"
           aria-label="Módulos que você usa"
-          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+          className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           <span className={cn("truncate", value.length === 0 && "text-muted-foreground")}>
             {value.length ? value.map(nomeModulo).join(", ") : placeholder}
           </span>
-          <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDown className={cn("h-4 w-4 shrink-0 opacity-50 transition-transform duration-200 ease-out-strong", open && "rotate-180")} aria-hidden />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-[var(--radix-popover-trigger-width)] p-1">
         <div role="group" aria-label="Módulos" className="grid grid-cols-2">
           {MODULOS_ACESSO.map((m) => (
-            <label key={m.slug} className="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent/60">
+            <label key={m.slug} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent/60 md:min-h-0">
               <Checkbox checked={value.includes(m.slug)} onCheckedChange={(v) => alternar(m.slug, v === true)} aria-label={m.nome} />
               {m.nome}
             </label>

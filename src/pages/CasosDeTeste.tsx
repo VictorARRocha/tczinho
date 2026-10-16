@@ -34,9 +34,9 @@ function EscolherModulo() {
             <li key={m.id}>
               <Link
                 to={`/casos-de-teste/${m.slug}`}
-                className="group flex aspect-square flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="group flex aspect-square flex-col overflow-hidden rounded-lg border border-border bg-card transition-[border-color,transform] duration-150 ease-out-strong hover:border-primary/60 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="flex flex-1 items-center justify-center text-primary transition-transform group-hover:scale-105">
+                <span className="flex flex-1 items-center justify-center text-primary transition-transform duration-200 ease-out-strong group-hover:scale-105" aria-hidden>
                   <IconeModulo slug={m.slug} className="h-14 w-14 sm:h-16 sm:w-16" />
                 </span>
                 <span className="border-t border-border bg-muted/50 px-2 py-2 text-center text-sm font-semibold">{m.nome}</span>
@@ -57,8 +57,8 @@ function CasosDoModulo({ slug }: { slug: string }) {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <Link to="/casos-de-teste" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="h-3.5 w-3.5" /> Casos de teste
+      <Link to="/casos-de-teste" className="mb-4 inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground md:min-h-0 md:py-1">
+        <ChevronLeft className="h-4 w-4" aria-hidden /> Casos de teste
       </Link>
       <div className="mb-6 flex items-center gap-3">
         <span className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">

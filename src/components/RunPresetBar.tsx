@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { temPermissao } from "@/lib/permissoes";
 import { diffConfig, type ConfigChange, type JenkinsConfig } from "@/lib/jenkinsConfig";
 import { cn } from "@/lib/utils";
+import { ConfirmarAcao } from "@/components/ConfirmarAcao";
 
 const MAX_NAME = 80;
 /** Grupo das pre-definicoes antigas, criadas antes de cada uma ter dono. */
@@ -85,6 +86,7 @@ export const RunPresetBar = memo(function RunPresetBar({
   const [aba, setAba] = useState<Aba>("minhas");
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [paraExcluir, setParaExcluir] = useState<RunPreset | null>(null);
 
   const selected = presets.find((p) => p.id === selectedId) || null;
   const selectedMine = !!selected && isMine(selected);
@@ -131,17 +133,20 @@ export const RunPresetBar = memo(function RunPresetBar({
     });
   };
 
+  // Confirmacao numa janela propria (antes window.confirm, com a cara do navegador).
   const remove = (preset: RunPreset) => {
     setOpen(false);
-    const pergunta = isMine(preset)
-      ? `Excluir a sua pré-definição "${preset.name}"?`
-      : `Excluir a pré-definição "${preset.name}" de ${preset.created_by || "todos (sem dono)"}? Ela some para todos os usuários.`;
-    if (!window.confirm(pergunta)) return;
+    setParaExcluir(preset);
+  };
+  const confirmarExclusao = () => {
+    const preset = paraExcluir;
+    if (!preset) return;
     void run(async () => {
       await deleteRunPreset(preset.id);
       if (preset.id === selectedId) setSelectedId("");
       await invalidateRunPresets();
       toast.success("Pré-definição excluída");
+      setParaExcluir(null);
     });
   };
 
@@ -206,7 +211,7 @@ export const RunPresetBar = memo(function RunPresetBar({
       <div key={p.id} className="group flex items-center gap-1 rounded-sm hover:bg-accent/60">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm"
+          className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left text-sm md:min-h-0"
           onClick={() => choose(p)}
         >
           <Check className={cn("h-3.5 w-3.5 shrink-0", p.id === selectedId ? "opacity-100" : "opacity-0")} />
@@ -217,7 +222,7 @@ export const RunPresetBar = memo(function RunPresetBar({
             type="button"
             aria-label={`Editar ${p.name}`}
             title="Editar"
-            className="rounded p-1.5 text-muted-foreground opacity-60 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8 [@media(hover:hover)]:opacity-60 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
             onClick={() => openEdit(p)}
           >
             <Pencil className="h-3.5 w-3.5" />
@@ -227,7 +232,7 @@ export const RunPresetBar = memo(function RunPresetBar({
             type="button"
             aria-label={`Copiar ${p.name} para as minhas`}
             title="Copiar para as minhas"
-            className="rounded p-1.5 text-muted-foreground opacity-60 hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+            className="inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground md:h-8 md:w-8 [@media(hover:hover)]:opacity-60 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
             onClick={() => openCopy(p)}
           >
             <Copy className="h-3.5 w-3.5" />
@@ -238,7 +243,7 @@ export const RunPresetBar = memo(function RunPresetBar({
             type="button"
             aria-label={`Excluir ${p.name}`}
             title={mine ? "Excluir" : "Excluir (administrador)"}
-            className="mr-1 rounded p-1.5 text-muted-foreground opacity-60 hover:text-red-500 group-hover:opacity-100 focus-visible:opacity-100"
+            className="mr-1 inline-flex h-11 w-11 items-center justify-center rounded text-muted-foreground transition-colors hover:text-destructive md:h-8 md:w-8 [@media(hover:hover)]:opacity-60 [@media(hover:hover)]:group-hover:opacity-100 focus-visible:opacity-100"
             onClick={() => remove(p)}
           >
             <Trash2 className="h-3.5 w-3.5" />
@@ -255,7 +260,7 @@ export const RunPresetBar = memo(function RunPresetBar({
       aria-selected={aba === valor}
       onClick={() => setAba(valor)}
       className={cn(
-        "flex-1 rounded-sm px-2 py-1 text-xs font-medium transition-colors",
+        "flex-1 rounded-sm px-2 py-2.5 text-xs font-medium transition-colors md:py-1",
         aba === valor ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
       )}
     >
@@ -264,7 +269,7 @@ export const RunPresetBar = memo(function RunPresetBar({
   );
 
   return (
-    <div className="rounded-lg border border-primary/40 bg-primary/[0.06] p-3 space-y-2 shadow-[0_8px_24px_-8px_hsl(var(--primary)/0.45)]">
+    <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
       <Label className="text-xs uppercase tracking-wider text-muted-foreground">Pré-definição</Label>
       <Popover open={open} onOpenChange={openList}>
         <PopoverTrigger asChild>
@@ -319,7 +324,7 @@ export const RunPresetBar = memo(function RunPresetBar({
               <div className="my-1 h-px bg-border" />
               <button
                 type="button"
-                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-primary hover:bg-accent/60"
+                className="flex min-h-11 w-full items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-primary hover:bg-accent/60 md:min-h-0"
                 onClick={openCreate}
               >
                 <Plus className="h-3.5 w-3.5" /> Nova a partir da tela atual…
@@ -330,7 +335,7 @@ export const RunPresetBar = memo(function RunPresetBar({
       </Popover>
 
       {selected && changes.length > 0 && (
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+        <div className="rounded-md border border-warning/35 bg-warning/10 px-3 py-2 text-xs text-warning">
           <ul className="space-y-0.5">
             {changes.slice(0, 4).map((c) => (
               <li key={c.key} className="break-all">
@@ -341,16 +346,16 @@ export const RunPresetBar = memo(function RunPresetBar({
           </ul>
           <div className="mt-2 flex flex-wrap gap-2">
             {selectedMine && podeSalvar && (
-              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={saveIntoSelected}>
+              <Button size="sm" variant="outline" className="h-11 text-xs md:h-7" disabled={busy} onClick={saveIntoSelected}>
                 Salvar em "{selected.name}"
               </Button>
             )}
             {podeSalvar && (
-              <Button size="sm" variant="outline" className="h-7 text-xs" disabled={busy} onClick={openCreate}>
+              <Button size="sm" variant="outline" className="h-11 text-xs md:h-7" disabled={busy} onClick={openCreate}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Salvar como nova
               </Button>
             )}
-            <Button size="sm" variant="ghost" className="h-7 text-xs" disabled={busy} onClick={() => onApply(selected)}>
+            <Button size="sm" variant="ghost" className="h-11 text-xs md:h-7" disabled={busy} onClick={() => onApply(selected)}>
               <Undo2 className="h-3.5 w-3.5 mr-1" /> Desfazer
             </Button>
           </div>
@@ -416,7 +421,7 @@ export const RunPresetBar = memo(function RunPresetBar({
                   Substituir pela configuração atual da tela
                 </label>
                 {!current ? (
-                  <p className="text-[11px] text-red-500">A configuração da tela é inválida: {invalidReason}</p>
+                  <p className="text-[11px] text-destructive">A configuração da tela é inválida: {invalidReason}</p>
                 ) : dialogChanges.length === 0 ? (
                   <p className="text-[11px] text-muted-foreground">A tela já está igual a esta pré-definição.</p>
                 ) : (
@@ -443,6 +448,18 @@ export const RunPresetBar = memo(function RunPresetBar({
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmarAcao
+        aberto={!!paraExcluir}
+        titulo="Excluir pré-definição?"
+        descricao={paraExcluir && !isMine(paraExcluir)
+          ? `"${paraExcluir.name}" é de ${paraExcluir.created_by || "todos (sem dono)"} e some para todos os usuários.`
+          : `"${paraExcluir?.name ?? ""}" sai das suas pré-definições.`}
+        acao="Excluir"
+        ocupado={busy}
+        onConfirmar={confirmarExclusao}
+        onFechar={() => setParaExcluir(null)}
+      />
     </div>
   );
 });

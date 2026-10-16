@@ -14,7 +14,7 @@ interface PageLoadingProps {
 export function PageLoading({ message = "Carregando...", variant = "spinner" }: PageLoadingProps) {
   if (variant === "skeleton-cards") {
     return (
-      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in">
+      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-aparecer-atrasado" aria-busy="true">
         <div className="mb-8 space-y-3">
           <Skeleton className="h-4 w-32" />
           <Skeleton className="h-10 w-72" />
@@ -31,7 +31,7 @@ export function PageLoading({ message = "Carregando...", variant = "spinner" }: 
 
   if (variant === "skeleton-table") {
     return (
-      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-fade-in space-y-4">
+      <div className="mx-auto max-w-7xl p-6 lg:p-10 animate-aparecer-atrasado space-y-4" aria-busy="true">
         <Skeleton className="h-10 w-72" />
         <Skeleton className="h-4 w-96" />
         <div className="space-y-2 mt-6">
@@ -43,12 +43,10 @@ export function PageLoading({ message = "Carregando...", variant = "spinner" }: 
     );
   }
 
+  // Sem o brilho desfocado e so aparece se a espera passar de 250ms (carregamento rapido nao pisca).
   return (
-    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 animate-fade-in">
-      <div className="relative">
-        <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
-        <Loader2 className="relative h-8 w-8 animate-spin text-primary" />
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 animate-aparecer-atrasado" role="status">
+      <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden />
       <p className="text-sm text-muted-foreground">{message}</p>
     </div>
   );

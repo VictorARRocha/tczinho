@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -31,22 +29,24 @@
     --accent: 222 18% 19%;
     --accent-foreground: 210 35% 98%;
 
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
+    /* L 65%: texto vermelho sobre o cartao escuro com 5:1 (com 60% eram 4,4). */
+    --destructive: 0 86% 65%;
+    --destructive-foreground: 222 47% 8%;
 
     --success: 152 70% 45%;
-    --success-foreground: 210 30% 98%;
+    --success-foreground: 222 47% 8%;
 
     --warning: 38 95% 58%;
     --warning-foreground: 222 47% 8%;
 
-    --critical: 0 84% 60%;
+    /* Quebra + diferenca: o terceiro tipo de ocorrencia, ao lado de destructive (quebra) e warning (diferenca). */
+    --mixed: 292 84% 72%;
+
     --automation: 210 95% 60%;
     --data-mass: 264 80% 65%;
     --environment: 215 14% 50%;
     --functional: 348 86% 58%;
     --inconclusive: 38 95% 58%;
-    --neutral: 215 14% 40%;
 
     --border: 222 18% 22%;
     --input: 222 20% 18%;
@@ -64,15 +64,9 @@
     --sidebar-border: 222 20% 12%;
     --sidebar-ring: 199 95% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(199 95% 60%), hsl(264 80% 65%));
-    --gradient-surface: linear-gradient(180deg, hsl(222 26% 10%), hsl(222 28% 7%));
     --gradient-glow: radial-gradient(circle at 50% 0%, hsl(199 95% 60% / 0.18), transparent 60%);
 
-    --shadow-elegant: 0 10px 40px -10px hsl(199 95% 60% / 0.25);
     --shadow-card: 0 4px 24px -8px hsl(222 50% 2% / 0.6);
-    --shadow-glow: 0 0 60px hsl(199 95% 60% / 0.15);
-
-    --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .light {
@@ -85,9 +79,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 35% 12%;
 
-    --primary: 199 90% 42%;
+    /* L 34%: texto branco no botao 5,2:1 e azul sobre o fundo 5:1 (com 42% eram 3,6 e 3,5). */
+    --primary: 199 90% 34%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 199 95% 55%;
 
     --secondary: 220 18% 94%;
     --secondary-foreground: 222 35% 12%;
@@ -98,43 +92,40 @@
     --accent: 220 18% 92%;
     --accent-foreground: 222 35% 12%;
 
-    --destructive: 0 78% 52%;
+    --destructive: 0 78% 44%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 152 65% 38%;
+    /* Sucesso e aviso escuros o bastante para texto (antes 3,2:1 e 2,2:1 sobre o fundo). */
+    --success: 152 65% 28%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 48%;
-    --warning-foreground: 222 47% 8%;
+    --warning: 32 90% 32%;
+    --warning-foreground: 0 0% 100%;
 
-    --critical: 0 78% 52%;
+    --mixed: 293 70% 38%;
+
     --automation: 210 90% 50%;
     --data-mass: 264 70% 55%;
     --environment: 215 16% 45%;
     --functional: 348 80% 50%;
-    --inconclusive: 38 92% 48%;
-    --neutral: 215 14% 45%;
+    --inconclusive: 32 90% 32%;
 
     --border: 220 16% 86%;
     --input: 220 16% 90%;
-    --ring: 199 90% 42%;
+    --ring: 199 90% 34%;
 
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 222 20% 30%;
-    --sidebar-primary: 199 90% 42%;
+    --sidebar-primary: 199 90% 34%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 220 18% 94%;
     --sidebar-accent-foreground: 222 35% 12%;
     --sidebar-border: 220 16% 88%;
-    --sidebar-ring: 199 90% 42%;
+    --sidebar-ring: 199 90% 34%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(199 90% 42%), hsl(264 70% 55%));
-    --gradient-surface: linear-gradient(180deg, hsl(220 25% 99%), hsl(220 20% 96%));
     --gradient-glow: radial-gradient(circle at 50% 0%, hsl(199 90% 55% / 0.12), transparent 60%);
 
-    --shadow-elegant: 0 10px 40px -10px hsl(199 90% 42% / 0.2);
     --shadow-card: 0 4px 20px -8px hsl(222 40% 40% / 0.15);
-    --shadow-glow: 0 0 60px hsl(199 90% 55% / 0.12);
   }
 }
 
@@ -156,7 +147,7 @@
     font-family: 'Inter', system-ui, sans-serif;
     font-feature-settings: "cv11", "ss01";
     background-image: var(--gradient-glow);
-    background-attachment: fixed;
+    background-repeat: no-repeat;
   }
   h1, h2, h3, h4 {
     font-family: 'Sora', system-ui, sans-serif;
@@ -173,35 +164,17 @@
   :focus-visible {
     outline-color: hsl(var(--ring));
   }
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
 }
 
 @layer utilities {
   .glass-card {
-    @apply bg-card/80 backdrop-blur-xl border border-border/60;
+    @apply bg-card border border-border/60;
     box-shadow: var(--shadow-card);
   }
-  /* Legado: o destaque vem de peso/tamanho, nao de degrade. */
-  .gradient-text {
-    color: inherit;
-  }
   .transition-smooth {
-    transition-property: transform, border-color, background-color, box-shadow, opacity;
+    transition-property: transform, color, border-color, background-color, box-shadow, opacity;
     transition-duration: 200ms;
     transition-timing-function: cubic-bezier(0.23, 1, 0.32, 1);
-  }
-  .tabular-nums-mono {
-    font-variant-numeric: tabular-nums;
-  }
-  .glow-primary {
-    box-shadow: var(--shadow-glow);
   }
 }
 
@@ -240,4 +213,45 @@
   pre::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--muted-foreground) / 0.55);
   }
+}
+
+/* Fora das camadas do Tailwind para vencer .animate-spin, .animate-in etc. */
+/* Reduzir movimento: tira deslocamento, escala e giro, mas mantem as trocas de opacidade e cor,
+   que explicam o que mudou. O giro do carregando vira um pulso (parado parecia travado). */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+  }
+  .animate-in, .animate-out {
+    --tw-enter-scale: 1 !important;
+    --tw-enter-rotate: 0 !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-exit-rotate: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+  }
+  .animate-fade-in {
+    animation-name: fade-in-opacity;
+  }
+  .animate-spin {
+    animation: pulse-reduzido 1.6s ease-in-out infinite;
+  }
+  .animate-pulse-glow {
+    animation: none;
+  }
+  /* Barra "em andamento": para de deslizar e pulsa no lugar, ocupando a barra toda. */
+  .animate-progresso-indeterminado {
+    animation: pulse-reduzido 1.6s ease-in-out infinite;
+    width: 100%;
+  }
+}
+@keyframes fade-in-opacity {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes pulse-reduzido {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }

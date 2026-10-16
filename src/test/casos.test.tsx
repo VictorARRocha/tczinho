@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import type { CasoDesativado, TestcaseHierarchyNode } from "@/services/data";
@@ -113,18 +113,21 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.queryByRole("button", { name: /Desativar|Reativar|Copiar/ })).toBeNull();
   });
 
-  it("busca por numero, nome ou descricao (sem acento) e mostra o caminho", () => {
+  it("busca por numero, nome ou descricao (sem acento) e mostra o caminho", async () => {
     renderAba(<CasosTab hierarchy={ARVORE} />);
     const busca = screen.getByRole("textbox", { name: "Buscar casos de teste" });
     fireEvent.change(busca, { target: { value: "lancamento" } });
-    let lista = screen.getByRole("list", { name: "Casos encontrados" });
+    // A busca espera uma pausa curta na digitacao; o total e anunciado.
+    let lista = await screen.findByRole("list", { name: "Casos encontrados" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent("2 casos encontrados");
     fireEvent.change(busca, { target: { value: "[4.2.1]" } });
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 caso encontrado"));
     lista = screen.getByRole("list", { name: "Casos encontrados" });
     expect(within(lista).getByText("Apuração mensal")).toBeInTheDocument();
     expect(within(lista).getByText("Lalur Mensal")).toBeInTheDocument();
     fireEvent.change(busca, { target: { value: "nada disso" } });
-    expect(screen.getByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
+    expect(await screen.findByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
   });
 
   it("mod_xml: caso e grupo desmarcados aparecem travados e os de dentro do grupo tambem", async () => {
@@ -155,13 +158,14 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(screen.getByText("Plano de contas")).not.toHaveClass("line-through");
   });
 
-  it("codigo do caso na linha e o link do cartao no Kanboard", () => {
+  it("codigo do caso na linha e o link do cartao no Kanboard", async () => {
     const arvore = [
       no("3", "Contábil", "grupo"),
       no("3.2", "Kanboard", "grupo"),
       no("3.2.1", "Com codigo", "caso", "#252397 - Confere o balancete, ver tambem #175763."),
       { ...no("3.2.2", "So na procedure", "caso"), procedure_name: "pConsultaFeriado_245993" },
       no("3.2.3", "Sem codigo", "caso", "Caso antigo, sem chamado."),
+      no("3.2.4", "Dois chamados", "caso", "DAPI/MG - sem movimento #74934 #93721"),
     ];
     renderAba(<CasosTab hierarchy={arvore} />);
     fireEvent.click(screen.getByRole("button", { name: /Kanboard/ }));
@@ -172,13 +176,18 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/252397");
     expect(link(/Abrir #252397 no Kanboard/)).toHaveAttribute("target", "_blank");
     expect(link(/Abrir #245993 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/245993");
-    // Chamado citado no meio do texto tambem abre, mas nao vira o codigo do caso.
-    expect(link(/^#175763$/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/175763");
-    // Sem codigo: nada de link na linha.
-    expect(screen.getAllByRole("link", { name: /no Kanboard/ })).toHaveLength(2);
+    // Todos os chamados da descricao ficam na linha, lado a lado (o citado no meio do texto tambem).
+    expect(link(/Abrir #175763 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/175763");
+    expect(link(/Abrir #74934 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/74934");
+    expect(link(/Abrir #93721 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/93721");
+    // Sem codigo: nada de link na linha (2 + procedure + 2 = 5).
+    expect(screen.getAllByRole("link", { name: /no Kanboard/ })).toHaveLength(5);
+    // O texto aberto continua inteiro, com os chamados como link.
+    abrirCaso("3.2.4");
+    expect(screen.getByRole("link", { name: "#93721" })).toBeInTheDocument();
     // A busca acha pelo codigo, inclusive o que so esta na procedure.
     fireEvent.change(screen.getByRole("textbox", { name: "Buscar casos de teste" }), { target: { value: "245993" } });
-    expect(within(screen.getByRole("list", { name: "Casos encontrados" })).getByText("So na procedure")).toBeInTheDocument();
+    expect(within(await screen.findByRole("list", { name: "Casos encontrados" })).getByText("So na procedure")).toBeInTheDocument();
   });
 
   it("sem a arvore (modulo sem rodagem com o .mds), explica", () => {

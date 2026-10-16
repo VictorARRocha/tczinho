@@ -1,6 +1,6 @@
 // Casos de teste: a arvore do .mds do modulo (grupos e casos), com busca, e os casos desmarcados
 // no mod_xml.py (so visual: o nome fica riscado).
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useMemo, useState } from "react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown, ExternalLink, Lock, Search, X } from "lucide-react";
 import type { CasoDesativado, TestcaseHierarchyNode } from "@/services/data";
 import { useCasosDesativados } from "@/services/queries";
@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Empty, SEM_RESULTADO } from "./common";
 
 const MAX_RESULTADOS = 200;
@@ -16,7 +17,7 @@ interface No {
   id: string;
   nome: string;
   descricao: string;
-  codigo: string; // codigo do caso de teste no Kanboard ("" = nao informado)
+  codigos: string[]; // chamados do caso no Kanboard (o original e os que incrementaram o teste); [] = nao informado
   grupo: boolean;
   caminho: string[]; // nomes dos grupos acima (sem o modulo)
   filhos: No[];
@@ -41,7 +42,7 @@ function montarArvore(nodes: TestcaseHierarchyNode[]): No[] {
   for (const n of nodes) {
     if (!n.node_id || porId.has(n.node_id)) continue;
     porId.set(n.node_id, {
-      id: n.node_id, nome: n.node_name || "", descricao: (n.descricao || "").trim(), codigo: codigoDoCaso(n),
+      id: n.node_id, nome: n.node_name || "", descricao: (n.descricao || "").trim(), codigos: codigosDoCaso(n),
       grupo: n.node_type === "grupo", caminho: [], filhos: [], casos: 0,
     });
   }
@@ -81,12 +82,16 @@ function montarArvore(nodes: TestcaseHierarchyNode[]): No[] {
 /** Cartao do caso no Kanboard. O numero da sprint na URL nao importa (qualquer valor abre o cartao). */
 const linkKanboard = (codigo: string) => `https://kanboard.sci.com.br/sprint/0/solicitacao/${codigo}`;
 
-const CODIGO_NO_INICIO = /^\s*#\s?(\d{4,})/;
+const CODIGO = /#\s?(\d{4,})/g;
 
-/** Codigo do caso: o "#codigo" no inicio da descricao (o padrao) ou, sem ele, o final do nome da
- *  procedure (pConsultaFeriado_245993), que bate com a descricao em quase todos os casos. */
-function codigoDoCaso(n: TestcaseHierarchyNode): string {
-  return (n.descricao || "").match(CODIGO_NO_INICIO)?.[1] || (n.procedure_name || "").match(/(?:^|_)(\d{4,})$/)?.[1] || "";
+/** Chamados do caso: todos os "#codigo" da descricao, na ordem e sem repetir (um caso pode ter o
+ *  chamado original e outros que incrementaram o teste). Sem nenhum, o final do nome da procedure
+ *  (pConsultaFeriado_245993), que bate com a descricao em quase todos os casos. */
+function codigosDoCaso(n: TestcaseHierarchyNode): string[] {
+  const daDescricao = [...new Set(Array.from((n.descricao || "").matchAll(CODIGO), (m) => m[1]))];
+  if (daDescricao.length) return daDescricao;
+  const daProcedure = (n.procedure_name || "").match(/(?:^|_)(\d{4,})$/)?.[1];
+  return daProcedure ? [daProcedure] : [];
 }
 
 /** Descricao com os "#numeros" do meio do texto (outros chamados citados) como links do Kanboard. */
@@ -150,15 +155,19 @@ export function CasosTab({ moduloSlug, hierarchy }: {
     arvore.forEach(visitar);
     return lista;
   }, [arvore]);
-  const desativado = (id: string) => desativacaoDe(id, desativados);
-  const totalDesativados = casos.filter((c) => desativado(c.id)).length;
+  // Estavel entre renders: o contexto nao redesenha todas as linhas a cada tecla.
+  const desativado = useCallback((id: string) => desativacaoDe(id, desativados), [desativados]);
+  const totalDesativados = useMemo(() => casos.filter((c) => desativado(c.id)).length, [casos, desativado]);
 
-  const termo = semAcento(busca.trim()).replace(/^\[|\]$/g, "");
+  // A busca espera uma pausa curta na digitacao antes de percorrer os milhares de casos.
+  const buscaAplicada = useDebounce(busca, 150);
+  const termo = semAcento(buscaAplicada.trim()).replace(/^\[|\]$/g, "");
   const filtrando = !!termo || soDesativados;
-  const resultados = !filtrando ? [] : casos.filter((c) =>
+  const resultados = useMemo(() => (!filtrando ? [] : casos.filter((c) =>
     (!soDesativados || desativado(c.id)) && (!termo
       || c.id === termo || c.id.startsWith(termo + ".")
-      || semAcento(`${c.nome} ${c.descricao} #${c.codigo}`).includes(termo)));
+      || semAcento(`${c.nome} ${c.descricao} ${c.codigos.map((k) => `#${k}`).join(" ")}`).includes(termo)))),
+  [filtrando, casos, soDesativados, desativado, termo]);
 
   if (!hierarchy.length) return <Empty text="A lista de casos aparece depois da próxima rodagem deste módulo." />;
 
@@ -199,13 +208,13 @@ export function CasosTab({ moduloSlug, hierarchy }: {
               />
               {busca && (
                 <button type="button" aria-label="Limpar busca" onClick={() => setBusca("")}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground">
+                  className="absolute right-0.5 top-1/2 inline-flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground md:right-1 md:h-8 md:w-8">
                   <X className="h-4 w-4" />
                 </button>
               )}
             </div>
             {totalDesativados > 0 && (
-              <Button size="sm" variant={soDesativados ? "default" : "outline"} aria-pressed={soDesativados} onClick={() => setSoDesativados((v) => !v)}>
+              <Button size="sm" variant={soDesativados ? "default" : "outline"} className="max-md:h-11" aria-pressed={soDesativados} onClick={() => setSoDesativados((v) => !v)}>
                 Só os desmarcados
               </Button>
             )}
@@ -213,13 +222,17 @@ export function CasosTab({ moduloSlug, hierarchy }: {
             <Button
               size="sm"
               variant="outline"
-              className="sm:ml-auto"
+              className="sm:ml-auto max-md:h-11"
               disabled={filtrando}
               onClick={algumAberto ? () => setAbertos(new Set()) : expandirTudo}
             >
               {algumAberto ? <><ChevronsDownUp className="h-3.5 w-3.5" /> Recolher tudo</> : <><ChevronsUpDown className="h-3.5 w-3.5" /> Expandir tudo</>}
             </Button>
           </div>
+          {/* Total da busca lido pelo leitor de tela (antes so aparecia acima de 200). */}
+          <p role="status" className={filtrando ? "text-xs text-muted-foreground" : "sr-only"}>
+            {filtrando ? `${resultados.length.toLocaleString("pt-BR")} ${resultados.length === 1 ? "caso encontrado" : "casos encontrados"}` : ""}
+          </p>
         </Card>
 
         <Card className="overflow-hidden">
@@ -258,7 +271,7 @@ function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggl
   const aberto = !vazio && abertos.has(no.id);
   const conteudo = (
     <>
-      <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", aberto && "rotate-90", vazio && "invisible")} aria-hidden />
+      <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ease-out-strong", aberto && "rotate-90", vazio && "invisible")} aria-hidden />
       <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
       <span className={cn("min-w-0 text-sm font-medium sm:truncate", vazio && "text-muted-foreground")}>{no.nome}</span>
       <SeloGrupoDesativado id={no.id} />
@@ -269,10 +282,10 @@ function Ramo({ no, abertos, onToggle }: { no: No; abertos: Set<string>; onToggl
     <li>
       {vazio ? (
         // Pasta sem nenhum caso dentro: sem abrir/fechar, so mostra que esta vazia.
-        <div className="flex items-center gap-2 rounded-md px-2 py-1.5" title={no.descricao || "Pasta sem casos de teste"}>{conteudo}</div>
+        <div className="flex items-center gap-2 rounded-md px-2 py-1.5 max-md:min-h-11" title={no.descricao || "Pasta sem casos de teste"}>{conteudo}</div>
       ) : (
         <button type="button" aria-expanded={aberto} onClick={() => onToggle(no.id)} title={no.descricao || undefined}
-          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40">
+          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-muted/40 active:bg-muted/60 max-md:min-h-11">
           {conteudo}
         </button>
       )}
@@ -290,7 +303,7 @@ function SeloGrupoDesativado({ id }: { id: string }) {
   const info = useDesativado()(id);
   if (!info || info.viaGrupo) return null;
   return (
-    <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400" title={info.linha.reason || undefined}>
+    <span className="shrink-0 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] text-warning" title={info.linha.reason || undefined}>
       Desmarcado no mod_xml
     </span>
   );
@@ -307,7 +320,7 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
     <div className={cn("group rounded-md", aberto && "bg-muted/40")}>
       {/* A linha toda abre o caso; o chamado e um link para o Kanboard (nao abre a linha). */}
       <div className="flex items-center gap-2" onClick={(e) => { if (!(e.target as HTMLElement).closest("a, button")) setAberto((v) => !v); }}>
-        <div className="flex min-w-0 flex-1 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors hover:bg-muted/40">
+        <div className="flex min-w-0 flex-1 cursor-pointer items-center rounded-md px-2 py-1.5 transition-colors hover:bg-muted/40 max-md:min-h-11">
           <span className="min-w-0 flex-1">
             {mostrarCaminho && no.caminho.length > 0 && (
               <span className="block truncate text-[11px] text-muted-foreground">{no.caminho.join(" › ")}</span>
@@ -319,25 +332,31 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
                 <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{no.id}</span>
                 <span className={cn("min-w-0 text-sm sm:truncate", info && "line-through text-muted-foreground")}>{no.nome}</span>
               </button>
-              {no.codigo && (
-                <a
-                  href={linkKanboard(no.codigo)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label={`Abrir #${no.codigo} no Kanboard`}
-                  title={`Abrir #${no.codigo} no Kanboard`}
-                  className="inline-flex shrink-0 items-center gap-0.5 rounded font-mono text-[11px] text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  #{no.codigo}
-                  <ExternalLink className="h-3 w-3" aria-hidden />
-                </a>
+              {/* Um link por chamado, lado a lado. */}
+              {no.codigos.length > 0 && (
+                <span className="inline-flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                  {no.codigos.map((codigo) => (
+                    <a
+                      key={codigo}
+                      href={linkKanboard(codigo)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={`Abrir #${codigo} no Kanboard`}
+                      title={`Abrir #${codigo} no Kanboard`}
+                      className="inline-flex shrink-0 items-center gap-0.5 rounded font-mono text-[11px] text-primary underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      #{codigo}
+                      <ExternalLink className="h-3 w-3" aria-hidden />
+                    </a>
+                  ))}
+                </span>
               )}
             </span>
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1 pr-2">
           {info && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-400"
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[11px] text-warning"
               title={info.viaGrupo ? `Desmarcado pelo grupo [${info.viaGrupo}]` : marcado?.reason || undefined}>
               <Lock className="h-3 w-3" aria-hidden />
               {info.viaGrupo ? "grupo desmarcado" : "mod_xml"}
@@ -345,8 +364,8 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
           )}
           {/* Seta no fim da linha (alinhada em todos os casos): aparece ao passar o mouse ou com o caso aberto. */}
           <button type="button" tabIndex={-1} aria-hidden onClick={() => setAberto((v) => !v)}
-            className={cn("rounded p-0.5 text-muted-foreground/70 transition-opacity", aberto ? "opacity-100" : "opacity-0 group-hover:opacity-100")}>
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", aberto && "rotate-180")} />
+            className={cn("rounded p-0.5 text-muted-foreground/70 transition-opacity", aberto ? "opacity-100" : "[@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100")}>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", aberto && "rotate-180")} />
           </button>
         </div>
       </div>
@@ -359,7 +378,7 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
             <p className="text-muted-foreground">Sem descrição no .mds.</p>
           )}
           {marcado && (
-            <p className="text-amber-700 dark:text-amber-400">
+            <p className="text-warning">
               {info?.viaGrupo
                 ? `Fica de fora porque o grupo [${info.viaGrupo}] está desmarcado no mod_xml.`
                 : `${marcado.reason || "Desmarcado pelo mod_xml.py"}. Para mudar, edite a lista no mod_xml.py.`}

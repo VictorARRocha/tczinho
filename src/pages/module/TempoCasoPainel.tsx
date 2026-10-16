@@ -9,6 +9,7 @@ import { ApiError } from "@/services/data/apiSource";
 import { useHistoricoTempo } from "@/services/queries";
 import { queryClient } from "@/lib/queryClient";
 import { usePermissao, useModulos } from "@/hooks/use-permissao";
+import { useFocoDeVolta } from "@/hooks/usePainel";
 import { formatDateTime } from "@/lib/format";
 import { formatarVersao } from "@/lib/rodagemTexto";
 import { Button } from "@/components/ui/button";
@@ -52,13 +53,17 @@ function variacao(segundos: number, base: number | null) {
   return `${arredondado > 0 ? "+" : arredondado < 0 ? "−" : "±"}${Math.abs(arredondado)}%`;
 }
 
-export function TempoCasoPainel({ caso, moduloSlug, onClose, onBaseTrocada }: {
+export function TempoCasoPainel({ caso, aberto, moduloSlug, onClose, onBaseTrocada }: {
   caso: AtrasoRodagem | null;
+  /** Aberto sem depender do caso: o caso continua na tela enquanto o painel fecha. */
+  aberto?: boolean;
   moduloSlug: string;
   onClose: () => void;
   onBaseTrocada: () => void;
 }) {
   const nodeId = caso?.codigo_teste || null;
+  const estaAberto = aberto ?? !!caso;
+  const voltarFoco = useFocoDeVolta(estaAberto);
   const { data, isLoading, isError } = useHistoricoTempo(nodeId);
   const [visiveis, setVisiveis] = useState(POR_PAGINA);
   const [confirmando, setConfirmando] = useState(false);
@@ -89,8 +94,8 @@ export function TempoCasoPainel({ caso, moduloSlug, onClose, onBaseTrocada }: {
   };
 
   return (
-    <Sheet open={!!caso} onOpenChange={(aberto) => { if (!aberto) { onClose(); setVisiveis(POR_PAGINA); } }}>
-      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
+    <Sheet open={estaAberto} onOpenChange={(abrir) => { if (!abrir) { onClose(); setVisiveis(POR_PAGINA); } }}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md" onCloseAutoFocus={voltarFoco}>
         {caso && (
           <>
             <SheetHeader>

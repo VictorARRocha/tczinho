@@ -9,9 +9,10 @@ export default function AcessoNegado() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-muted">
-            <ShieldAlert className="h-5 w-5" />
+            <ShieldAlert className="h-5 w-5" aria-hidden />
           </div>
-          <CardTitle className="font-display">Acesso negado</CardTitle>
+          {/* Titulo principal da pagina (antes saia como h3, sem nenhum h1). */}
+          <CardTitle as="h1" className="font-display">Acesso negado</CardTitle>
           <CardDescription>Você não tem permissão para acessar esta página.</CardDescription>
         </CardHeader>
         <CardContent>

@@ -9,11 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, ChevronsUpDown, Gauge, TrendingUp, TrendingDown, Minus, ArrowUp, ArrowDown } from "lucide-react";
-import { toast } from "sonner";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Empty, Paginacao, SEM_RESULTADO } from "./common";
 import { TempoCasoPainel } from "./TempoCasoPainel";
+import { useUltimoValor } from "@/hooks/usePainel";
 
 const PAGE_SIZE = 25;
 
@@ -62,10 +62,10 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
   onBaseTrocada?: () => void;
 }) {
   const [casoAberto, setCasoAberto] = useState<AtrasoRodagem | null>(null);
+  const casoPainel = useUltimoValor(casoAberto);
   const temTendencia = data.some((d) => (d.tendencia?.length ?? 0) > 1);
   const [q, setQ] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [caseFilter, setCaseFilter] = useState<string>("all");
   const [groupFilter, setGroupFilter] = useState<string>("all");
   type SortKey = "codigo" | "nome" | "status" | "base" | "atual" | "diff" | "var";
   const [sortKey, setSortKey] = useState<SortKey>("diff");
@@ -73,7 +73,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
   const debouncedQ = useDebounce(q, 250);
   const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
-  useEffect(() => { setPage(1); }, [debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir, data]);
+  useEffect(() => { setPage(1); }, [debouncedQ, statusFilter, groupFilter, sortKey, sortDir, data]);
 
   const groupOf = (codigo?: string | null) => {
     const m = String(codigo || "").match(/^(\d+(?:\.\d+)?)/);
@@ -98,7 +98,6 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
     let out = [...data];
     if (statusFilter !== "all") out = out.filter((d) => d.status === statusFilter);
     if (groupFilter !== "all") out = out.filter((d) => groupOf(d.codigo_teste) === groupFilter);
-    if (caseFilter !== "all") out = out.filter((d) => d.codigo_teste === caseFilter);
     if (debouncedQ) {
       const k = debouncedQ.toLowerCase();
       out = out.filter((d) => `${d.codigo_teste} ${d.nome_teste}`.toLowerCase().includes(k));
@@ -119,13 +118,12 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
       return cmp * dir;
     });
     return out;
-  }, [data, debouncedQ, statusFilter, caseFilter, groupFilter, sortKey, sortDir]);
+  }, [data, debouncedQ, statusFilter, groupFilter, sortKey, sortDir]);
 
   const stats = useMemo(() => {
     const slow: AtrasoRodagem[] = [];
     const fast: AtrasoRodagem[] = [];
     const equal: AtrasoRodagem[] = [];
-    const casesSet = new Set<string>();
     const groupsSet = new Set<string>();
     let totalAdded = 0;
     let totalSaved = 0;
@@ -144,25 +142,20 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
       } else if (d.status === "igual") {
         equal.push(d);
       }
-      if (d.codigo_teste) casesSet.add(d.codigo_teste);
       const g = groupOf(d.codigo_teste);
       if (g) groupsSet.add(g);
       if (!hasName && d.nome_teste && d.nome_teste.trim()) hasName = true;
     }
-    const topSlow = [...slow].sort((a, b) => b.delay_segundos - a.delay_segundos).slice(0, 10);
-    const topFast = [...fast].sort((a, b) => a.delay_segundos - b.delay_segundos).slice(0, 10);
     const sortNum = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
     return {
       slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved,
-      topSlow, topFast,
-      cases: Array.from(casesSet).sort(sortNum),
       groups: Array.from(groupsSet).sort(sortNum),
       hasName,
     };
   }, [data]);
 
 
-  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, topSlow, topFast, cases, groups, hasName } = stats;
+  const { slow, fast, equal, maxDelay, maxGain, totalAdded, totalSaved, groups, hasName } = stats;
 
   const cards = useMemo(() => {
     const netDelta = totalAdded - totalSaved; // >0 mais lento no total; <0 mais rápido
@@ -184,17 +177,6 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
   }, [data.length, slow.length, fast.length, maxDelay, maxGain, totalAdded, totalSaved]);
 
 
-  const distData = useMemo(() => ([
-    { name: "Mais lentos", value: slow.length, color: "hsl(var(--destructive))" },
-    { name: "Mais rápidos", value: fast.length, color: "hsl(var(--success))" },
-    { name: "Sem variação", value: equal.length, color: "hsl(var(--muted-foreground))" },
-  ].filter((d) => d.value > 0)), [slow.length, fast.length, equal.length]);
-
-  const topSlowChart = useMemo(
-    () => topSlow.map((d) => ({ name: d.codigo_teste || d.id, value: d.delay_segundos, label: formatDuration(d.delay_segundos) })),
-    [topSlow],
-  );
-
   // O retorno antecipado fica depois de todos os hooks: trocar entre rodagens
   // com e sem performance nao pode mudar a quantidade de hooks chamados.
   if (data.length === 0) {
@@ -208,13 +190,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
   }
 
   const pageRows = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  const clearFilters = () => { setQ(""); setStatusFilter("all"); setGroupFilter("all"); setCaseFilter("all"); };
-
-  const copyRow = (d: AtrasoRodagem) => {
-    const txt = [d.codigo_teste, d.nome_teste, d.tempo_padrao, d.tempo_atual, formatDuration(d.delay_segundos), `${d.variacao_pct.toFixed(1)}%`].filter(Boolean).join(" | ");
-    navigator.clipboard.writeText(txt);
-    toast.success("Linha copiada");
-  };
+  const clearFilters = () => { setQ(""); setStatusFilter("all"); setGroupFilter("all"); };
 
   return (
     <div className="space-y-6">
@@ -234,7 +210,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
         </div>
         <div className="flex flex-wrap gap-2">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="h-9 w-[180px] text-xs bg-background max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger aria-label="Filtrar por status" className="h-9 w-[180px] text-xs bg-background max-sm:h-11 max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Status: todos</SelectItem>
               <SelectItem value="mais_lento">Mais lento</SelectItem>
@@ -244,7 +220,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
           </Select>
           {groups.length > 0 && (
             <Select value={groupFilter} onValueChange={setGroupFilter}>
-              <SelectTrigger className="h-9 w-[180px] text-xs bg-background max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Grupo" /></SelectTrigger>
+              <SelectTrigger aria-label="Filtrar por grupo" className="h-9 w-[180px] text-xs bg-background max-sm:h-11 max-sm:w-auto max-sm:flex-1"><SelectValue placeholder="Grupo" /></SelectTrigger>
               <SelectContent className="max-h-[320px]">
                 <SelectItem value="all">Grupo: todos</SelectItem>
                 {groups.map((g) => <SelectItem key={g} value={g}>[{g}]</SelectItem>)}
@@ -289,7 +265,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
                   return (
                     <li key={d.id} className="space-y-1.5 p-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <button type="button" className="font-mono text-xs text-primary hover:underline" onClick={() => setCasoAberto(d)}>{d.codigo_teste || "—"}</button>
+                        <button type="button" className="-my-2 min-h-11 font-mono text-xs text-primary hover:underline" onClick={() => setCasoAberto(d)} aria-label={`Ver histórico do caso ${d.codigo_teste}`}>{d.codigo_teste || "—"}</button>
                         <span className="inline-flex items-center gap-2">{temTendencia && <Tendencia d={d} />}<PerfBadge status={d.status} /></span>
                       </div>
                       {hasName && d.nome_teste && <p className="text-sm break-words">{d.nome_teste}</p>}
@@ -348,7 +324,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
         <p className="-mt-3 text-xs text-muted-foreground">* Tempo base menor que 1 minuto: a porcentagem exagera a diferença.</p>
       )}
       <Paginacao page={page} pageSize={PAGE_SIZE} total={filtered.length} onChange={setPage} />
-      {casoAberto && <TempoCasoPainel caso={casoAberto} moduloSlug={moduloSlug} onClose={() => setCasoAberto(null)} onBaseTrocada={onBaseTrocada} />}
+      {casoPainel && <TempoCasoPainel caso={casoPainel} aberto={!!casoAberto} moduloSlug={moduloSlug} onClose={() => setCasoAberto(null)} onBaseTrocada={onBaseTrocada} />}
     </div>
   );
 }
@@ -366,7 +342,7 @@ function SortableTH<K extends string>({
 }: { label: string; k: K; active: K; dir: "asc" | "desc"; onClick: (k: K) => void; align?: "left" | "right" }) {
   const isActive = active === k;
   return (
-    <TableHead className={align === "right" ? "text-right" : ""}>
+    <TableHead className={align === "right" ? "text-right" : ""} aria-sort={isActive ? (dir === "asc" ? "ascending" : "descending") : "none"}>
       <button
         type="button"
         onClick={() => onClick(k)}

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
 import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, type TestcaseHierarchyNode } from "@/services/data";
@@ -13,9 +13,10 @@ import { type ComparisonPair } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useModulos } from "@/hooks/use-permissao";
+import { useUltimoValor } from "@/hooks/usePainel";
 import { nomeModulo, SEM_MODULO } from "@/lib/permissoes";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
-import { FalhasTab } from "./module/FalhasTab";
+import { FalhasTab, montarItensFalhas } from "./module/FalhasTab";
 import { HistoricoTab } from "./module/HistoricoTab";
 import { CompararTab } from "./module/CompararTab";
 import { ModuleHeader } from "./module/ModuleHeader";
@@ -101,6 +102,26 @@ function PaginaDoModulo() {
 
   // Na aba, o numero e de casos fora do limite (agora a lista traz todos os casos medidos).
   const foraDoLimite = performance.filter((p) => p.status !== "igual").length;
+  // Mesmo total do "Todos" da aba Falhas (inclui as pastas de comparacao sem falha vinculada).
+  const totalFalhas = useMemo(() => montarItensFalhas(falhas, evidencias, new Map()).length, [falhas, evidencias]);
+
+  // Os paineis ficam montados depois de abertos uma vez: a saida anima inteira e o foco volta ao card.
+  const falhaPainel = useUltimoValor(selectedFalha);
+  const comparacaoPainel = useUltimoValor(comparePair);
+  // Memorizado: o painel limpa a comparacao aberta quando esta lista muda; recriada a cada render,
+  // qualquer atualizacao da pagina fechava a comparacao.
+  const evidenciasDaFalha = useMemo(() => {
+    if (!falhaPainel) return [];
+    return evidencias.filter((e) => {
+      if (e.falha_id && e.falha_id === falhaPainel.id) return true;
+      // falhas sintéticas: id "storage:{folder}" → evidências cujo path está dentro do folder
+      if (falhaPainel.id?.startsWith("storage:")) {
+        const folder = falhaPainel.id.replace(/^storage:/, "");
+        return (e.storage_path || "").startsWith(folder);
+      }
+      return false;
+    });
+  }, [evidencias, falhaPainel]);
   const recarregarPerformance = () => {
     if (rodagem) fetchPerformanceByRun(rodagem.id).then(setPerformance);
   };
@@ -253,7 +274,7 @@ function PaginaDoModulo() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
             <Lock className="h-5 w-5 text-muted-foreground" />
           </div>
-          <h3 className="text-lg font-semibold">Módulo {nomeModulo(slug)}</h3>
+          <h1 className="text-lg font-semibold">Módulo {nomeModulo(slug)}</h1>
           <p className="mt-2 text-sm text-muted-foreground">{SEM_MODULO}</p>
           <Button className="mt-4" variant="outline" asChild>
             <Link to="/">Voltar à visão geral</Link>
@@ -265,12 +286,10 @@ function PaginaDoModulo() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="absolute inset-0 rounded-full bg-primary/20 blur-xl" />
-            <RefreshCw className="relative h-4 w-4 animate-spin text-primary" />
-          </div>
+      // Sem fade proprio (a pagina ja entra com fade ao carregar) e so aparece se a espera passar de 250ms.
+      <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 space-y-6 animate-aparecer-atrasado" aria-busy="true">
+        <div className="flex items-center gap-3" role="status">
+          <RefreshCw className="h-4 w-4 animate-spin text-primary" aria-hidden />
           <span className="text-sm text-muted-foreground">Carregando módulo {moduleName}...</span>
         </div>
         <Skeleton className="h-32 rounded-2xl" />
@@ -289,9 +308,10 @@ function PaginaDoModulo() {
     return (
       <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
         <Card className="glass-card p-12 text-center">
-          <h3 className="text-lg font-semibold">Não foi possível carregar os dados deste módulo</h3>
+          <h1 className="text-lg font-semibold">Não foi possível carregar os dados deste módulo</h1>
           <p className="mt-2 text-sm text-muted-foreground">{loadError}</p>
-          <Button className="mt-4" onClick={() => loadAll(undefined, slug)}>
+          {/* Tenta de novo a mesma rodagem da URL (antes voltava para a mais recente). */}
+          <Button className="mt-4" onClick={() => loadAll(rodagemSlug ? undefined : runParam, slug, rodagemSlug)}>
             <RefreshCw className="h-4 w-4 mr-2" /> Tentar novamente
           </Button>
         </Card>
@@ -331,7 +351,7 @@ function PaginaDoModulo() {
 
       {notFound ? (
         <Card className="glass-card p-12 text-center mt-8">
-          <h3 className="text-lg font-semibold">Rodagem não encontrada.</h3>
+          <h2 className="text-lg font-semibold">Rodagem não encontrada.</h2>
           <p className="mt-2 text-sm text-muted-foreground">O link pode estar desatualizado ou a rodagem foi removida.</p>
           <Button className="mt-4" variant="outline" asChild>
             <Link to={`/modulo/${slug}`}>Voltar ao módulo</Link>
@@ -339,25 +359,24 @@ function PaginaDoModulo() {
         </Card>
       ) : !rodagem ? (
         <Card className="glass-card p-12 text-center mt-8">
-          <h3 className="text-lg font-semibold">Nenhuma rodagem encontrada</h3>
+          <h2 className="text-lg font-semibold">Nenhuma rodagem encontrada</h2>
           <p className="mt-2 text-sm text-muted-foreground">Os resultados deste módulo aparecem aqui assim que a primeira rodagem de testes terminar.</p>
         </Card>
       ) : (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6 sm:mt-8">
-          <TabsList className="bg-card border border-border max-w-full overflow-x-auto overflow-y-hidden justify-start [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:w-full">
+          {/* No celular as 6 abas ficam em 2 linhas de 3 (antes rolavam de lado sem nenhum sinal). */}
+          <TabsList className="bg-card border border-border justify-start max-sm:grid max-sm:h-auto max-sm:w-full max-sm:grid-cols-3 max-sm:gap-1 sm:max-w-full sm:overflow-x-auto sm:overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden max-sm:[&>button]:min-h-11 max-sm:[&>button]:px-1 max-sm:[&>button]:text-[13px]">
             <TabsTrigger value="resumo">Resumo</TabsTrigger>
-            <TabsTrigger value="falhas">Falhas <span className="ml-1.5 text-xs opacity-60">{falhas.length}</span></TabsTrigger>
+            <TabsTrigger value="falhas">Falhas <span className="ml-1.5 font-mono text-xs text-muted-foreground">{totalFalhas}</span></TabsTrigger>
             <TabsTrigger value="agrupamentos">Agrupamentos</TabsTrigger>
-            <TabsTrigger value="performance">Performance{foraDoLimite > 0 && <span className="ml-1.5 text-xs opacity-60">{foraDoLimite}</span>}</TabsTrigger>
+            <TabsTrigger value="performance">Performance{foraDoLimite > 0 && <span className="ml-1.5 font-mono text-xs text-muted-foreground">{foraDoLimite}</span>}</TabsTrigger>
             <TabsTrigger value="comparar">Comparar</TabsTrigger>
             <TabsTrigger value="historico">Histórico</TabsTrigger>
           </TabsList>
 
-          {runLoading && (
-            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" /> Carregando rodagem...
-            </div>
-          )}
+          <div role="status" className={runLoading ? "mt-4 flex items-center gap-2 text-xs text-muted-foreground" : "sr-only"}>
+            {runLoading && <><RefreshCw className="h-3.5 w-3.5 animate-spin text-primary" aria-hidden /> Carregando rodagem...</>}
+          </div>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} historico={historico} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
           <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
@@ -369,28 +388,20 @@ function PaginaDoModulo() {
         </Tabs>
       )}
 
-      {selectedFalha && (
+      {falhaPainel && (
         <Suspense fallback={null}>
           <FailureDetailSheet
-            falha={selectedFalha}
+            falha={falhaPainel}
             open={!!selectedFalha}
             onClose={() => setSelectedFalha(null)}
             linkRegravar
-            evidencias={evidencias.filter((e) => {
-              if (e.falha_id && e.falha_id === selectedFalha.id) return true;
-              // falhas sintéticas: id "storage:{folder}" → evidências cujo path está dentro do folder
-              if (selectedFalha.id?.startsWith("storage:")) {
-                const folder = selectedFalha.id.replace(/^storage:/, "");
-                return (e.storage_path || "").startsWith(folder);
-              }
-              return false;
-            })}
+            evidencias={evidenciasDaFalha}
           />
         </Suspense>
       )}
-      {comparePair && (
+      {comparacaoPainel && (
         <Suspense fallback={null}>
-          <FileComparatorDialog open={!!comparePair} pair={comparePair.pair} falha={comparePair.falha} onClose={() => setComparePair(null)} />
+          <FileComparatorDialog open={!!comparePair} pair={comparacaoPainel.pair} falha={comparacaoPainel.falha} onClose={() => setComparePair(null)} />
         </Suspense>
       )}
     </div>

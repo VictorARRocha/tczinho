@@ -6,6 +6,19 @@
     <title>AgenteTC</title>
     <meta name="description" content="Resultados dos testes automáticos do Único: o que passou, o que falhou e por quê." />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <!-- Fontes direto no HTML (antes vinham por @import no CSS, em cadeia e bloqueando a pintura). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap" />
+    <!-- Tema antes da primeira pintura: sem o flash escuro para quem usa o claro. -->
+    <script>
+      (function () {
+        var tema = "dark";
+        try { if (localStorage.getItem("tc-sci-theme") === "light") tema = "light"; } catch (e) {}
+        document.documentElement.classList.add(tema);
+        document.documentElement.style.colorScheme = tema;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

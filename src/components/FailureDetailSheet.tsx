@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { Sheet, SheetPortal, SheetOverlay, SheetTitle } from "@/components/ui/sheet";
@@ -18,7 +18,10 @@ import {
 
 import { toast } from "sonner";
 import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
-import { FileComparatorDialog } from "./FileComparator";
+import { useFocoDeVolta, useUltimoValor } from "@/hooks/usePainel";
+
+// O comparador (com o Monaco) so baixa quando alguem abre uma comparacao.
+const FileComparatorDialog = lazy(() => import("./FileComparator").then((m) => ({ default: m.FileComparatorDialog })));
 import { decodeEvidenceText } from "@/lib/textDecode";
 
 /* ---------------- helpers ---------------- */
@@ -170,9 +173,9 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
         style={{ width: isMobile ? "100vw" : `min(100vw, ${width}px)` }}
         className={cn(
           "fixed inset-y-0 right-0 z-50 flex h-full flex-col gap-0 border-l border-border bg-card p-0 shadow-2xl",
-          "transition-none data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "ease-drawer data-[state=open]:animate-in data-[state=closed]:animate-out",
           "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
-          "data-[state=closed]:duration-300 data-[state=open]:duration-400",
+          "data-[state=closed]:duration-200 data-[state=open]:duration-300",
           className,
 
         )}
@@ -193,7 +196,7 @@ const ResizableSheetContent = ({ className, children, ...props }: ResizableSheet
 
         <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
 
-        <SheetPrimitive.Close className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring">
+        <SheetPrimitive.Close className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground ring-offset-background transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           <X className="h-4 w-4" />
           <span className="sr-only">Fechar</span>
         </SheetPrimitive.Close>
@@ -216,6 +219,8 @@ interface Props {
 export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp, linkRegravar = false }: Props) {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
+  const comparacaoPainel = useUltimoValor(comparePair);
+  const voltarFoco = useFocoDeVolta(open);
 
   useEffect(() => {
     // Ao trocar de falha, limpar evidências anteriores para evitar reaproveitar
@@ -274,7 +279,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <ResizableSheetContent>
+      <ResizableSheetContent onCloseAutoFocus={voltarFoco}>
         <div className="px-4 sm:px-7 pt-5 sm:pt-7 pb-4 sm:pb-5 border-b border-border/60">
           <SheetTitle className="text-[22px] leading-snug font-semibold tracking-tight pr-10">
             {falha.id_caso_teste && <span>[{falha.id_caso_teste}] </span>}
@@ -393,7 +398,11 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
         </div>
       </ResizableSheetContent>
-      <FileComparatorDialog open={!!comparePair} pair={comparePair} falha={falha} onClose={() => setComparePair(null)} />
+      {comparacaoPainel && (
+        <Suspense fallback={null}>
+          <FileComparatorDialog open={!!comparePair} pair={comparacaoPainel} falha={falha} onClose={() => setComparePair(null)} />
+        </Suspense>
+      )}
     </Sheet>
   );
 }

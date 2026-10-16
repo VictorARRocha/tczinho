@@ -74,6 +74,8 @@ function buildSession(token: string, user: AppUserProfile, session?: LocalAuthSe
 
 function authMessage(error: unknown): string {
   const err = error as LocalAuthError;
+  // A API manda o texto sem acento; o mais comum sai escrito certo aqui.
+  if (err?.code === "invalid_credentials") return "Usuário ou senha inválidos.";
   return err?.message || "Falha ao autenticar.";
 }
 

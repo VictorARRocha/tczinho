@@ -43,13 +43,17 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="mx-auto max-w-3xl p-6 lg:p-10">
         <Card className="glass-card p-10 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10">
-            <AlertTriangle className="h-5 w-5 text-destructive" />
+            <AlertTriangle className="h-5 w-5 text-destructive" aria-hidden />
           </div>
           <h2 className="text-lg font-semibold">Algo deu errado {this.props.area ? `em ${this.props.area}` : "nesta tela"}</h2>
           <p className="mt-2 text-sm text-muted-foreground">
             O restante do sistema continua funcionando. Tente de novo; se o erro persistir, recarregue a página.
           </p>
-          <p className="mt-3 font-mono text-xs text-muted-foreground break-all">{this.state.error.message}</p>
+          {/* A mensagem tecnica fica guardada para quem for reportar o erro. */}
+          <details className="mt-3 text-xs text-muted-foreground">
+            <summary className="cursor-pointer select-none hover:text-foreground">Detalhes técnicos</summary>
+            <p className="mt-1 font-mono break-all">{this.state.error.message}</p>
+          </details>
           <div className="mt-6 flex flex-wrap justify-center gap-2">
             <Button onClick={this.reset}>
               <RefreshCw className="h-4 w-4 mr-2" /> Tentar novamente

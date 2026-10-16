@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { SemPermissao } from "@/components/SemPermissao";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
 import { mensagemDaApi } from "@/lib/apiErro";
-import { modulosDosCasos, nomeModulo, podeNoModulo } from "@/lib/permissoes";
+import { nomeModulo, podeNoModulo } from "@/lib/permissoes";
 import { VM_OPTIONS } from "@/lib/branchVm";
 import { formatDateTime } from "@/lib/format";
 import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
@@ -63,18 +63,13 @@ import {
   type CasoReexecutavel,
   type RerunRequest,
 } from "@/services/data";
-import { invalidateRerunRequests, useAllRuns, useRerunRequests } from "@/services/queries";
-import { HISTORICO_POR_PAGINA } from "@/components/JenkinsHistory";
-import { Paginacao } from "./module/common";
+import { invalidateRerunRequests, useAllRuns } from "@/services/queries";
+import { JenkinsHistory } from "@/components/JenkinsHistory";
+import { TIPO_COR, TipoBadge as SeloTipo } from "./module/common";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-// Mesmas cores do historico da Rodagem completa (JenkinsHistory).
-const STATUS_META: Record<string, { label: string; className: string }> = {
-  solicitado: { label: "Solicitado", className: "bg-muted text-muted-foreground border-border" },
-  processando: { label: "Processando", className: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30" },
-  enviado_jenkins: { label: "Enviado ao Jenkins", className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
-  erro: { label: "Erro", className: "bg-red-500/15 text-red-500 border-red-500/30" },
-};
+/** Historico desta tela: so os pedidos de reexecucao (os antigos, sem tipo, continuam aparecendo). */
+const soReexecucoes = (r: RerunRequest) => r.tipo_solicitacao !== "rodagem_completa";
 
 const TIPOS: { tipo: CasoReexecutavel["tipo_ocorrencia"]; label: string; Icon: typeof AlertTriangle }[] = [
   { tipo: "quebra", label: "Quebras", Icon: AlertTriangle },
@@ -92,13 +87,9 @@ const ETAPAS: { n: Etapa; label: string }[] = [
   { n: 3, label: "Confirmar" },
 ];
 
+/** Mesmo selo de tipo das telas do modulo (TIPO_COR); "outro" fica neutro. */
 function TipoBadge({ tipo }: { tipo: CasoReexecutavel["tipo_ocorrencia"] }) {
-  if (tipo === "quebra")
-    return <Badge variant="outline" className="border-destructive/40 text-destructive">Quebra</Badge>;
-  if (tipo === "diferenca")
-    return <Badge variant="outline" className="border-warning/40 text-warning">Diferença</Badge>;
-  if (tipo === "quebra_diferenca")
-    return <Badge variant="outline" className="border-fuchsia-500/40 text-fuchsia-600 dark:text-fuchsia-400">Quebra + diferença</Badge>;
+  if (tipo in TIPO_COR) return <SeloTipo tipo={tipo as keyof typeof TIPO_COR} />;
   return <Badge variant="outline">—</Badge>;
 }
 
@@ -135,18 +126,6 @@ const runVm = (r: RodagemListItem) =>
   (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "").toLowerCase();
 const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toString();
 
-/** Modulo de um pedido do historico: o informado pela API ou o dos casos pedidos. */
-function moduloDoPedido(r: RerunRequest): string {
-  if (r.modulo_nome) return r.modulo_nome;
-  const slugs = modulosDosCasos(r.casos_teste);
-  return slugs.length ? slugs.map(nomeModulo).join(", ") : "—";
-}
-
-/** Casos pedidos, sem as rotinas de base [0.x]. */
-function totalCasosDoPedido(casos: string | null | undefined): number {
-  return Array.from((casos || "").matchAll(/\[([^[\]]*)\]/g)).filter((m) => !m[1].trim().startsWith("0.")).length;
-}
-
 export default function ReexecutarTestes() {
   const podeSolicitar = usePermissao("rodagem");
   const { data: todasRodagens = [] } = useAllRuns();
@@ -163,13 +142,13 @@ export default function ReexecutarTestes() {
   const [selectedRunId, setSelectedRunId] = useState<string>(() => searchParams.get("run") || "");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  // Mesmo cache do JenkinsHistory: 10s com pedido ativo, 1 minuto sem.
-  const { data: historyData } = useRerunRequests(50);
-  // A API pode devolver mais que o pedido; mostra no maximo 50, como na rodagem completa.
-  const history = useMemo(() => (historyData || []).slice(0, 50), [historyData]);
-  const [historyPage, setHistoryPage] = useState(1);
-  const historyPaginaAtual = Math.min(historyPage, Math.max(1, Math.ceil(history.length / HISTORICO_POR_PAGINA)));
-  const historyDaPagina = history.slice((historyPaginaAtual - 1) * HISTORICO_POR_PAGINA, historyPaginaAtual * HISTORICO_POR_PAGINA);
+  // Ao trocar de etapa o botao apertado some junto: o foco vai para o titulo da etapa nova.
+  const tituloEtapa = useRef<HTMLHeadingElement>(null);
+  const primeiraEtapa = useRef(true);
+  useEffect(() => {
+    if (primeiraEtapa.current) { primeiraEtapa.current = false; return; }
+    tituloEtapa.current?.focus();
+  }, [etapa]);
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -398,7 +377,7 @@ export default function ReexecutarTestes() {
         data_hora: configJsonPreview.data_hora,
         branch: "",
       });
-      toast.success("Solicitação enviada", {
+      toast.success("Pedido enviado", {
         description: "O pedido foi para a fila do Jenkins.",
       });
       setMarcados(new Set());
@@ -415,10 +394,18 @@ export default function ReexecutarTestes() {
     }
   };
 
-  const copiarJson = (r: RerunRequest) => {
-    navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
-    toast.success("CONFIG_JSON copiado");
+  // Lista de rodagens como grupo de opcoes: uma parada de Tab so (a escolhida) e setas para andar.
+  const moverRodagem = (e: KeyboardEvent<HTMLButtonElement>, indice: number) => {
+    const passo = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 0;
+    if (!passo && e.key !== "Home" && e.key !== "End") return;
+    e.preventDefault();
+    const total = runsVisiveis.length;
+    const destino = e.key === "Home" ? 0 : e.key === "End" ? total - 1 : (indice + passo + total) % total;
+    setSelectedRunId(runsVisiveis[destino].id_rodagem);
+    const grupo = e.currentTarget.parentElement;
+    requestAnimationFrame(() => (grupo?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[destino])?.focus());
   };
+  const indiceSelecionada = Math.max(0, runsVisiveis.findIndex((r) => r.id_rodagem === selectedRunId));
 
   const contextoRodagem = selectedRun && (
     <span className="text-sm font-normal text-muted-foreground">
@@ -429,7 +416,7 @@ export default function ReexecutarTestes() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <Link to="/jenkins" className="mb-3 inline-flex items-center gap-1 py-1 text-sm text-muted-foreground hover:text-foreground">
+      <Link to="/jenkins" className="mb-3 inline-flex min-h-11 items-center gap-1 text-sm text-muted-foreground hover:text-foreground md:min-h-0 md:py-1">
         <ChevronLeft className="h-4 w-4" /> Jenkins
       </Link>
       <div className="mb-6">
@@ -455,7 +442,7 @@ export default function ReexecutarTestes() {
                   disabled={!podeIrPara(n)}
                   aria-current={atual ? "step" : undefined}
                   className={cn(
-                    "flex items-center gap-2 text-sm transition-colors disabled:cursor-not-allowed",
+                    "flex min-h-11 items-center gap-2 text-sm transition-colors disabled:cursor-not-allowed md:min-h-0",
                     atual ? "font-semibold text-foreground" : "text-muted-foreground enabled:hover:text-foreground",
                   )}
                 >
@@ -480,19 +467,19 @@ export default function ReexecutarTestes() {
 
       {/* 1. Rodagem */}
       {etapa === 1 && (
-        <Card className="p-4 sm:p-5 mb-8">
+        <Card className="p-4 sm:p-5 mb-8 animate-fade-in">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-base font-semibold">Escolha a rodagem</h2>
+            <h2 ref={tituloEtapa} tabIndex={-1} className="text-base font-semibold focus:outline-none">Escolha a rodagem</h2>
             <div className="flex flex-wrap items-center gap-2">
               <Select value={fVm} onValueChange={setFVm}>
-                <SelectTrigger className="h-8 w-[150px] text-xs" aria-label="Filtrar por VM"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 w-[150px] text-xs md:h-8" aria-label="Filtrar por VM"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todas as VMs</SelectItem>
                   {vmOptions.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
                 </SelectContent>
               </Select>
               <Select value={fVersao} onValueChange={setFVersao}>
-                <SelectTrigger className="h-8 w-[200px] text-xs" aria-label="Filtrar por versão"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-11 w-[200px] text-xs md:h-8" aria-label="Filtrar por versão"><SelectValue /></SelectTrigger>
                 <SelectContent className="max-h-[320px]">
                   <SelectItem value="all">Todas as versões</SelectItem>
                   {versaoOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
@@ -510,7 +497,7 @@ export default function ReexecutarTestes() {
                   aria-pressed={fModulo === m}
                   onClick={() => setFModulo(m)}
                   className={cn(
-                    "rounded-full border px-3 py-1 text-xs transition-colors",
+                    "min-h-11 rounded-full border px-3 py-1 text-xs transition-[color,background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.97] md:min-h-0",
                     fModulo === m
                       ? "border-primary/50 bg-primary/10 text-primary"
                       : "border-border text-muted-foreground hover:text-foreground",
@@ -530,7 +517,7 @@ export default function ReexecutarTestes() {
                 <span /><span>Data</span><span>VM</span><span>Versão</span><span>Módulo</span><span>Falhas</span>
               </div>
               <div role="radiogroup" aria-label="Rodagem" className="space-y-1">
-                {runsVisiveis.map((r) => {
+                {runsVisiveis.map((r, i) => {
                   const sel = r.id_rodagem === selectedRunId;
                   return (
                     <button
@@ -538,10 +525,12 @@ export default function ReexecutarTestes() {
                       type="button"
                       role="radio"
                       aria-checked={sel}
+                      tabIndex={i === indiceSelecionada ? 0 : -1}
+                      onKeyDown={(e) => moverRodagem(e, i)}
                       onClick={() => setSelectedRunId(r.id_rodagem)}
                       onDoubleClick={() => { setSelectedRunId(r.id_rodagem); setEtapa(2); }}
                       className={cn(
-                        "flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors sm:grid sm:grid-cols-[20px_130px_64px_minmax(0,180px)_minmax(0,1fr)_auto]",
+                        "flex w-full flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2 text-left text-sm transition-[background-color,border-color,transform] duration-150 ease-out-strong active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:grid sm:grid-cols-[20px_130px_64px_minmax(0,180px)_minmax(0,1fr)_auto]",
                         sel ? "border-primary/50 bg-primary/5" : "border-transparent hover:bg-muted/50",
                       )}
                     >
@@ -560,7 +549,7 @@ export default function ReexecutarTestes() {
                 })}
               </div>
               {filteredRuns.length > RODAGENS_VISIVEIS && (
-                <Button variant="ghost" size="sm" className="mt-1" onClick={() => setMostrarTodas((v) => !v)}>
+                <Button variant="ghost" size="sm" className="mt-1 h-11 md:h-9" aria-expanded={mostrarTodas} onClick={() => setMostrarTodas((v) => !v)}>
                   <ChevronDown className={cn("h-3.5 w-3.5 mr-1 transition-transform", mostrarTodas && "rotate-180")} />
                   {mostrarTodas ? "Mostrar menos" : `Mostrar mais ${filteredRuns.length - RODAGENS_VISIVEIS}`}
                 </Button>
@@ -579,9 +568,9 @@ export default function ReexecutarTestes() {
                 {(selectedRun.modulo_slug || selectedRun.sistema) && (
                   <Link
                     to={`/modulo/${selectedRun.modulo_slug || selectedRun.sistema}?run=${encodeURIComponent(selectedRun.id_rodagem)}&tab=falhas&origem=reexecucao`}
-                    className="inline-flex items-center gap-1 text-primary hover:underline sm:ml-auto"
+                    className="inline-flex min-h-11 items-center gap-1 text-primary hover:underline sm:ml-auto md:min-h-0"
                   >
-                    Ver falhas desta rodagem <ExternalLink className="h-3 w-3" />
+                    Ver falhas desta rodagem <ExternalLink className="h-3 w-3" aria-hidden />
                   </Link>
                 )}
               </div>
@@ -593,7 +582,7 @@ export default function ReexecutarTestes() {
                   <Button
                     size="icon"
                     variant="ghost"
-                    className="h-7 w-7 shrink-0"
+                    className="h-11 w-11 shrink-0 md:h-7 md:w-7"
                     aria-label="Copiar caminho dos logs"
                     title="Copiar caminho dos logs"
                     onClick={() => { navigator.clipboard.writeText(selectedRun.caminho_logs || ""); toast.success("Caminho copiado"); }}
@@ -615,10 +604,10 @@ export default function ReexecutarTestes() {
 
       {/* 2. Casos (tabela no computador, cartoes no celular) */}
       {etapa === 2 && (
-        <Card className="mb-8 overflow-hidden">
+        <Card className="mb-8 overflow-hidden animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 p-4 sm:px-5">
             <div className="min-w-0 space-y-0.5">
-              <h2 className="text-base font-semibold">Marque os casos para rodar de novo</h2>
+              <h2 ref={tituloEtapa} tabIndex={-1} className="text-base font-semibold focus:outline-none">Marque os casos para rodar de novo</h2>
               {contextoRodagem}
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -628,7 +617,7 @@ export default function ReexecutarTestes() {
                   key={tipo}
                   size="sm"
                   variant="outline"
-                  className="h-8"
+                  className="h-11 md:h-8"
                   disabled={!totalPorTipo[tipo]}
                   onClick={() => toggleByTipo(tipo)}
                 >
@@ -648,14 +637,14 @@ export default function ReexecutarTestes() {
                   onCheckedChange={(v) => toggleAll(!!v)}
                 />
                 <Select value={sortKey} onValueChange={(v) => { setSortKey(v as SortKey); setSortDir("asc"); }}>
-                  <SelectTrigger className="h-9 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-11 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
                       <SelectItem key={k} value={k}>Ordenar por {SORT_LABEL[k]!.toLowerCase()}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Button size="icon" variant="outline" className="h-9 w-9 shrink-0"
+                <Button size="icon" variant="outline" className="h-11 w-11 shrink-0"
                   aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
                   onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                   {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
@@ -678,6 +667,7 @@ export default function ReexecutarTestes() {
                         <div className="pt-0.5" onClick={(e) => e.stopPropagation()}>
                           <Checkbox
                             className="h-5 w-5"
+                            aria-label={`Marcar ${c.id_caso_teste || "caso sem ID"} ${c.nome_mds || ""}`.trim()}
                             checked={checked}
                             onCheckedChange={(v) => toggleOne(c.id_falha, !!v)}
                             disabled={!c.id_caso_teste}
@@ -732,6 +722,7 @@ export default function ReexecutarTestes() {
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <Checkbox
+                          aria-label={`Marcar ${c.id_caso_teste || "caso sem ID"} ${c.nome_mds || ""}`.trim()}
                           checked={checked}
                           onCheckedChange={(v) => toggleOne(c.id_falha, !!v)}
                           disabled={!c.id_caso_teste}
@@ -753,7 +744,7 @@ export default function ReexecutarTestes() {
               <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
             </Button>
             <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
-              <span className="text-sm text-muted-foreground">
+              <span className="text-sm text-muted-foreground" role="status">
                 <span className="font-mono text-foreground">{casosSelecionados.length}</span> de {casos.length} marcados
               </span>
               <Button onClick={() => setEtapa(3)} disabled={casosSelecionados.length === 0} className="max-sm:w-full">
@@ -766,8 +757,8 @@ export default function ReexecutarTestes() {
 
       {/* 3. Confirmacao */}
       {etapa === 3 && selectedRun && (
-        <Card className="p-4 sm:p-5 mb-8">
-          <h2 className="mb-3 text-base font-semibold">Confirme o pedido</h2>
+        <Card className="p-4 sm:p-5 mb-8 animate-fade-in">
+          <h2 ref={tituloEtapa} tabIndex={-1} className="mb-3 text-base font-semibold focus:outline-none">Confirme o pedido</h2>
           <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Resumo label="VM" destaque={outraVm}>
               <span className="font-mono">{formatarVm(vmPedido) || "—"}</span>
@@ -803,8 +794,8 @@ export default function ReexecutarTestes() {
 
           <Collapsible open={avancadasOpen} onOpenChange={setAvancadasOpen}>
             <CollapsibleTrigger asChild>
-              <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", avancadasOpen && "rotate-90")} />
+              <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:min-h-0">
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", avancadasOpen && "rotate-90")} aria-hidden />
                 Opções avançadas
                 {trocas.length > 0 && (
                   <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">
@@ -870,8 +861,8 @@ export default function ReexecutarTestes() {
 
           <Collapsible open={previewOpen} onOpenChange={setPreviewOpen} className="mt-2">
             <CollapsibleTrigger asChild>
-              <button type="button" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
-                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform", previewOpen && "rotate-90")} />
+              <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:min-h-0">
+                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", previewOpen && "rotate-90")} aria-hidden />
                 Configuração técnica enviada
               </button>
             </CollapsibleTrigger>
@@ -913,120 +904,8 @@ export default function ReexecutarTestes() {
         </Card>
       )}
 
-      {/* Histórico */}
-      <Collapsible>
-        <div className="mb-3 flex items-center justify-between max-sm:flex-wrap max-sm:gap-2">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="group -ml-2">
-              <ChevronDown className="h-4 w-4 mr-1 transition-transform group-data-[state=open]:rotate-180" />
-              <h2 className="text-base sm:text-lg font-semibold">Histórico de reexecuções</h2>
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent>
-          <Card className="overflow-hidden">
-            {history.length === 0 ? (
-              <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma solicitação ainda.</p>
-            ) : isMobile ? (
-              <ul className="divide-y divide-border/60">
-                {historyDaPagina.map((r) => {
-                  const meta = STATUS_META[r.status] || { label: r.status, className: "" };
-                  const total = totalCasosDoPedido(r.casos_teste);
-                  return (
-                    <li key={r.id} className="space-y-1.5 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-xs">{formatDateTime(r.created_at)}</span>
-                        <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-                      </div>
-                      <p className="text-sm">
-                        <span className="font-mono">{formatarVm(r.vm_name)}</span> · {moduloDoPedido(r)} · <span title={r.versao}>{formatarVersao(r.versao)}</span>
-                      </p>
-                      <p className="text-[11px] text-muted-foreground" title={r.casos_teste}>
-                        {total} {total === 1 ? "caso" : "casos"}
-                        {r.jenkins_build_number && <> · build <span className="font-mono">#{r.jenkins_build_number}</span></>}
-                      </p>
-                      {r.erro && <p className="break-words text-[11px] text-red-400">{r.erro}</p>}
-                      <div className="flex gap-2">
-                        {(r.jenkins_url || r.jenkins_queue_url) && (
-                          <Button size="sm" variant="outline" className="h-8 flex-1" asChild>
-                            <a href={r.jenkins_url || r.jenkins_queue_url || ""} target="_blank" rel="noreferrer">
-                              <ExternalLink className="h-3.5 w-3.5 mr-1" /> Jenkins
-                            </a>
-                          </Button>
-                        )}
-                        <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => copiarJson(r)}>
-                          <Copy className="h-3.5 w-3.5 mr-1" /> Copiar JSON
-                        </Button>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Quando</TableHead>
-                  <TableHead>VM</TableHead>
-                  <TableHead>Módulo</TableHead>
-                  <TableHead>Versão</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Jenkins</TableHead>
-                  <TableHead className="w-12"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {historyDaPagina.map((r) => {
-                  const meta = STATUS_META[r.status] || { label: r.status, className: "" };
-                  const total = totalCasosDoPedido(r.casos_teste);
-                  const linkJenkins = r.jenkins_url || r.jenkins_queue_url;
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell className="text-xs whitespace-nowrap" title={new Date(r.created_at).toLocaleString("pt-BR")}>{formatDateTime(r.created_at)}</TableCell>
-                      <TableCell className="text-xs font-mono">{formatarVm(r.vm_name)}</TableCell>
-                      <TableCell className="text-xs">{moduloDoPedido(r)}</TableCell>
-                      <TableCell className="text-xs" title={r.versao}>{formatarVersao(r.versao) || "—"}</TableCell>
-                      <TableCell className="max-w-sm">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                          <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-                          <span className="text-xs text-muted-foreground" title={r.casos_teste}>
-                            {total} {total === 1 ? "caso" : "casos"}
-                          </span>
-                        </div>
-                        {r.erro && <p className="mt-1 truncate text-xs text-red-400" title={r.erro}>{r.erro}</p>}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {linkJenkins ? (
-                          <a href={linkJenkins} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-                            {r.jenkins_build_number ? <span className="font-mono">#{r.jenkins_build_number}</span> : "Fila"}
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        ) : r.jenkins_build_number ? <span className="font-mono">#{r.jenkins_build_number}</span> : "—"}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          aria-label="Copiar CONFIG_JSON"
-                          title="Copiar CONFIG_JSON"
-                          onClick={() => copiarJson(r)}
-                        >
-                          <Copy className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            )}
-          </Card>
-          <div className="mt-3">
-            <Paginacao page={historyPaginaAtual} pageSize={HISTORICO_POR_PAGINA} total={history.length} onChange={setHistoryPage} />
-          </div>
-        </CollapsibleContent>
-      </Collapsible>
+      {/* Historico: o mesmo da Rodagem completa (status, cores, cancelar), so com as reexecucoes. */}
+      <JenkinsHistory title="Histórico de reexecuções" filtro={soReexecucoes} />
     </div>
   );
 }

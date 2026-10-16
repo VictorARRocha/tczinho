@@ -8,15 +8,9 @@ import { ArrowRight, Gauge } from "lucide-react";
 import { classifyOccurrence, groupEvidsByFailure } from "@/lib/occurrence";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { formatDuration } from "./PerformanceTab";
-import { isMeaningful, StatCard, Empty } from "./common";
+import { isMeaningful, StatCard, Empty, TIPO_COR } from "./common";
 import { formatDateTime, formatPercent, formatarTempoTotal, resultadoRodagem, rodagemAnteriorComTempo, tempoTotalRodagem, variacaoTempo } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const OCC_COR = {
-  quebra: { texto: "text-destructive", barra: "bg-destructive" },
-  diferenca: { texto: "text-warning", barra: "bg-warning" },
-  quebra_diferenca: { texto: "text-fuchsia-500 dark:text-fuchsia-400", barra: "bg-fuchsia-500" },
-} as const;
 
 function OccCard({ label, hint, value, tone, onClick }: { label: string; hint: string; value: number; tone: string; onClick: () => void }) {
   return (
@@ -24,7 +18,7 @@ function OccCard({ label, hint, value, tone, onClick }: { label: string; hint: s
       type="button"
       onClick={onClick}
       disabled={value === 0}
-      className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-smooth hover:border-primary/40 disabled:cursor-default disabled:opacity-60 disabled:hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-col sm:items-start"
+      className="group flex items-center justify-between gap-3 rounded-lg border border-border bg-card p-4 text-left transition-[border-color,transform] duration-150 ease-out-strong hover:border-primary/40 active:scale-[0.98] disabled:active:scale-100 disabled:cursor-default disabled:opacity-60 disabled:hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:flex-col sm:items-start"
     >
       <span className="min-w-0">
         <span className="block text-sm font-medium">{label}</span>
@@ -84,7 +78,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
     <div className="space-y-6">
       {hasDiagText && (
         <Card className="glass-card p-4 sm:p-6">
-          <h3 className="text-sm font-medium text-muted-foreground mb-3">Diagnóstico da rodagem</h3>
+          <h2 className="text-sm font-medium text-muted-foreground mb-3">Diagnóstico da rodagem</h2>
           {isMeaningful(rodagem.diagnostico_curto) && <p className="text-lg font-medium mb-3">{rodagem.diagnostico_curto}</p>}
           {isMeaningful(rodagem.diagnostico_detalhado) && <p className="text-sm text-muted-foreground mb-3">{rodagem.diagnostico_detalhado}</p>}
           {isMeaningful(rodagem.conclusao_geral) && (
@@ -99,9 +93,9 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
       <ResultadoCard rodagem={rodagem} occ={occCounts} anterior={anterior} />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <OccCard label="Quebras de teste" hint="O teste parou com erro" value={occCounts.quebra} tone={OCC_COR.quebra.texto} onClick={() => onOpenFalhas("quebra")} />
-        <OccCard label="Diferenças de arquivos" hint="Arquivo gerado diferente da base" value={occCounts.diferenca} tone={OCC_COR.diferenca.texto} onClick={() => onOpenFalhas("diferenca")} />
-        <OccCard label="Quebra + diferença" hint="As duas coisas no mesmo caso" value={occCounts.quebra_diferenca} tone={OCC_COR.quebra_diferenca.texto} onClick={() => onOpenFalhas("quebra_diferenca")} />
+        <OccCard label="Quebras de teste" hint="O teste parou com erro" value={occCounts.quebra} tone={TIPO_COR.quebra.texto} onClick={() => onOpenFalhas("quebra")} />
+        <OccCard label="Diferenças de arquivos" hint="Arquivo gerado diferente da base" value={occCounts.diferenca} tone={TIPO_COR.diferenca.texto} onClick={() => onOpenFalhas("diferenca")} />
+        <OccCard label="Quebra + diferença" hint="As duas coisas no mesmo caso" value={occCounts.quebra_diferenca} tone={TIPO_COR.quebra_diferenca.texto} onClick={() => onOpenFalhas("quebra_diferenca")} />
       </div>
 
       {cards.length > 0 && (
@@ -136,7 +130,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
       {(classData.length > 0 || sevData.length > 0) && (
         <div className="grid gap-4 md:grid-cols-2">
           <Card className="glass-card p-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por classificação</h3>
+            <h2 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por classificação</h2>
             {classData.length === 0 ? <Empty text="Sem dados de classificação para exibir." /> : (
               <>
                 <ResponsiveContainer width="100%" height={220}>
@@ -159,7 +153,7 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
           </Card>
 
           <Card className="glass-card p-6">
-            <h3 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por severidade</h3>
+            <h2 className="text-sm font-medium text-muted-foreground mb-4">Distribuição por severidade</h2>
             {sevData.length === 0 ? <Empty text="Sem dados de severidade para exibir." /> : (
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={sevData}>
@@ -254,9 +248,9 @@ function ResultadoCard({ rodagem, occ, anterior }: { rodagem: Rodagem; occ: { qu
   }
   const partes = [
     { key: "ok", label: "Passaram", value: r.passaram, barra: "bg-success" },
-    { key: "q", label: "Quebras", value: occ.quebra, barra: OCC_COR.quebra.barra },
-    { key: "d", label: "Diferenças", value: occ.diferenca, barra: OCC_COR.diferenca.barra },
-    { key: "qd", label: "Quebra + diferença", value: occ.quebra_diferenca, barra: OCC_COR.quebra_diferenca.barra },
+    { key: "q", label: "Quebras", value: occ.quebra, barra: TIPO_COR.quebra.ponto },
+    { key: "d", label: "Diferenças", value: occ.diferenca, barra: TIPO_COR.diferenca.ponto },
+    { key: "qd", label: "Quebra + diferença", value: occ.quebra_diferenca, barra: TIPO_COR.quebra_diferenca.ponto },
   ];
   return (
     <Card className="p-4 sm:p-5">

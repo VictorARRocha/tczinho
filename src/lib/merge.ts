@@ -1,20 +1,23 @@
 // Merge entre branches do TC: textos e regras da tela (a execucao fica no MergeBridge da D01).
 import type { MergePedido, SvnBranch } from "@/services/data";
+import { TOM_STATUS } from "@/lib/statusPedido";
 
+// Cores dos tokens (mesmos tons do Jenkins e da Regravacao): conflito em aviso, porque pede o merge
+// manual (nao e erro do sistema), igual na Regravacao.
 export const MERGE_STATUS: Record<string, { label: string; className: string; dica?: string }> = {
-  previa_solicitada: { label: "Prévia na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400", dica: "Esperando a vez para gerar a prévia das alterações." },
-  previa_processando: { label: "Gerando prévia", className: "border-primary/40 text-primary", dica: "Calculando o que o merge vai mudar." },
-  previa_pronta: { label: "Prévia pronta", className: "border-primary/50 text-primary", dica: "A prévia das alterações está pronta." },
-  solicitado: { label: "Merge na fila", className: "border-sky-500/40 text-sky-600 dark:text-sky-400", dica: "Esperando a vez para gravar no SVN." },
-  processando: { label: "Fazendo merge", className: "border-primary/40 text-primary", dica: "Gravando no SVN agora." },
-  concluido: { label: "Merge realizado", className: "border-green-500/40 text-green-600 dark:text-green-400", dica: "Alterações gravadas no destino." },
-  sem_alteracoes: { label: "Já atualizado", className: "border-border text-muted-foreground", dica: "O destino já tinha tudo da origem; nada foi gravado." },
-  conflito: { label: "Conflito", className: "border-red-500/50 text-red-600 dark:text-red-400", dica: "Os mesmos arquivos mudaram nas duas branches. Nada foi gravado." },
-  erro: { label: "Erro", className: "border-red-500/40 text-red-600 dark:text-red-400", dica: "O merge não terminou. Nada foi gravado." },
-  cancelado: { label: "Cancelado", className: "border-orange-500/40 text-orange-600 dark:text-orange-400", dica: "Cancelado antes de gravar." },
+  previa_solicitada: { label: "Prévia na fila", className: TOM_STATUS.andamento, dica: "Esperando a vez para gerar a prévia das alterações." },
+  previa_processando: { label: "Gerando prévia", className: TOM_STATUS.andamento, dica: "Calculando o que o merge vai mudar." },
+  previa_pronta: { label: "Prévia pronta", className: TOM_STATUS.andamento, dica: "A prévia das alterações está pronta." },
+  solicitado: { label: "Merge na fila", className: TOM_STATUS.andamento, dica: "Esperando a vez para gravar no SVN." },
+  processando: { label: "Fazendo merge", className: TOM_STATUS.andamento, dica: "Gravando no SVN agora." },
+  concluido: { label: "Merge realizado", className: TOM_STATUS.sucesso, dica: "Alterações gravadas no destino." },
+  sem_alteracoes: { label: "Já atualizado", className: TOM_STATUS.espera, dica: "O destino já tinha tudo da origem; nada foi gravado." },
+  conflito: { label: "Conflito", className: TOM_STATUS.aviso, dica: "Os mesmos arquivos mudaram nas duas branches. Nada foi gravado." },
+  erro: { label: "Erro", className: TOM_STATUS.erro, dica: "O merge não terminou. Nada foi gravado." },
+  cancelado: { label: "Cancelado", className: TOM_STATUS.espera, dica: "Cancelado antes de gravar." },
 };
 
-const SIMULACAO = { label: "Simulação", className: "border-border text-muted-foreground", dica: "Teste do merge sem gravar nada no SVN." };
+const SIMULACAO = { label: "Simulação", className: TOM_STATUS.espera, dica: "Teste do merge sem gravar nada no SVN." };
 
 export function mergeStatus(p: Pick<MergePedido, "status" | "result_json">) {
   if (p.status === "erro" && p.result_json?.simulacao) return SIMULACAO;

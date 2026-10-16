@@ -1,11 +1,11 @@
 // Aba Agrupamentos: grupos da IA (ou agrupamento local) e painel de agrupamento por IA.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Falha, Agrupamento } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { ChevronRight, RefreshCw } from "lucide-react";
 import { SeverityBadge } from "@/components/Badges";
 import { toast } from "sonner";
 import { fixMojibake } from "./caseText";
@@ -173,16 +173,22 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange, onErrorChange }: { 
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const statusAnterior = useRef<string | null>(null);
 
   useEffect(() => { onGroupedChange?.(grouped); }, [grouped, onGroupedChange]);
   useEffect(() => { onErrorChange?.(!!errorMsg); }, [errorMsg, onErrorChange]);
 
-  const refreshStatus = async () => {
+  // silencioso: a consulta periodica nao troca o botao para "Carregando...".
+  const refreshStatus = async (silencioso = false) => {
     try {
-      setLoadingStatus(true);
+      if (!silencioso) setLoadingStatus(true);
       const { fetchAiGroupStatus } = await import("@/services/aiGrouping");
       const s = await fetchAiGroupStatus(runId);
+      const anterior = statusAnterior.current;
+      statusAnterior.current = s.status;
       setStatus(s.status);
+      // Terminou enquanto a tela estava aberta (pedido por outra pessoa ou antes de recarregar): traz os grupos.
+      if (anterior === "running" && s.status === "completed") await onReload();
       setGrouped(s.grouped === true || s.status === "completed");
       if ((s.status === "failed" || s.status === "invalid_response") && s.error_message) setErrorMsg(s.error_message);
       else setErrorMsg(null);
@@ -202,6 +208,14 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange, onErrorChange }: { 
     refreshStatus();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId]);
+
+  // Agrupamento ja em andamento ao abrir a aba: consulta de novo a cada 5s ate terminar.
+  useEffect(() => {
+    if (status !== "running" || submitting) return;
+    const t = window.setInterval(() => { void refreshStatus(true); }, 5000);
+    return () => window.clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, submitting, runId]);
 
 
   const running = status === "running" || submitting;
@@ -249,6 +263,7 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange, onErrorChange }: { 
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:justify-between sm:p-4">
       <div className="min-w-0">
         <p className="text-sm font-medium">Agrupamento por IA</p>
+        <div aria-live="polite">
         {erroAmigavel && (
           <div className="mt-0.5 text-sm text-destructive">
             <p>{erroAmigavel}</p>
@@ -263,6 +278,7 @@ function AiGroupingPanel({ runId, onReload, onGroupedChange, onErrorChange }: { 
         {!errorMsg && grouped && <p className="text-xs text-muted-foreground mt-0.5">As falhas desta rodagem já foram agrupadas.</p>}
         {!errorMsg && !grouped && !running && <p className="text-xs text-muted-foreground mt-0.5">Junta as falhas parecidas para você analisar cada problema uma vez só.</p>}
         {!errorMsg && running && <p className="text-xs text-muted-foreground mt-0.5">Agrupando as falhas. Isso pode levar alguns instantes.</p>}
+        </div>
       </div>
       <Button size="sm" onClick={handleClick} disabled={disabled} className="shrink-0 max-sm:w-full">
         {running && <RefreshCw className="mr-2 h-3.5 w-3.5 animate-spin" />}
@@ -283,12 +299,12 @@ function AgrupamentoCard({ g, onSelect }: { g: AgrupamentoCardItem; onSelect: (f
 
   return (
     <Card
-      className="p-4 sm:p-5 cursor-pointer hover:border-primary/30 transition-smooth"
+      className="p-4 sm:p-5 cursor-pointer hover:border-primary/30 transition-colors"
       onClick={() => g.casos.length > 0 && setOpen((v) => !v)}
     >
       <div className="flex items-start justify-between mb-3 gap-3">
         <div className="min-w-0">
-          <h3 className="font-semibold">{displayTitulo}</h3>
+          <h2 className="font-semibold">{displayTitulo}</h2>
         </div>
         <Badge variant="outline" className="font-mono shrink-0">×{g.quantidade}</Badge>
       </div>
@@ -313,44 +329,52 @@ function AgrupamentoCard({ g, onSelect }: { g: AgrupamentoCardItem; onSelect: (f
   );
 }
 
+const CASOS_POR_VEZ = 20;
+
 function GroupCasesList({ casos, onSelect, open, setOpen }: { casos: Falha[]; onSelect: (f: Falha) => void; open: boolean; setOpen: (v: boolean | ((p: boolean) => boolean)) => void }) {
+  const [mostrando, setMostrando] = useState(CASOS_POR_VEZ);
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <div className="flex items-center justify-between mb-2">
         <div className="text-xs text-muted-foreground">
-          Casos vinculados a esta quebra <span className="font-mono">{casos.length}</span>
+          Casos neste grupo <span className="font-mono">{casos.length}</span>
         </div>
-        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}>
+        <Button size="sm" variant="ghost" className="h-11 md:h-9" aria-expanded={open} onClick={() => setOpen((v) => !v)}>
           {open ? "Ocultar casos" : "Ver casos"}
         </Button>
       </div>
       {open && (
         <div className="space-y-2">
-          {casos.map((f) => {
+          {casos.slice(0, mostrando).map((f) => {
             const nome = f.caso_teste_provavel || f.erro_titulo || "Caso";
             const idCaso = f.id_caso_teste || "";
+            const titulo = `${idCaso ? `[${idCaso}] ` : ""}${nome}`;
             return (
-              <div
+              <button
                 key={f.id}
-                className="rounded-lg border border-border/60 bg-secondary/40 hover:bg-secondary/70 transition-smooth p-3 cursor-pointer"
+                type="button"
+                className="flex w-full items-center gap-3 rounded-lg border border-border/60 bg-secondary/40 p-3 text-left transition-[background-color,transform] duration-150 ease-out-strong hover:bg-secondary/70 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => onSelect(f)}
               >
-                <div className="flex items-start gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium truncate">
-                      {idCaso ? `[${idCaso}] ` : ""}{nome}
-                    </div>
-                    {f.grupo && (
-                      <div className="text-[11px] text-muted-foreground mt-0.5">
-                        {f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}
-                      </div>
-                    )}
-                  </div>
-                  <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); onSelect(f); }}>Ver detalhe</Button>
-                </div>
-              </div>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium truncate" title={titulo}>{titulo}</span>
+                  {f.grupo && (
+                    <span className="block text-[11px] text-muted-foreground mt-0.5">
+                      {f.grupo}{f.subgrupo ? ` / ${f.subgrupo}` : ""}
+                    </span>
+                  )}
+                </span>
+                <span className="inline-flex shrink-0 items-center gap-1 text-xs text-primary">
+                  Ver detalhe <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                </span>
+              </button>
             );
           })}
+          {casos.length > mostrando && (
+            <Button size="sm" variant="outline" className="w-full" onClick={() => setMostrando((n) => n + CASOS_POR_VEZ)}>
+              Mostrar mais {Math.min(CASOS_POR_VEZ, casos.length - mostrando)} de {casos.length - mostrando}
+            </Button>
+          )}
         </div>
       )}
     </div>

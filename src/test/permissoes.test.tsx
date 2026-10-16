@@ -165,6 +165,23 @@ describe("cadastro", () => {
     fireEvent.change(document.querySelector('input[type="password"]')!, { target: { value: "senha-forte" } });
   }
 
+  it("campos com rotulo e autocompletar; o erro e anunciado e marca o campo", async () => {
+    render(<MemoryRouter><Cadastro /></MemoryRouter>);
+    expect(screen.getByRole("heading", { level: 1, name: "Criar conta" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Nome de usuário")).toHaveAttribute("autocomplete", "username");
+    expect(screen.getByLabelText("Nome")).toHaveAttribute("autocomplete", "given-name");
+    expect(screen.getByLabelText("Sobrenome")).toHaveAttribute("autocomplete", "family-name");
+    const senha = screen.getByLabelText("Senha");
+    expect(senha).toHaveAttribute("autocomplete", "new-password");
+    expect(senha).toHaveAccessibleDescription("Mínimo de 8 caracteres.");
+
+    fireEvent.change(screen.getByLabelText("Nome de usuário"), { target: { value: "x" } });
+    fireEvent.submit(senha.closest("form")!);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Mínimo 3 caracteres");
+    expect(screen.getByLabelText("Nome de usuário")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Nome de usuário")).toHaveAccessibleDescription("Mínimo 3 caracteres");
+  });
+
   it("escolhe os modulos numa lista de checagem e eles vao no cadastro", async () => {
     auth.signUp.mockResolvedValue({ error: null });
     preencher();

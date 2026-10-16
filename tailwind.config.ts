@@ -3,6 +3,8 @@ import type { Config } from "tailwindcss";
 
 export default {
   darkMode: ["class"],
+  // Hover so em quem tem mouse: no celular o estado de hover ficava preso depois do toque.
+  future: { hoverOnlyWhenSupported: true },
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
   theme: {
@@ -14,6 +16,16 @@ export default {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["Inter", "system-ui", "sans-serif"],
+        display: ["Sora", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "ui-monospace", "monospace"],
+      },
+      // Curvas de saida forte: o movimento comeca na hora e assenta devagar.
+      transitionTimingFunction: {
+        "out-strong": "cubic-bezier(0.23, 1, 0.32, 1)",
+        drawer: "cubic-bezier(0.32, 0.72, 0, 1)",
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -48,13 +60,12 @@ export default {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
-        critical: "hsl(var(--critical))",
+        mixed: "hsl(var(--mixed))",
         automation: "hsl(var(--automation))",
         "data-mass": "hsl(var(--data-mass))",
         environment: "hsl(var(--environment))",
         functional: "hsl(var(--functional))",
         inconclusive: "hsl(var(--inconclusive))",
-        neutral: "hsl(var(--neutral))",
         popover: {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
@@ -82,18 +93,18 @@ export default {
       keyframes: {
         "accordion-down": { from: { height: "0" }, to: { height: "var(--radix-accordion-content-height)" } },
         "accordion-up": { from: { height: "var(--radix-accordion-content-height)" }, to: { height: "0" } },
-        "fade-in": { "0%": { opacity: "0", transform: "translateY(8px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
+        "fade-in": { "0%": { opacity: "0", transform: "translateY(4px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
         "pulse-glow": { "0%, 100%": { boxShadow: "0 0 0 0 hsl(var(--primary) / 0.4)" }, "50%": { boxShadow: "0 0 0 12px hsl(var(--primary) / 0)" } },
+        "progresso-indeterminado": { "0%": { transform: "translateX(-100%)" }, "100%": { transform: "translateX(400%)" } },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "fade-in": "fade-in 0.4s ease-out",
+        "fade-in": "fade-in 0.2s cubic-bezier(0.23, 1, 0.32, 1)",
+        // Carregamento rapido nao pisca: o esqueleto so aparece se a espera passar de 250ms.
+        "aparecer-atrasado": "fade-in-opacity 0.2s ease-out 0.25s both",
         "pulse-glow": "pulse-glow 2s infinite",
-      },
-      backgroundImage: {
-        "gradient-primary": "var(--gradient-primary)",
-        "gradient-surface": "var(--gradient-surface)",
+        "progresso-indeterminado": "progresso-indeterminado 1.4s ease-in-out infinite",
       },
     },
   },

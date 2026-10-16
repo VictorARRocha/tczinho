@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -22,6 +23,7 @@ function usePageTitle(pathname: string): string {
   if (pathname.startsWith("/regravar")) return "Regravar arquivos";
   if (pathname.startsWith("/merge")) return "Merge de branches";
   if (pathname.startsWith("/admin")) return "Usuários";
+  if (pathname === "/acesso-negado") return "Acesso negado";
   return "";
 }
 
@@ -29,6 +31,10 @@ export function AppLayout() {
   const { profile, isAdmin, signOut } = useAuth();
   const { pathname } = useLocation();
   const pageTitle = usePageTitle(pathname);
+  // Titulo da aba do navegador com a pagina atual (com varias abas abertas, da para achar a certa).
+  useEffect(() => {
+    document.title = pageTitle ? `${pageTitle} · AgenteTC` : "AgenteTC";
+  }, [pageTitle]);
   return (
     <SidebarProvider>
       <a
@@ -37,11 +43,11 @@ export function AppLayout() {
       >
         Pular para o conteúdo
       </a>
-      <div className="min-h-screen flex w-full bg-background">
+      <div className="min-h-svh flex w-full bg-background">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-xl">
-            <SidebarTrigger className="h-9 w-9" />
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-md">
+            <SidebarTrigger className="h-11 w-11 md:h-9 md:w-9" />
             {pageTitle && (
               <span className="min-w-0 truncate text-sm font-semibold md:hidden">{pageTitle}</span>
             )}
@@ -50,7 +56,7 @@ export function AppLayout() {
               {profile && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-2" aria-label={`Conta: ${profile.username}`}>
+                    <Button variant="outline" size="sm" className="h-11 gap-2 md:h-9" aria-label={`Conta: ${profile.username}`}>
                       <UserIcon className="h-3.5 w-3.5" />
                       <span className="max-w-[9rem] truncate text-xs max-sm:hidden">{profile.username}</span>
                     </Button>

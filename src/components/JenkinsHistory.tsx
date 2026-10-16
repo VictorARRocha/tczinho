@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,42 +12,22 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Copy, ExternalLink, ChevronDown, ChevronUp, Info, XCircle } from "lucide-react";
+import { Copy, ExternalLink, ChevronDown, Info, XCircle } from "lucide-react";
 import { cancelRerunRequest, type RerunRequest } from "@/services/data";
 import { invalidateRerunRequests, useRerunRequests } from "@/services/queries";
-import { hasActiveRerun, rerunStatusKey } from "@/lib/rerunStatus";
+import { hasActiveRerun } from "@/lib/rerunStatus";
+import { metaDoStatus, statusDoPedido } from "@/lib/statusPedido";
 import { Paginacao } from "@/pages/module/common";
+import { ConfirmarAcao } from "@/components/ConfirmarAcao";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
 import { mensagemDaApi } from "@/lib/apiErro";
 import { modulosDosCasos, podeNoModulo } from "@/lib/permissoes";
+import { cn } from "@/lib/utils";
 
 /** Pedidos por pagina nos historicos do Jenkins. */
 export const HISTORICO_POR_PAGINA = 10;
-
-// ---------- Status mapping ----------
-type StatusKey =
-  | "solicitado" | "processando" | "enviado_jenkins" | "na_fila" | "rodando"
-  | "finalizado_sucesso" | "finalizado_falha" | "cancelado"
-  | "cancel_requested" | "cancelando"
-  | "erro_envio" | "erro_monitoramento" | "erro";
-
-const STATUS_META: Record<string, { label: string; badge: string; bar: string; animated?: boolean }> = {
-  solicitado:         { label: "Solicitado",            badge: "bg-muted text-muted-foreground border-border",                 bar: "bg-muted-foreground/40" },
-  processando:        { label: "Processando",           badge: "bg-yellow-500/15 text-yellow-500 border-yellow-500/30",       bar: "bg-yellow-500", animated: true },
-  enviado_jenkins:    { label: "Enviado ao Jenkins",    badge: "bg-blue-500/15 text-blue-400 border-blue-500/30",             bar: "bg-blue-500" },
-  na_fila:            { label: "Na fila",               badge: "bg-sky-500/15 text-sky-400 border-sky-500/30",                bar: "bg-sky-400" },
-  rodando:            { label: "Rodando",               badge: "bg-purple-500/15 text-purple-400 border-purple-500/30",       bar: "bg-purple-500", animated: true },
-  finalizado_sucesso: { label: "Finalizado",            badge: "bg-green-500/15 text-green-500 border-green-500/30",          bar: "bg-green-500" },
-  finalizado_falha:   { label: "Falhou",                badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
-  cancelado:          { label: "Cancelado",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",       bar: "bg-orange-500" },
-  cancel_requested:   { label: "Cancelamento solicitado", badge: "bg-amber-500/15 text-amber-400 border-amber-500/30",         bar: "bg-amber-500", animated: true },
-  cancelando:         { label: "Cancelando",             badge: "bg-orange-500/15 text-orange-400 border-orange-500/30",      bar: "bg-orange-500", animated: true },
-  erro_envio:         { label: "Erro no envio",         badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
-  erro_monitoramento: { label: "Erro no monitoramento", badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
-  erro:               { label: "Erro",                  badge: "bg-red-500/15 text-red-500 border-red-500/30",                bar: "bg-red-500" },
-};
 
 const TIPO_LABEL: Record<string, string> = {
   rodagem_completa: "Rodagem completa",
@@ -59,22 +39,13 @@ const MODO_LABEL: Record<string, string> = {
   casos_quebrados: "Casos quebrados",
 };
 
-
 const CANCELABLE_STATUSES = new Set<string>([
   "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
 ]);
 
 const CANCEL_PENDING_STATUSES = new Set<string>(["cancel_requested", "cancelando"]);
 
-function resolveStatus(r: RerunRequest): StatusKey {
-  const raw = rerunStatusKey(r);
-  if (STATUS_META[raw]) return raw as StatusKey;
-  // fallback antigos
-  if (raw === "erro") return "erro";
-  return (raw as StatusKey);
-}
-
-function resolveProgress(r: RerunRequest, status: StatusKey): { value: number; indeterminate: boolean } {
+function resolveProgress(r: RerunRequest, status: string): { value: number; indeterminate: boolean } {
   const raw = r.progress_percent;
   const hasReal = raw !== null && raw !== undefined && !Number.isNaN(Number(raw));
   const value = hasReal ? Math.max(0, Math.min(100, Number(raw))) : NaN;
@@ -98,17 +69,39 @@ function resolveProgress(r: RerunRequest, status: StatusKey): { value: number; i
   }
 }
 
-function ProgressBar({ value, color, indeterminate }: { value: number; color: string; indeterminate?: boolean }) {
+/** Barra com papel e valor para o leitor de tela; "em andamento" sem valor conhecido. */
+function ProgressBar({ value, color, indeterminate, rotulo }: { value: number; color: string; indeterminate?: boolean; rotulo: string }) {
   return (
-    <div className="relative h-2 w-full overflow-hidden rounded-full bg-secondary/60">
+    <div
+      role="progressbar"
+      aria-label={rotulo}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={indeterminate ? undefined : Math.round(value)}
+      aria-valuetext={indeterminate ? "em andamento" : undefined}
+      className="relative h-2 w-full overflow-hidden rounded-full bg-secondary/60"
+    >
       {indeterminate ? (
-        <div className={`absolute inset-y-0 w-1/3 ${color} animate-[progress-indeterminate_1.4s_ease-in-out_infinite]`} />
+        <div className={`absolute inset-y-0 w-1/3 ${color} animate-progresso-indeterminado`} />
       ) : (
         <div
-          className={`h-full ${color} transition-[width] duration-500`}
+          className={`h-full ${color} transition-[width] duration-300 ease-out-strong`}
           style={{ width: `${value}%` }}
         />
       )}
+    </div>
+  );
+}
+
+function Progresso({ r, status }: { r: RerunRequest; status: string }) {
+  const meta = metaDoStatus(status);
+  const prog = resolveProgress(r, status);
+  return (
+    <div className="flex flex-col gap-1">
+      <ProgressBar value={prog.value} color={meta.barra} indeterminate={prog.indeterminate} rotulo={`Progresso: ${meta.label}`} />
+      <div className="text-[10px] text-muted-foreground" aria-hidden>
+        {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
+      </div>
     </div>
   );
 }
@@ -125,33 +118,37 @@ function formatDuration(ms?: number | null): string {
   return rm ? `${h}h ${rm}min` : `${h}h`;
 }
 
-async function cancelar(r: RerunRequest) {
-  if (!window.confirm("Cancelar esta rodagem Jenkins?")) return;
-  try {
-    await cancelRerunRequest(r.id, "Cancelamento solicitado pelo dashboard.");
-    toast.success("Cancelamento solicitado", {
-      description: "O Bridge irá confirmar o cancelamento no Jenkins.",
-    });
-    invalidateRerunRequests();
-  } catch (err) {
-    console.error(err);
-    toast.error("Falha ao solicitar cancelamento", { description: mensagemDaApi(err) });
-  }
-}
-
 function safeError(s?: string | null): string | null {
   if (!s) return null;
   // Não expor tokens/secrets
   return s.replace(/(authorization|apikey|service[_-]?role|bearer\s+\S+|token=\S+)/gi, "[redacted]");
 }
 
+function copiarConfig(r: RerunRequest) {
+  navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
+  toast.success("Configuração copiada");
+}
+
+function SeloStatus({ status }: { status: string }) {
+  const meta = metaDoStatus(status);
+  return <Badge variant="outline" className={meta.selo}>{meta.label}</Badge>;
+}
+
+const CANCELANDO = (
+  <span className="inline-flex items-center gap-1 text-[11px] text-warning">
+    <XCircle className="h-3.5 w-3.5" aria-hidden /> Cancelando…
+  </span>
+);
+
 // memo: a tabela (ate `limit` linhas com tooltips) nao re-renderiza a cada tecla
 // digitada no formulario da pagina; so quando os dados ou o estado dela mudam.
+// `filtro` tem que ser estavel (funcao de fora do componente) para o memo valer.
 export const JenkinsHistory = memo(function JenkinsHistory({
   title = "Histórico Jenkins",
   limit = 50,
   defaultExpanded = false,
-}: { title?: string; limit?: number; defaultExpanded?: boolean }) {
+  filtro,
+}: { title?: string; limit?: number; defaultExpanded?: boolean; filtro?: (r: RerunRequest) => boolean }) {
   // Consulta compartilhada: atualiza a cada 10s com pedido ativo, senao a cada minuto.
   const { data } = useRerunRequests(limit);
   // A API pode devolver mais que o pedido; a tela mostra no maximo `limit`.
@@ -160,8 +157,9 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   const history = useMemo(
     () => (data || [])
       .filter((r) => modulosDosCasos(r.casos_teste).every((slug) => podeNoModulo(profile, isAdmin, slug)))
+      .filter((r) => !filtro || filtro(r))
       .slice(0, limit),
-    [data, limit, profile, isAdmin],
+    [data, limit, profile, isAdmin, filtro],
   );
   const hasActive = hasActiveRerun(history);
   const [page, setPage] = useState(1);
@@ -169,19 +167,31 @@ export const JenkinsHistory = memo(function JenkinsHistory({
   const pedidosDaPagina = history.slice((paginaAtual - 1) * HISTORICO_POR_PAGINA, paginaAtual * HISTORICO_POR_PAGINA);
   const [detail, setDetail] = useState<RerunRequest | null>(null);
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [paraCancelar, setParaCancelar] = useState<RerunRequest | null>(null);
+  const [cancelandoAgora, setCancelandoAgora] = useState(false);
   const isMobile = useIsMobile();
+  const conteudoId = useId();
   // Cancelar uma rodagem exige a mesma permissao de pedir.
   const podeCancelar = usePermissao("rodagem");
 
+  const cancelar = async () => {
+    if (!paraCancelar) return;
+    setCancelandoAgora(true);
+    try {
+      await cancelRerunRequest(paraCancelar.id, "Cancelamento solicitado pelo dashboard.");
+      toast.success("Cancelamento pedido", { description: "O Jenkins confirma em instantes." });
+      invalidateRerunRequests();
+      setParaCancelar(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Não foi possível cancelar", { description: mensagemDaApi(err) });
+    } finally {
+      setCancelandoAgora(false);
+    }
+  };
 
   return (
-    <TooltipProvider delayDuration={150}>
-      <style>{`
-        @keyframes progress-indeterminate {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(400%); }
-        }
-      `}</style>
+    <TooltipProvider delayDuration={400}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 flex-wrap">
           <h2 className="text-base sm:text-lg font-semibold">{title}</h2>
@@ -191,63 +201,57 @@ export const JenkinsHistory = memo(function JenkinsHistory({
             </Badge>
           )}
         </div>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => setExpanded((v) => !v)}>
-            {expanded ? (
-              <><ChevronUp className="h-3.5 w-3.5 mr-1" /> Minimizar</>
-            ) : (
-              <><ChevronDown className="h-3.5 w-3.5 mr-1" /> Expandir</>
-            )}
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-11 md:h-9"
+          aria-expanded={expanded}
+          aria-controls={conteudoId}
+          onClick={() => setExpanded((v) => !v)}
+        >
+          <ChevronDown className={cn("h-3.5 w-3.5 mr-1 transition-transform duration-200 ease-out-strong", expanded && "rotate-180")} aria-hidden />
+          {expanded ? "Minimizar" : "Expandir"}
+        </Button>
       </div>
+      <div id={conteudoId}>
       {expanded && isMobile && (
-        <Card className="glass-card backdrop-filter-none overflow-hidden">
+        <Card className="glass-card overflow-hidden">
           {history.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma solicitação ainda.</p>
           ) : (
             <ul className="divide-y divide-border/60">
               {pedidosDaPagina.map((r) => {
-                const status = resolveStatus(r);
-                const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
-                const prog = resolveProgress(r, status);
+                const status = statusDoPedido(r);
+                const erro = safeError(r.erro);
                 return (
                   <li key={r.id} className="space-y-2 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
-                      <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+                      <SeloStatus status={status} />
                     </div>
                     <p className="text-sm">
                       <span className="font-mono">{r.vm_name}</span> · {r.versao} · {r.modulo_nome || r.modulo_codigo || "—"}
                     </p>
                     {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
                     {r.data_hora && <p className="text-[11px] text-muted-foreground">Agendado: <span className="font-mono">{r.data_hora}</span></p>}
-                    <div className="flex flex-col gap-1">
-                      <ProgressBar value={prog.value} color={meta.bar} indeterminate={prog.indeterminate} />
-                      <div className="text-[10px] text-muted-foreground">
-                        {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
-                      </div>
-                    </div>
+                    {erro && <p className="break-words text-[11px] text-destructive">{erro}</p>}
+                    <Progresso r={r} status={status} />
                     <div className="flex flex-wrap gap-2">
-                      <Button size="sm" variant="outline" className="h-8 flex-1" onClick={() => setDetail(r)}>
-                        <Info className="h-3.5 w-3.5 mr-1" /> Detalhes
+                      <Button size="sm" variant="outline" className="h-11 flex-1" onClick={() => setDetail(r)}>
+                        <Info className="h-3.5 w-3.5 mr-1" aria-hidden /> Detalhes
                       </Button>
                       {r.build_url && (
-                        <Button size="sm" variant="outline" className="h-8 flex-1" asChild>
+                        <Button size="sm" variant="outline" className="h-11 flex-1" asChild>
                           <a href={r.build_url} target="_blank" rel="noreferrer">
-                            <ExternalLink className="h-3.5 w-3.5 mr-1" /> Build
+                            <ExternalLink className="h-3.5 w-3.5 mr-1" aria-hidden /> Build
                           </a>
                         </Button>
                       )}
                       {podeCancelar && CANCELABLE_STATUSES.has(status) ? (
-                        <Button size="sm" variant="outline" className="h-8 flex-1 text-red-400 border-red-500/30" onClick={() => cancelar(r)}>
-                          <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                        <Button size="sm" variant="outline" className="h-11 flex-1 text-destructive border-destructive/30" onClick={() => setParaCancelar(r)}>
+                          <XCircle className="h-3.5 w-3.5 mr-1" aria-hidden /> Cancelar
                         </Button>
-                      ) : CANCEL_PENDING_STATUSES.has(status) ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
-                          <XCircle className="h-3.5 w-3.5" /> Cancelando…
-                        </span>
-                      ) : null}
+                      ) : CANCEL_PENDING_STATUSES.has(status) ? CANCELANDO : null}
                     </div>
                   </li>
                 );
@@ -257,7 +261,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
         </Card>
       )}
       {expanded && !isMobile && (
-        <Card className="glass-card backdrop-filter-none overflow-hidden">
+        <Card className="glass-card overflow-hidden">
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
@@ -268,7 +272,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                   <TableHead>Módulo</TableHead>
                   <TableHead>Casos</TableHead>
                   <TableHead>Agendado</TableHead>
-                  <TableHead>Status da rodagem</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead className="min-w-[180px]">Progresso</TableHead>
                   <TableHead className="w-32 text-center">Cancelar</TableHead>
                   <TableHead className="w-28 text-right">Ações</TableHead>
@@ -278,49 +282,34 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                 {history.length === 0 ? (
                   <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
                 ) : pedidosDaPagina.map((r) => {
-                  const status = resolveStatus(r);
-                  const meta = STATUS_META[status] || { label: status, badge: "", bar: "bg-muted-foreground/40" };
-                  const prog = resolveProgress(r, status);
-                  const buildUrl = r.build_url || null;
-                  const monErr = safeError(r.monitor_error);
-                  const subErr = safeError(r.erro);
+                  const status = statusDoPedido(r);
+                  const erro = safeError(r.erro);
+                  const quando = new Date(r.created_at).toLocaleString("pt-BR");
+                  // Linha clicavel com o mouse; pelo teclado, o botao "Detalhes" da coluna Acoes.
                   return (
                     <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail(r)}>
-                      <TableCell className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</TableCell>
+                      <TableCell className="text-xs">{quando}</TableCell>
                       <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
                       <TableCell className="text-xs">{r.versao}</TableCell>
                       <TableCell className="text-xs">{r.modulo_nome || r.modulo_codigo || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
                       <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>
+                      <TableCell className="max-w-[220px]">
+                        <SeloStatus status={status} />
+                        {erro && <p className="mt-1 truncate text-xs text-destructive" title={erro}>{erro}</p>}
                       </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <ProgressBar value={prog.value} color={meta.bar} indeterminate={prog.indeterminate || meta.animated && status === "rodando" && prog.indeterminate} />
-                          <div className="text-[10px] text-muted-foreground">
-                            {meta.label}{prog.indeterminate ? " — em andamento" : ` — ${Math.round(prog.value)}%`}
-                          </div>
-                        </div>
-                      </TableCell>
+                      <TableCell><Progresso r={r} status={status} /></TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                         {podeCancelar && CANCELABLE_STATUSES.has(status) ? (
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-7 px-2 text-xs text-red-400 border-red-500/30 hover:bg-red-500/10 hover:text-red-500"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              cancelar(r);
-                            }}
+                            className="h-7 px-2 text-xs text-destructive border-destructive/30 hover:bg-destructive/10 hover:text-destructive"
+                            onClick={() => setParaCancelar(r)}
                           >
-                            <XCircle className="h-3.5 w-3.5 mr-1" /> Cancelar
+                            <XCircle className="h-3.5 w-3.5 mr-1" aria-hidden /> Cancelar
                           </Button>
-                        ) : CANCEL_PENDING_STATUSES.has(status) ? (
-                          <span className="inline-flex items-center gap-1 text-[11px] text-amber-400">
-                            <XCircle className="h-3.5 w-3.5" /> Cancelando…
-                          </span>
-                        ) : (
+                        ) : CANCEL_PENDING_STATUSES.has(status) ? CANCELANDO : (
                           <span className="text-muted-foreground text-xs">—</span>
                         )}
                       </TableCell>
@@ -328,33 +317,31 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                         <div className="flex items-center justify-end gap-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button size="sm" variant="ghost" onClick={() => setDetail(r)}>
-                                <Info className="h-3.5 w-3.5" />
+                              <Button size="sm" variant="ghost" aria-label={`Detalhes do pedido de ${quando}`} onClick={() => setDetail(r)}>
+                                <Info className="h-3.5 w-3.5" aria-hidden />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Detalhes</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button size="sm" variant="ghost" onClick={() => {
-                                navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
-                                toast.success("CONFIG_JSON copiado");
-                              }}>
-                                <Copy className="h-3.5 w-3.5" />
+                              <Button size="sm" variant="ghost" aria-label="Copiar a configuração enviada" onClick={() => copiarConfig(r)}>
+                                <Copy className="h-3.5 w-3.5" aria-hidden />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Copiar CONFIG_JSON</TooltipContent>
+                            <TooltipContent>Copiar a configuração enviada</TooltipContent>
                           </Tooltip>
-                          {buildUrl && (
+                          {r.build_url && (
                             <Tooltip>
                               <TooltipTrigger asChild>
-                                <a href={buildUrl} target="_blank" rel="noreferrer">
-                                  <Button size="sm" variant="ghost">
-                                    <ExternalLink className="h-3.5 w-3.5" />
-                                  </Button>
-                                </a>
+                                {/* O link e o proprio botao (antes era um botao dentro do link: dois alvos de foco). */}
+                                <Button size="sm" variant="ghost" asChild>
+                                  <a href={r.build_url} target="_blank" rel="noreferrer" aria-label="Abrir o build no Jenkins">
+                                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
+                                  </a>
+                                </Button>
                               </TooltipTrigger>
-                              <TooltipContent>Abrir build</TooltipContent>
+                              <TooltipContent>Abrir o build no Jenkins</TooltipContent>
                             </Tooltip>
                           )}
                         </div>
@@ -372,8 +359,26 @@ export const JenkinsHistory = memo(function JenkinsHistory({
           <Paginacao page={paginaAtual} pageSize={HISTORICO_POR_PAGINA} total={history.length} onChange={setPage} />
         </div>
       )}
+      </div>
 
       <DetailDialog request={detail} onClose={() => setDetail(null)} />
+      <ConfirmarAcao
+        aberto={!!paraCancelar}
+        titulo="Cancelar esta rodagem?"
+        descricao="O Jenkins para a execução na VM. Não dá para desfazer."
+        acao="Cancelar rodagem"
+        ocupado={cancelandoAgora}
+        onConfirmar={cancelar}
+        onFechar={() => setParaCancelar(null)}
+      >
+        {paraCancelar && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-border px-3 py-2 text-sm">
+            <dt className="text-muted-foreground">VM</dt><dd className="font-mono">{paraCancelar.vm_name}</dd>
+            <dt className="text-muted-foreground">Versão</dt><dd>{paraCancelar.versao}</dd>
+            <dt className="text-muted-foreground">Casos</dt><dd className="break-all font-mono text-xs">{paraCancelar.casos_teste}</dd>
+          </dl>
+        )}
+      </ConfirmarAcao>
     </TooltipProvider>
   );
 });
@@ -393,17 +398,16 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
     <Dialog open={!!r} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Detalhes da solicitação</DialogTitle>
-          <DialogDescription>Dados completos lidos da API.</DialogDescription>
+          <DialogTitle>Detalhes do pedido</DialogTitle>
+          <DialogDescription>Tudo o que foi pedido ao Jenkins e o que ele respondeu.</DialogDescription>
         </DialogHeader>
         {r && (() => {
-          const status = resolveStatus(r);
-          const meta = STATUS_META[status] || { label: status, badge: "" };
+          const status = statusDoPedido(r);
           const monErr = safeError(r.monitor_error);
           const subErr = safeError(r.erro);
           const rows: [string, React.ReactNode][] = [
-            ["ID da solicitação", <span className="font-mono text-xs">{r.id}</span>],
-            ["Data de criação", new Date(r.created_at).toLocaleString("pt-BR")],
+            ["Pedido", <span className="font-mono text-xs">{r.id}</span>],
+            ["Criado em", new Date(r.created_at).toLocaleString("pt-BR")],
             ["Tipo", TIPO_LABEL[r.tipo_solicitacao || ""] || r.tipo_solicitacao || "—"],
             ["Modo", MODO_LABEL[r.modo_configuracao || ""] || r.modo_configuracao || "—"],
             ["VM", r.vm_name || "—"],
@@ -411,31 +415,31 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
             ["Módulo", r.modulo_nome || r.modulo_codigo || "—"],
             ["Casos", <span className="font-mono text-xs break-all">{r.casos_teste || "—"}</span>],
             ["Agendado", r.data_hora || "—"],
-            ["Status operacional", <Badge variant="outline" className={meta.badge}>{meta.label}</Badge>],
-            ["Resultado Jenkins", r.execution_result || "—"],
-            ["Build number", r.build_number ? String(r.build_number) : (r.jenkins_build_number || "—")],
-            ["Build URL", r.build_url ? (
-              <a href={r.build_url} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs">
-                {r.build_url} <ExternalLink className="h-3 w-3" />
+            ["Status", <SeloStatus status={status} />],
+            ["Resultado no Jenkins", r.execution_result || "—"],
+            ["Número do build", r.build_number ? String(r.build_number) : (r.jenkins_build_number || "—")],
+            ["Link do build", r.build_url ? (
+              <a href={r.build_url} target="_blank" rel="noreferrer" className="text-primary hover:underline inline-flex items-center gap-1 text-xs break-all">
+                {r.build_url} <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
               </a>
             ) : "—"],
-            ["Início da execução", r.started_at ? new Date(r.started_at).toLocaleString("pt-BR") : "—"],
-            ["Fim da execução", r.finished_at ? new Date(r.finished_at).toLocaleString("pt-BR") : "—"],
+            ["Início", r.started_at ? new Date(r.started_at).toLocaleString("pt-BR") : "—"],
+            ["Fim", r.finished_at ? new Date(r.finished_at).toLocaleString("pt-BR") : "—"],
             ["Duração", formatDuration(r.duration_ms)],
             ["Duração estimada", formatDuration(r.estimated_duration_ms)],
             ["Última checagem", r.last_checked_at ? new Date(r.last_checked_at).toLocaleString("pt-BR") : "—"],
             ["Erro", subErr || "—"],
-            ["Monitor error", monErr || "—"],
+            ["Erro de acompanhamento", monErr || "—"],
           ];
           return (
             <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-x-3 gap-y-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-[180px_1fr] gap-x-3 gap-y-2 text-sm">
                 {rows.map(([k, v], i) => (
                   <FragmentRow key={i} label={k as string} value={v} />
                 ))}
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Config JSON</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Configuração enviada</div>
                 <pre className="text-xs bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto">
 {JSON.stringify(r.config_json, null, 2)}
                 </pre>

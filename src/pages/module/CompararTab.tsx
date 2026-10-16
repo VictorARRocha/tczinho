@@ -1,6 +1,6 @@
 // Aba Comparar: o que mudou entre duas rodagens do modulo (falhas novas,
 // persistentes e resolvidas), com o tipo da falha antes e depois.
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Falha, Rodagem } from "@/types/db";
 import { Card } from "@/components/ui/card";
@@ -14,7 +14,9 @@ import { compareRuns, executedCountsDiffer, orderRuns, type CaseComparison, type
 import { useDebounce } from "@/hooks/useDebounce";
 import { useRunFailures } from "@/services/queries";
 import { failureDescription } from "./caseText";
-import { Empty, SEM_RESULTADO, TipoBadge } from "./common";
+import { Empty, Paginacao, SEM_RESULTADO, TipoBadge } from "./common";
+
+const POR_PAGINA = 50;
 
 type Filtro = "todos" | CaseStatus | "tipo_mudou";
 
@@ -27,7 +29,8 @@ const STATUS_META: Record<CaseStatus, { label: string; dot: string; card: string
 function runLabel(r: Rodagem): string {
   const data = formatDateTime(r.data_inicio_rodagem || r.data_analise);
   const partes = [data, formatarVm(r.maquina), formatarVersao(r.versao_sistema)].filter((p) => p && p !== "—");
-  return `${partes.join(" — ")} · ${r.total_falhas ?? 0} falhas`;
+  const n = r.total_falhas ?? 0;
+  return `${partes.join(" — ")} · ${n} ${n === 1 ? "falha" : "falhas"}`;
 }
 
 function caseMatches(item: CaseComparison, needle: string): boolean {
@@ -94,6 +97,8 @@ export function CompararTab({
       return caseMatches(item, debouncedQ);
     });
   }, [comparacao, filtro, debouncedQ]);
+  const [pagina, setPagina] = useState(1);
+  useEffect(() => { setPagina(1); }, [visiveis]);
 
   if (runs.length < 2) {
     return (
@@ -132,8 +137,8 @@ export function CompararTab({
       {mesmaRodagem ? (
         <Card className="p-10 text-center text-sm text-muted-foreground">Escolha duas rodagens diferentes.</Card>
       ) : carregando || !comparacao ? (
-        <Card className="p-10 text-center text-sm text-muted-foreground">
-          <RefreshCw className="h-4 w-4 animate-spin inline mr-2" /> Comparando rodagens...
+        <Card className="p-10 text-center text-sm text-muted-foreground" role="status">
+          <RefreshCw className="h-4 w-4 animate-spin inline mr-2" aria-hidden /> Comparando rodagens...
         </Card>
       ) : (
         <>
@@ -155,7 +160,7 @@ export function CompararTab({
                 title={`${c.dica} Clique para filtrar a lista.`}
                 aria-pressed={filtro === c.id}
                 onClick={() => setFiltro((atual) => (atual === c.id ? "todos" : c.id))}
-                className={`text-left rounded-lg border bg-card p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${filtro === c.id ? "border-primary ring-1 ring-primary/40" : "border-border hover:border-primary/40"}`}
+                className={`text-left rounded-lg border bg-card p-4 transition-[border-color,box-shadow,transform] duration-150 ease-out-strong active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${filtro === c.id ? "border-primary ring-1 ring-primary/40" : "border-border hover:border-primary/40"}`}
               >
                 <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
                   <span>{c.label}</span>
@@ -180,11 +185,11 @@ export function CompararTab({
                   className="bg-background pl-9"
                 />
               </div>
-              <span className="text-xs text-muted-foreground">
-                {visiveis.length} de {comparacao.itens.length} casos
+              <span className="text-xs text-muted-foreground" role="status">
+                {visiveis.length} de {comparacao.itens.length} {comparacao.itens.length === 1 ? "caso" : "casos"}
               </span>
               {filtro !== "todos" && (
-                <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setFiltro("todos")}>Limpar filtro</Button>
+                <Button size="sm" variant="ghost" className="h-11 text-xs md:h-8" onClick={() => setFiltro("todos")}>Limpar filtro</Button>
               )}
             </div>
           </Card>
@@ -194,11 +199,14 @@ export function CompararTab({
           ) : visiveis.length === 0 ? (
             <Card><Empty text={SEM_RESULTADO} onClear={() => { setQ(""); setFiltro("todos"); }} /></Card>
           ) : (
-            <Card className="divide-y divide-border/60 overflow-hidden">
-              {visiveis.map((item) => (
-                <CaseRow key={item.key} item={item} onOpenFailure={onOpenFailure} />
-              ))}
-            </Card>
+            <>
+              <Card className="divide-y divide-border/60 overflow-hidden">
+                {visiveis.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((item) => (
+                  <CaseRow key={item.key} item={item} onOpenFailure={onOpenFailure} />
+                ))}
+              </Card>
+              <Paginacao page={pagina} pageSize={POR_PAGINA} total={visiveis.length} onChange={setPagina} />
+            </>
           )}
         </>
       )}
@@ -233,7 +241,7 @@ function CaseRow({ item, onOpenFailure }: { item: CaseComparison; onOpenFailure:
 
   return (
     <div
-      className="flex flex-col gap-2 px-4 py-3 hover:bg-secondary/40 cursor-pointer md:flex-row md:items-center md:gap-4"
+      className="flex flex-col gap-2 px-4 py-3 cursor-pointer transition-colors hover:bg-secondary/40 active:bg-secondary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring md:flex-row md:items-center md:gap-4"
       role="button"
       tabIndex={0}
       onClick={() => referencia && onOpenFailure(referencia)}

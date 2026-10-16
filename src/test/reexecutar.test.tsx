@@ -119,7 +119,8 @@ describe("Reexecutar rodagens (etapas)", () => {
     renderPagina();
     await screen.findAllByRole("radio");
     expect(screen.queryByRole("button", { name: /Ocultar finalizadas/ })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Histórico de reexecuções/ }));
+    expect(screen.getByRole("heading", { name: "Histórico de reexecuções" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expandir" }));
     expect(await screen.findByText("Mostrando 1–10 de 12")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
     expect(screen.getByText("Mostrando 11–12 de 12")).toBeInTheDocument();
@@ -235,5 +236,37 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Revisar/ }));
     // As opcoes avancadas continuam abertas, mas a VM especifica voltou a ficar desligada.
     expect(await screen.findByRole("checkbox", { name: "Reexecutar casos em uma VM específica" })).not.toBeChecked();
+  });
+});
+
+describe("auditoria parte 3: reexecucao", () => {
+  it("historico com o status em portugues e sem as rodagens completas", async () => {
+    api.historico = [
+      { id: "p1", created_at: "2026-10-14T10:00:00Z", status: "na_fila", tipo_solicitacao: "reexecucao", vm_name: "a08", versao: "PROXIMA", casos_teste: "[3.1.1]", config_json: {} },
+      { id: "p2", created_at: "2026-10-14T09:00:00Z", status: "finalizado_sucesso", tipo_solicitacao: "rodagem_completa", vm_name: "a08", versao: "PROXIMA", casos_teste: "[3]", config_json: {} },
+    ];
+    renderPagina();
+    await screen.findAllByRole("radio");
+    fireEvent.click(screen.getByRole("button", { name: "Expandir" }));
+    expect(await screen.findByText("Na fila")).toBeInTheDocument();
+    expect(screen.queryByText("na_fila")).toBeNull();
+    expect(screen.queryByText("Finalizado")).toBeNull();
+  });
+
+  it("lista de rodagens: uma parada de Tab e setas para trocar", async () => {
+    renderPagina();
+    const radios = await screen.findAllByRole("radio");
+    expect(radios.filter((r) => r.tabIndex === 0)).toHaveLength(1);
+    fireEvent.keyDown(radios[0], { key: "ArrowDown" });
+    await waitFor(() => expect(screen.getAllByRole("radio")[1]).toHaveAttribute("aria-checked", "true"));
+  });
+
+  it("trocar de etapa leva o foco ao titulo; cada caso tem nome", async () => {
+    renderPagina();
+    await screen.findAllByRole("radio");
+    fireEvent.click(screen.getByRole("button", { name: /Escolher casos/ }));
+    const titulo = await screen.findByRole("heading", { name: "Marque os casos para rodar de novo" });
+    await waitFor(() => expect(document.activeElement).toBe(titulo));
+    expect(await screen.findByRole("checkbox", { name: /Marcar 3\.1\.1 Cadastro de sócio/ })).toBeInTheDocument();
   });
 });

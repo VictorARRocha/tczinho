@@ -39,7 +39,7 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
                   </div>
                   {active
                     ? <span className="px-3 text-xs text-muted-foreground">Aberta</span>
-                    : <Button size="sm" variant="outline" onClick={() => onPick(r.id)}>Abrir</Button>}
+                    : <Button size="sm" variant="outline" className="h-11" onClick={() => onPick(r.id)}>Abrir</Button>}
                 </li>
               );
             })}

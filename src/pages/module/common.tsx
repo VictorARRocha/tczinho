@@ -54,12 +54,22 @@ export function Paginacao({ page, pageSize, total, onChange }: { page: number; p
 /** Mensagem padrao quando busca/filtros nao encontram nada. */
 export const SEM_RESULTADO = "Nada encontrado com essa busca e esses filtros.";
 
+/**
+ * Cor de cada tipo de ocorrencia, num lugar so (selo, contadores, filtros, resumo).
+ * Tokens com variante clara e escura: quebra = destructive, diferenca = warning, as duas = mixed.
+ */
+export const TIPO_COR: Record<OccurrenceType, { texto: string; ponto: string; selo: string; rotulo: string }> = {
+  quebra: { texto: "text-destructive", ponto: "bg-destructive", selo: "bg-destructive/10 text-destructive border-destructive/30", rotulo: "Quebra" },
+  diferenca: { texto: "text-warning", ponto: "bg-warning", selo: "bg-warning/10 text-warning border-warning/35", rotulo: "Diferença" },
+  quebra_diferenca: { texto: "text-mixed", ponto: "bg-mixed", selo: "bg-mixed/10 text-mixed border-mixed/30", rotulo: "Quebra + Diferença" },
+};
+
 /** Selo do tipo da ocorrencia (Quebra / Diferenca / Quebra + Diferenca). */
 export function TipoBadge({ tipo }: { tipo: OccurrenceType }) {
-  const base = "text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full border";
-  if (tipo === "quebra")
-    return <Badge variant="outline" className={`${base} bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30`}>Quebra</Badge>;
-  if (tipo === "diferenca")
-    return <Badge variant="outline" className={`${base} bg-amber-500/15 text-amber-800 border-amber-600/40 dark:bg-amber-900/25 dark:text-amber-200/90 dark:border-amber-700/40`}>Diferença</Badge>;
-  return <Badge variant="outline" className={`${base} bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300 border-fuchsia-500/30`}>Quebra + Diferença</Badge>;
+  const cor = TIPO_COR[tipo];
+  return (
+    <Badge variant="outline" className={`text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full border ${cor.selo}`}>
+      {cor.rotulo}
+    </Badge>
+  );
 }

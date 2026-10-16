@@ -32,24 +32,42 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-4">
+    <div className="min-h-svh flex items-center justify-center bg-background px-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center space-y-3">
           <img src="/sci-logo.png" alt="SCI Sistemas" className="mx-auto block h-16 w-16" />
-          <CardTitle className="font-display">AgenteTC</CardTitle>
+          <CardTitle as="h1" className="font-display">AgenteTC</CardTitle>
           <CardDescription>Entre com seu usuário e senha</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="username">Usuário</Label>
-              <Input id="username" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+              <Input
+                id="username"
+                autoComplete="username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                aria-invalid={err ? true : undefined}
+                aria-describedby={err ? "login-erro" : undefined}
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Senha</Label>
-              <Input id="password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                aria-invalid={err ? true : undefined}
+                aria-describedby={err ? "login-erro" : undefined}
+              />
             </div>
-            {err && <p className="text-sm text-destructive">{err}</p>}
+            {/* Sempre no DOM: o leitor de tela anuncia quando o texto aparece. */}
+            <p id="login-erro" role="alert" className="text-sm text-destructive empty:hidden">{err}</p>
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Entrar

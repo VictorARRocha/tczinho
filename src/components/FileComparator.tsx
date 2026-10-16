@@ -20,6 +20,7 @@ import { fetchEvidenceBlob } from "@/lib/evidenceUrl";
 import { isImageEvidence, type ComparisonPair } from "@/lib/occurrence";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFocoDeVolta } from "@/hooks/usePainel";
 import { decodeEvidenceText } from "@/lib/textDecode";
 
 async function decodeText(blob: Blob | null): Promise<{ text: string | null; tooLarge: boolean }> {
@@ -85,7 +86,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const theme = typeof document !== "undefined" && document.documentElement.classList.contains("light") ? "light" : "dark";
   const [loadingStage, setLoadingStage] = useState<string>("");
   const [tooLarge, setTooLarge] = useState(false);
-  const [binary, setBinary] = useState(false);
+  const voltarFoco = useFocoDeVolta(open);
   const [baseError, setBaseError] = useState<string | null>(null);
   const [atualError, setAtualError] = useState<string | null>(null);
 
@@ -103,7 +104,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
     const objectUrls: string[] = [];
     setLoading(true);
     setLoadingStage("Carregando arquivos de comparação...");
-    setBaseText(null); setAtualText(null); setTooLarge(false); setBinary(false);
+    setBaseText(null); setAtualText(null); setTooLarge(false);
     setBaseError(null); setAtualError(null);
     (async () => {
       const [baseBlob, atualBlob] = await Promise.all([
@@ -124,10 +125,10 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
         ]);
         if (cancel) return;
         if (b.tooLarge || a.tooLarge) setTooLarge(true);
-        if (pair.base && !bu) setBaseError("URL do arquivo Baseline indisponível.");
-        else if (pair.base && b.text === null && !b.tooLarge) setBaseError("Não foi possível carregar o arquivo Baseline.");
-        if (pair.atual && !au) setAtualError("URL do arquivo Checked indisponível.");
-        else if (pair.atual && a.text === null && !a.tooLarge) setAtualError("Não foi possível carregar o arquivo Checked.");
+        if (pair.base && !bu) setBaseError("O arquivo base não está disponível.");
+        else if (pair.base && b.text === null && !b.tooLarge) setBaseError("Não foi possível carregar o arquivo base.");
+        if (pair.atual && !au) setAtualError("O arquivo atual não está disponível.");
+        else if (pair.atual && a.text === null && !a.tooLarge) setAtualError("Não foi possível carregar o arquivo atual.");
         
         setBaseText(b.text); setAtualText(a.text);
       }
@@ -242,11 +243,6 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
   const baseName = pair.base?.nome_arquivo || "—";
   const atualName = pair.atual?.nome_arquivo || "—";
 
-  const copyNames = () => {
-    navigator.clipboard.writeText(`Baseline: ${baseName}\nChecked: ${atualName}`);
-    toast.success("Nomes copiados");
-  };
-
   const goPrev = () => {
     if (!hasDiffs) return;
     if (isText) gotoMonacoDiff(monacoIndex - 1);
@@ -261,7 +257,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent aria-describedby={undefined} className="max-w-[96vw] w-[1320px] h-[92vh] flex flex-col p-0 gap-0 max-sm:max-w-full max-sm:h-[100dvh] max-sm:rounded-none">
+      <DialogContent aria-describedby={undefined} onCloseAutoFocus={voltarFoco} className="max-w-[96vw] w-[1320px] h-[92vh] flex flex-col p-0 gap-0 max-sm:max-w-full max-sm:h-[100dvh] max-sm:rounded-none">
         <DialogHeader className="px-6 py-3 pr-14 border-b border-border max-sm:px-4 max-sm:pr-14">
           <DialogTitle className="text-base flex items-center gap-2">
             <FileText className="h-4 w-4" /> Comparação de arquivos
@@ -353,21 +349,17 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             <div className="p-12 text-center text-sm text-muted-foreground">{loadingStage || "Carregando..."}</div>
           ) : isImg ? (
             <div className="grid grid-cols-2 gap-2 p-4 h-full overflow-auto max-sm:grid-cols-1 max-sm:p-2">
-              <ImagePane label="Baseline" url={baseUrl} />
-              <ImagePane label="Checked" url={atualUrl} />
+              <ImagePane label="Base" url={baseUrl} />
+              <ImagePane label="Atual" url={atualUrl} />
             </div>
           ) : isPdf ? (
             <div className="grid grid-cols-2 gap-2 p-4 h-full max-sm:grid-cols-1 max-sm:p-2 max-sm:overflow-auto">
-              <PdfPane label="Baseline" url={baseUrl} />
-              <PdfPane label="Checked" url={atualUrl} />
-            </div>
-          ) : binary ? (
-            <div className="p-12 text-center text-sm text-muted-foreground">
-              Este arquivo não pode ser comparado como texto. Use os botões para baixar.
+              <PdfPane label="Base" url={baseUrl} />
+              <PdfPane label="Atual" url={atualUrl} />
             </div>
           ) : tooLarge ? (
             <div className="p-12 text-center text-sm text-muted-foreground">
-              Arquivo grande demais para preview. Use os botões para abrir ou baixar.
+              Arquivo grande demais para mostrar aqui. Use “Baixar arquivos” para abrir no computador.
             </div>
           ) : isText ? (
             (baseError || atualError) && baseText == null && atualText == null ? (
@@ -410,7 +402,7 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                       glyphMargin: true,
                       lineNumbers: "on",
                     }}
-                    loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando Monaco Diff...</div>}
+                    loading={<div className="p-12 text-center text-sm text-muted-foreground">Preparando a comparação...</div>}
                   />
                 </div>
 
@@ -422,11 +414,11 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
             <CsvDiffView rows={csvRows} diffRows={csvDiffRows} currentBlock={currentBlock} />
           ) : (!pair.base || !pair.atual) ? (
             <div className="p-12 text-center text-sm text-muted-foreground">
-              {pair.base ? "Arquivo atual/checked não encontrado." : "Arquivo baseline/base não encontrado."}
+              {pair.base ? "Arquivo atual não encontrado." : "Arquivo base não encontrado."}
             </div>
           ) : (
             <div className="p-12 text-center text-sm text-muted-foreground">
-              Preview indisponível para este tipo de arquivo (.{ext || "?"}). Use os botões para abrir ou baixar.
+              Este tipo de arquivo (.{ext || "?"}) não pode ser mostrado aqui. Use “Baixar arquivos” para abrir no computador.
             </div>
           )}
         </div>
@@ -512,14 +504,16 @@ function CsvDiffView({
     const el = rowRefs.current[idx];
     const c = leftRef.current;
     if (!el || !c) return;
-    c.scrollTo({ top: el.offsetTop - 40, behavior: "smooth" });
+    // Com "reduzir movimento" ligado no sistema, pula direto para a linha.
+    const reduzir = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    c.scrollTo({ top: el.offsetTop - 40, behavior: reduzir ? "auto" : "smooth" });
   }, [currentBlock, diffRows]);
 
   const isCurrent = (i: number) => diffRows[currentBlock] === i;
 
   return (
-    <div className="grid grid-cols-2 text-xs h-full">
-      <div ref={leftRef} className="border-r border-border overflow-auto h-full">
+    <div className="grid grid-cols-2 text-xs h-full max-sm:grid-cols-1 max-sm:grid-rows-2">
+      <div ref={leftRef} className="border-r border-border overflow-auto h-full max-sm:border-r-0 max-sm:border-b">
         <table className="w-full">
           <tbody>
             {rows.map((r, i) => (
