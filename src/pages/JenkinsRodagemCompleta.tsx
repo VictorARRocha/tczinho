@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SelectBusca } from "@/components/SelectBusca";
 import { PlayCircle, ChevronLeft, Copy, Clock, AlertTriangle } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
@@ -268,17 +269,11 @@ export default function JenkinsRodagemCompleta() {
               </Field>
 
               <Field label="Branch" id="rc-branch">
-                <Select value={sBranch} onValueChange={setSBranch}>
-                  <SelectTrigger id="rc-branch">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="max-h-[320px]">
-                    <SelectItem value={MANTER_BRANCH}>Manter a branch atual</SelectItem>
-                    {opcoes.map((o) => (
-                      <SelectItem key={o.valor} value={o.valor}>{o.rotulo}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <SelectBusca
+                  id="rc-branch" value={sBranch} onChange={setSBranch}
+                  opcoes={[{ valor: MANTER_BRANCH, rotulo: "Manter a branch atual" }, ...opcoes]}
+                  buscaPlaceholder="Buscar branch…" vazio="Nenhuma branch encontrada."
+                />
                 {sBranch !== MANTER_BRANCH && (
                   <div className="mt-2 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 p-2.5 text-xs text-warning" role="note">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />

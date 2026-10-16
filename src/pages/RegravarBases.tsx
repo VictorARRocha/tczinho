@@ -1,11 +1,15 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, FileDiff, GitCommitHorizontal, RotateCcw, XCircle } from "lucide-react";
+import {
+  AlertTriangle, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, FileDiff, GitCommitHorizontal, RotateCcw,
+  Search, XCircle,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -19,12 +23,15 @@ import { usePermissao } from "@/hooks/use-permissao";
 import { nomeModulo, podeNoModulo } from "@/lib/permissoes";
 import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
 import { TOM_STATUS } from "@/lib/statusPedido";
-import { useUltimoValor } from "@/hooks/usePainel";
 import { ConfirmarAcao } from "@/components/ConfirmarAcao";
 import { mensagemDaApi } from "@/lib/apiErro";
 import { opcoesBranch } from "@/lib/branchVm";
 import { cn } from "@/lib/utils";
 import { SemPermissao } from "@/components/SemPermissao";
+import { SelectBusca } from "@/components/SelectBusca";
+import { EtapasNav } from "@/components/EtapasNav";
+import { useFocoNaEtapa, useUltimoValor } from "@/hooks/usePainel";
+import { combinaBusca } from "@/lib/merge";
 import {
   cancelRegravacao, createRegravacao, extractVmName, type RegravacaoItem, type RegravacaoPedido, type RodagemListItem,
 } from "@/services/data";
@@ -49,6 +56,13 @@ const FailureDetailSheet = lazy(() =>
 const runVm = (r: RodagemListItem) =>
   (r.vm_name || extractVmName(r.id_rodagem) || extractVmName(r.caminho_logs) || "").toLowerCase();
 const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toString();
+
+type Etapa = 1 | 2 | 3;
+const ETAPAS: { n: Etapa; label: string }[] = [
+  { n: 1, label: "Rodagem" },
+  { n: 2, label: "Arquivos" },
+  { n: 3, label: "Confirmar" },
+];
 
 type SortKey = "caso" | "atual" | "base";
 type SortDir = "asc" | "desc";
@@ -93,6 +107,9 @@ export default function RegravarBases() {
   const runId = params.get("rodagem") || "";
   const rodagemAtual = runs.find((r) => r.id_rodagem === runId) || null;
   const setRunId = (id: string) => setParams(id ? { rodagem: id } : {}, { replace: true });
+  // Aberta pelo link de uma rodagem: ja comeca nos arquivos.
+  const [etapa, setEtapa] = useState<Etapa>(() => (runId ? 2 : 1));
+  const tituloEtapa = useFocoNaEtapa(etapa);
   // A lista de rodagens abre sempre para baixo; com pouco espaco embaixo, a pagina sobe antes de abrir.
   const rodagemTriggerRef = useRef<HTMLButtonElement>(null);
   const abrirListaRodagens = (aberta: boolean) => {
@@ -163,6 +180,9 @@ export default function RegravarBases() {
   const pedidoConflito = pedidos.find((p) => p.status === "erro" && p.result_json?.conflito) || null;
   const regravaveis = useMemo(() => itens.filter((i) => i.regravavel), [itens]);
 
+  const podeIrPara = (n: Etapa) =>
+    n === 1 || (n === 2 && !!runId) || (n === 3 && !!runId && marcados.size > 0 && !(outraBranch && !branchUrl));
+
   // Quando um pedido muda de status (o Bridge pegou/terminou), recarrega a situacao dos arquivos.
   const statusPedidos = pedidos.map((p) => p.id + ":" + p.status).join("|");
   const statusAnterior = useRef(statusPedidos);
@@ -173,6 +193,8 @@ export default function RegravarBases() {
 
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [soRegravaveis, setSoRegravaveis] = useState(false);
+  const [buscaCaso, setBuscaCaso] = useState("");
+  const [listaAberta, setListaAberta] = useState(true);
   const [mensagem, setMensagem] = useState("");
   const [mensagemEditada, setMensagemEditada] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -185,7 +207,6 @@ export default function RegravarBases() {
   const compararPainel = useUltimoValor(comparar);
   const [paraCancelar, setParaCancelar] = useState<RegravacaoPedido | null>(null);
   const [cancelando, setCancelando] = useState(false);
-  const envioRef = useRef<HTMLDivElement>(null);
 
   // Troca de rodagem limpa a selecao, volta a mensagem para o padrao e desliga a outra branch.
   useEffect(() => {
@@ -224,7 +245,7 @@ export default function RegravarBases() {
     }
   };
   const visiveis = useMemo(() => {
-    const lista = soRegravaveis ? regravaveis : itens;
+    const lista = (soRegravaveis ? regravaveis : itens).filter((i) => combinaBusca(i.id_caso_teste || "", buscaCaso));
     if (!sortKey) return lista;
     const dir = sortDir === "asc" ? 1 : -1;
     return [...lista].sort((a, b) => {
@@ -233,7 +254,7 @@ export default function RegravarBases() {
       const c = sortKey === "caso" ? compareCaso(va, vb) : va.localeCompare(vb, "pt-BR", { numeric: true });
       return (c || compareCaso(a.id_caso_teste || "", b.id_caso_teste || "")) * dir;
     });
-  }, [soRegravaveis, regravaveis, itens, sortKey, sortDir]);
+  }, [soRegravaveis, regravaveis, itens, buscaCaso, sortKey, sortDir]);
   const toggle = (id: string) =>
     setMarcados((prev) => {
       const next = new Set(prev);
@@ -267,6 +288,7 @@ export default function RegravarBases() {
       setMensagemEditada(false);
       setOutraBranch(false);
       setBranchUrl("");
+      setEtapa(2);
       await invalidateRegravacao(runId);
     } catch (e) {
       toast.error("Não foi possível enviar o pedido", { description: apiMessage(e) });
@@ -301,24 +323,35 @@ export default function RegravarBases() {
         </p>
       </div>
 
-      {/* Rodagem */}
-      <Card className="p-4 sm:p-5 mb-5">
-        <h2 className="mb-3 text-base font-semibold">1. Rodagem</h2>
+      <EtapasNav etapas={ETAPAS} atual={etapa} podeIrPara={podeIrPara} onIr={setEtapa} />
+
+      {/* 1. Rodagem */}
+      {etapa === 1 && (
+        <Card className="p-4 sm:p-5 mb-5 animate-fade-in">
+          <h2 ref={tituloEtapa} tabIndex={-1} className="mb-3 text-base font-semibold focus:outline-none">Escolha a rodagem</h2>
         <div className="grid gap-3 sm:grid-cols-3 mb-3">
           {[
             { label: "VM", value: fVm, set: setFVm, options: vmOptions, all: "Todas" },
             { label: "Módulo", value: fModulo, set: setFModulo, options: moduloOptions, all: "Todos" },
-            { label: "Versão", value: fVersao, set: setFVersao, options: versaoOptions, all: "Todas" },
+            { label: "Versão", value: fVersao, set: setFVersao, options: versaoOptions, all: "Todas", busca: true },
           ].map((f) => (
             <div key={f.label}>
               <label className="mb-1.5 block text-sm font-medium">{f.label}</label>
-              <Select value={f.value} onValueChange={f.set}>
-                <SelectTrigger aria-label={f.label}><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{f.all}</SelectItem>
-                  {f.options.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              {"busca" in f ? (
+                <SelectBusca
+                  ariaLabel={f.label} value={f.value} onChange={f.set}
+                  opcoes={[{ valor: "all", rotulo: f.all }, ...f.options.map((v) => ({ valor: v, rotulo: v }))]}
+                  buscaPlaceholder="Buscar versão…" vazio="Nenhuma versão encontrada."
+                />
+              ) : (
+                <Select value={f.value} onValueChange={f.set}>
+                  <SelectTrigger aria-label={f.label}><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">{f.all}</SelectItem>
+                    {f.options.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           ))}
         </div>
@@ -374,23 +407,61 @@ export default function RegravarBases() {
             )}
           </dl>
         )}
-        {!runId && (
-          <ol className="mt-4 space-y-1.5 border-t border-border/60 pt-4 text-sm text-muted-foreground">
-            <li><span className="mr-2 font-mono text-foreground">1</span>Escolha a rodagem (use VM, módulo e versão para achar mais rápido).</li>
-            <li><span className="mr-2 font-mono text-foreground">2</span>Confira as diferenças com “Comparar” e marque os arquivos que estão certos.</li>
-            <li><span className="mr-2 font-mono text-foreground">3</span>Revise a mensagem do commit e regrave.</li>
-          </ol>
-        )}
-      </Card>
+          <div className="mt-4 flex justify-end border-t border-border/60 pt-4">
+            <Button onClick={() => setEtapa(2)} disabled={!runId} className="max-sm:w-full">
+              Escolher arquivos <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
+          </div>
+        </Card>
+      )}
 
-      {/* Arquivos */}
-      {runId && (
-        <Card className="overflow-hidden mb-5">
-          <h2 className="px-4 pt-4 text-base font-semibold sm:px-5">2. Arquivos</h2>
+      {/* 2. Arquivos */}
+      {etapa === 2 && runId && (
+        <Card className="overflow-hidden mb-5 animate-fade-in">
+          <div className="space-y-1 px-4 pt-4 sm:px-5">
+            <h2 ref={tituloEtapa} tabIndex={-1} className="text-base font-semibold focus:outline-none">Marque os arquivos para regravar</h2>
+          {candidatos && (
+            <dl className="mt-3 grid gap-x-3 gap-y-1 text-xs text-muted-foreground sm:grid-cols-[auto_1fr]">
+              <dt>Versão testada:</dt>
+              <dd><strong className="text-foreground">{rodagemAtual?.versao || "—"}</strong></dd>
+              <dt>Branch do TC (destino):</dt>
+              <dd>
+                {candidatos.repository_url ? (
+                  <>
+                    <strong className="text-foreground">{destinoLabel(candidatos.repository_url)}</strong>{" "}
+                    <span className="font-mono break-all">{candidatos.repository_url}</span>
+                    {candidatos.repository_revision && <> (rodagem na revisão {candidatos.repository_revision})</>}
+                  </>
+                ) : (
+                  <span className="text-warning">
+                    esta rodagem não registrou a branch do TC; não é possível regravar.
+                  </span>
+                )}
+              </dd>
+              {outraBranch && branchUrl && (
+                <>
+                  <dt>Regravar em:</dt>
+                  <dd>
+                    <strong className="text-warning">{destinoLabel(branchUrl)}</strong>{" "}
+                    <span className="font-mono break-all">{branchUrl}</span>
+                  </dd>
+                </>
+              )}
+            </dl>
+          )}
+          </div>
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 p-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" variant="outline" className="max-md:h-11" disabled={!regravaveis.length}
-                onClick={() => setMarcados(new Set(regravaveis.map((i) => i.difference_id)))}>
+              <div className="relative max-sm:w-full">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+                <Input
+                  type="search" value={buscaCaso} onChange={(e) => setBuscaCaso(e.target.value)}
+                  placeholder="Buscar pelo caso…" aria-label="Buscar pelo id do caso de teste"
+                  className="h-11 w-full pl-8 text-xs sm:w-[220px] md:h-9"
+                />
+              </div>
+              <Button size="sm" variant="outline" className="max-md:h-11" disabled={!visiveis.some((i) => i.regravavel)}
+                onClick={() => setMarcados((prev) => new Set([...prev, ...visiveis.filter((i) => i.regravavel).map((i) => i.difference_id)]))}>
                 Marcar regraváveis
               </Button>
               <Button size="sm" variant="outline" className="max-md:h-11" disabled={!marcados.size} onClick={() => setMarcados(new Set())}>
@@ -401,160 +472,228 @@ export default function RegravarBases() {
                 Mostrar só os regraváveis
               </label>
             </div>
-            <span className="text-xs text-muted-foreground" role="status">
-              <span className="font-mono text-foreground">{marcados.size}</span> {marcados.size === 1 ? "marcado" : "marcados"} · <span>{`${regravaveis.length} de ${itens.length} ${regravaveis.length === 1 ? "regravável" : "regraváveis"}`}</span>
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground" role="status">
+                <span className="font-mono text-foreground">{marcados.size}</span> {marcados.size === 1 ? "marcado" : "marcados"} · <span>{`${regravaveis.length} de ${itens.length} ${regravaveis.length === 1 ? "regravável" : "regraváveis"}`}</span>
+              </span>
+              <Button
+                size="sm" variant="ghost" className="max-md:h-11" aria-expanded={listaAberta} aria-controls="lista-arquivos"
+                onClick={() => setListaAberta((v) => !v)}
+              >
+                <ChevronDown className={cn("h-3.5 w-3.5 mr-1 transition-transform duration-200 ease-out-strong", !listaAberta && "-rotate-90")} aria-hidden />
+                {listaAberta ? "Minimizar lista" : "Mostrar lista"}
+              </Button>
+            </div>
           </div>
-          {isMobile ? (
-            <>
-              <div className="flex items-center gap-2 border-b border-border/60 p-3">
-                <Select
-                  value={sortKey ?? "none"}
-                  onValueChange={(v) => { setSortKey(v === "none" ? null : (v as SortKey)); setSortDir("asc"); }}
-                >
-                  <SelectTrigger className="h-11 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Ordem original</SelectItem>
-                    {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-                      <SelectItem key={k} value={k}>Ordenar por {SORT_LABEL[k].toLowerCase()}</SelectItem>
+          {listaAberta && (
+          <div id="lista-arquivos">
+            {isMobile ? (
+              <>
+                <div className="flex items-center gap-2 border-b border-border/60 p-3">
+                  <Select
+                    value={sortKey ?? "none"}
+                    onValueChange={(v) => { setSortKey(v === "none" ? null : (v as SortKey)); setSortDir("asc"); }}
+                  >
+                    <SelectTrigger className="h-11 flex-1 text-xs" aria-label="Ordenar por"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Ordem original</SelectItem>
+                      {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                        <SelectItem key={k} value={k}>Ordenar por {SORT_LABEL[k].toLowerCase()}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="icon" variant="outline" className="h-11 w-11 shrink-0" disabled={!sortKey}
+                    aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
+                    onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
+                  >
+                    {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
+                  </Button>
+                </div>
+                {loadingItens ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground" role="status">Carregando…</p>
+                ) : itensError ? (
+                  <p className="py-8 text-center text-sm text-destructive">{erroItensTexto}</p>
+                ) : visiveis.length === 0 ? (
+                  <p className="py-8 px-4 text-center text-sm text-muted-foreground">
+                    {buscaCaso.trim() ? `Nenhum arquivo do caso “${buscaCaso.trim()}”.` : itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border/60">
+                    {visiveis.map((item) => (
+                      <li
+                        key={item.difference_id}
+                        onClick={(e) => clicarLinha(e, item)}
+                        className={cn("flex gap-3 p-3", item.regravavel ? "cursor-pointer" : "text-muted-foreground", marcados.has(item.difference_id) && "bg-muted/40")}
+                      >
+                        {/* area de toque maior que a caixa */}
+                        <label className="-m-2 flex h-10 w-10 shrink-0 items-center justify-center">
+                          <Checkbox
+                            aria-label={`Selecionar ${item.arquivo_atual}`}
+                            disabled={!item.regravavel}
+                            checked={marcados.has(item.difference_id)}
+                            onCheckedChange={() => toggle(item.difference_id)}
+                            className="h-5 w-5"
+                          />
+                        </label>
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <button type="button" className="-my-3 inline-flex min-h-11 items-center font-mono text-xs text-primary hover:underline" onClick={() => abrirCaso(item)} aria-label={`Abrir o caso ${item.id_caso_teste}`}>
+                              {item.id_caso_teste}
+                            </button>
+                            <SituacaoBadge item={item} />
+                          </div>
+                          <p className="break-all text-sm">{item.arquivo_atual}</p>
+                          <p className="break-all font-mono text-[11px] text-muted-foreground">
+                            {item.caminho_base ? caminhoBridge(item.caminho_base) : "Sem base no repositório"}
+                          </p>
+                          {!item.regravavel && item.motivo_texto && (
+                            <p className="text-[11px] text-warning">{item.motivo_texto}</p>
+                          )}
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[11px] text-muted-foreground">
+                              {item.linhas_alteradas ?? "—"} {item.linhas_alteradas === 1 ? "linha alterada" : "linhas alteradas"}
+                            </span>
+                            <Button size="sm" variant="outline" className="h-11" onClick={() => abrirComparacao(item)}>
+                              <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
+                            </Button>
+                          </div>
+                        </div>
+                      </li>
                     ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  size="icon" variant="outline" className="h-11 w-11 shrink-0" disabled={!sortKey}
-                  aria-label={sortDir === "asc" ? "Ordem crescente" : "Ordem decrescente"}
-                  onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}
-                >
-                  {sortDir === "asc" ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-                </Button>
-              </div>
-              {loadingItens ? (
-                <p className="py-8 text-center text-sm text-muted-foreground" role="status">Carregando…</p>
-              ) : itensError ? (
-                <p className="py-8 text-center text-sm text-destructive">{erroItensTexto}</p>
-              ) : visiveis.length === 0 ? (
-                <p className="py-8 px-4 text-center text-sm text-muted-foreground">
-                  {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
-                </p>
-              ) : (
-                <ul className="divide-y divide-border/60">
-                  {visiveis.map((item) => (
-                    <li
+                  </ul>
+                )}
+              </>
+            ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10" />
+                    <SortableHead label="Caso" sortKey="caso" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHead label="Arquivo atual" sortKey="atual" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHead label="Base no repositório" sortKey="base" active={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <TableHead className="text-right">Linhas</TableHead>
+                    <TableHead>Situação</TableHead>
+                    <TableHead className="w-24 text-right" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {loadingItens ? (
+                    <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground"><span role="status">Carregando…</span></TableCell></TableRow>
+                  ) : itensError ? (
+                    <TableRow><TableCell colSpan={7} className="py-8 text-center text-destructive">{erroItensTexto}</TableCell></TableRow>
+                  ) : visiveis.length === 0 ? (
+                    <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                      {buscaCaso.trim() ? `Nenhum arquivo do caso “${buscaCaso.trim()}”.` : itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
+                    </TableCell></TableRow>
+                  ) : visiveis.map((item) => (
+                    <TableRow
                       key={item.difference_id}
                       onClick={(e) => clicarLinha(e, item)}
-                      className={cn("flex gap-3 p-3", item.regravavel ? "cursor-pointer" : "text-muted-foreground", marcados.has(item.difference_id) && "bg-muted/40")}
+                      data-state={marcados.has(item.difference_id) ? "selected" : undefined}
+                      className={item.regravavel ? "cursor-pointer" : "text-muted-foreground"}
                     >
-                      {/* area de toque maior que a caixa */}
-                      <label className="-m-2 flex h-10 w-10 shrink-0 items-center justify-center">
+                      <TableCell>
                         <Checkbox
                           aria-label={`Selecionar ${item.arquivo_atual}`}
                           disabled={!item.regravavel}
                           checked={marcados.has(item.difference_id)}
                           onCheckedChange={() => toggle(item.difference_id)}
-                          className="h-5 w-5"
                         />
-                      </label>
-                      <div className="min-w-0 flex-1 space-y-1.5">
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <button type="button" className="-my-3 inline-flex min-h-11 items-center font-mono text-xs text-primary hover:underline" onClick={() => abrirCaso(item)} aria-label={`Abrir o caso ${item.id_caso_teste}`}>
-                            {item.id_caso_teste}
-                          </button>
-                          <SituacaoBadge item={item} />
-                        </div>
-                        <p className="break-all text-sm">{item.arquivo_atual}</p>
-                        <p className="break-all font-mono text-[11px] text-muted-foreground">
-                          {item.caminho_base ? caminhoBridge(item.caminho_base) : "Sem base no repositório"}
-                        </p>
-                        {!item.regravavel && item.motivo_texto && (
-                          <p className="text-[11px] text-warning">{item.motivo_texto}</p>
-                        )}
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-[11px] text-muted-foreground">
-                            {item.linhas_alteradas ?? "—"} {item.linhas_alteradas === 1 ? "linha alterada" : "linhas alteradas"}
-                          </span>
-                          <Button size="sm" variant="outline" className="h-11" onClick={() => abrirComparacao(item)}>
-                            <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
-                          </Button>
-                        </div>
-                      </div>
-                    </li>
+                      </TableCell>
+                      <TableCell className="text-xs font-mono">
+                        <button
+                          type="button"
+                          className="text-primary hover:underline"
+                          title="Abrir o caso"
+                          onClick={() => abrirCaso(item)}
+                        >
+                          {item.id_caso_teste}
+                        </button>
+                      </TableCell>
+                      <TableCell className="text-xs max-w-[260px] break-all" title={item.arquivo_atual || ""}>{item.arquivo_atual}</TableCell>
+                      <TableCell className="text-xs font-mono max-w-[340px] break-all" title={item.caminho_base || ""}>
+                        {item.caminho_base ? caminhoBridge(item.caminho_base) : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-right">{item.linhas_alteradas ?? "—"}</TableCell>
+                      <TableCell><SituacaoBadge item={item} /></TableCell>
+                      <TableCell className="text-right">
+                        <Button size="sm" variant="ghost" onClick={() => abrirComparacao(item)}>
+                          <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
+                        </Button>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </ul>
-              )}
-            </>
-          ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10" />
-                  <SortableHead label="Caso" sortKey="caso" active={sortKey} dir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="Arquivo atual" sortKey="atual" active={sortKey} dir={sortDir} onSort={toggleSort} />
-                  <SortableHead label="Base no repositório" sortKey="base" active={sortKey} dir={sortDir} onSort={toggleSort} />
-                  <TableHead className="text-right">Linhas</TableHead>
-                  <TableHead>Situação</TableHead>
-                  <TableHead className="w-24 text-right" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingItens ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground"><span role="status">Carregando…</span></TableCell></TableRow>
-                ) : itensError ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-destructive">{erroItensTexto}</TableCell></TableRow>
-                ) : visiveis.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                    {itens.length ? "Nenhum arquivo regravável nesta rodagem." : "Esta rodagem não tem diferenças de arquivo."}
-                  </TableCell></TableRow>
-                ) : visiveis.map((item) => (
-                  <TableRow
-                    key={item.difference_id}
-                    onClick={(e) => clicarLinha(e, item)}
-                    data-state={marcados.has(item.difference_id) ? "selected" : undefined}
-                    className={item.regravavel ? "cursor-pointer" : "text-muted-foreground"}
-                  >
-                    <TableCell>
-                      <Checkbox
-                        aria-label={`Selecionar ${item.arquivo_atual}`}
-                        disabled={!item.regravavel}
-                        checked={marcados.has(item.difference_id)}
-                        onCheckedChange={() => toggle(item.difference_id)}
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs font-mono">
-                      <button
-                        type="button"
-                        className="text-primary hover:underline"
-                        title="Abrir o caso"
-                        onClick={() => abrirCaso(item)}
-                      >
-                        {item.id_caso_teste}
-                      </button>
-                    </TableCell>
-                    <TableCell className="text-xs max-w-[260px] break-all" title={item.arquivo_atual || ""}>{item.arquivo_atual}</TableCell>
-                    <TableCell className="text-xs font-mono max-w-[340px] break-all" title={item.caminho_base || ""}>
-                      {item.caminho_base ? caminhoBridge(item.caminho_base) : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-right">{item.linhas_alteradas ?? "—"}</TableCell>
-                    <TableCell><SituacaoBadge item={item} /></TableCell>
-                    <TableCell className="text-right">
-                      <Button size="sm" variant="ghost" onClick={() => abrirComparacao(item)}>
-                        <FileDiff className="h-3.5 w-3.5 mr-1" /> Comparar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            </div>
+            )}
           </div>
           )}
+          <div className="border-t border-border/60 px-4 py-3 sm:px-5">
+            <Collapsible open={avancadasOpen} onOpenChange={setAvancadasOpen}>
+              <CollapsibleTrigger asChild>
+                <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:min-h-0">
+                  <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", avancadasOpen && "rotate-90")} aria-hidden />
+                  Opções avançadas
+                  {outraBranch && <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">outra branch</span>}
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent>
+                <div className="mt-3 space-y-2 pl-5">
+                  <label htmlFor="outra-branch" className="flex w-fit cursor-pointer select-none items-center gap-2 text-sm">
+                    <Checkbox
+                      id="outra-branch"
+                      checked={outraBranch}
+                      onCheckedChange={(v) => { setOutraBranch(!!v); if (!v) setBranchUrl(""); }}
+                    />
+                    Regravar arquivos em outra branch
+                  </label>
+                  {outraBranch && (
+                    <>
+                      <SelectBusca
+                        className="ml-6 h-9 w-[280px] max-w-[calc(100%-1.5rem)]" ariaLabel="Branch para regravar" placeholder="Escolha a branch"
+                        value={branchUrl} onChange={setBranchUrl} opcoes={outrasBranches.map((b) => ({ valor: b.url, rotulo: b.rotulo }))}
+                        buscaPlaceholder="Buscar branch…" vazio="Nenhuma branch encontrada."
+                      />
+                      {outrasBranches.length === 0 && (
+                        <p className="ml-6 text-xs text-muted-foreground">A lista de branches do SVN ainda não chegou. Tente de novo em alguns minutos.</p>
+                      )}
+                      <p className="flex items-start gap-1.5 text-xs text-warning">
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                        A base nessa branch precisa ser igual à da rodagem. Se for diferente, nada é gravado (mesma conferência de sempre).
+                      </p>
+                    </>
+                  )}
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/60 p-4 sm:px-5">
+            <Button variant="ghost" onClick={() => setEtapa(1)}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+            </Button>
+            <div className="flex flex-wrap items-center gap-3 max-sm:w-full">
+              {outraBranch && !branchUrl && <span className="text-xs text-warning">Escolha a branch nas opções avançadas.</span>}
+              <Button onClick={() => setEtapa(3)} disabled={!podeIrPara(3)} className="max-sm:w-full">
+                Revisar <ArrowRight className="h-4 w-4 ml-2" />
+              </Button>
+            </div>
+          </div>
         </Card>
       )}
 
-      {/* Mensagem + envio */}
-      {runId && (regravaveis.length > 0 || outraBranch) && (
-        <Card ref={envioRef} className="p-4 sm:p-5 mb-5 space-y-3 scroll-mt-20">
+      {/* 3. Mensagem + envio */}
+      {etapa === 3 && runId && (
+        <Card className="p-4 sm:p-5 mb-5 space-y-3 animate-fade-in">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-base font-semibold">3. Mensagem do commit</h2>
+            <div className="space-y-0.5">
+              <h2 ref={tituloEtapa} tabIndex={-1} className="text-base font-semibold focus:outline-none">Confirme a regravação</h2>
+              <p className="text-xs text-muted-foreground">
+                {marcados.size} {marcados.size === 1 ? "arquivo" : "arquivos"} para {destinoLabel(destinoUrl)}{outraBranch ? " (outra branch)" : ""}
+              </p>
+            </div>
             <div className="flex items-center gap-2">
               {mensagemEditada && (
                 <Badge variant="outline" className={`text-[10px] ${TOM_STATUS.aviso}`}>Editada</Badge>
@@ -564,8 +703,9 @@ export default function RegravarBases() {
               </Button>
             </div>
           </div>
+          <label className="block text-sm font-medium" htmlFor="mensagem-commit">Mensagem do commit</label>
           <Textarea
-            aria-label="Mensagem do commit"
+            id="mensagem-commit"
             value={mensagem}
             onChange={(e) => { setMensagem(e.target.value); setMensagemEditada(true); }}
             spellCheck={false}
@@ -576,46 +716,6 @@ export default function RegravarBases() {
             <code className="font-mono">{"{pedido}"}</code> é trocado pelo número do pedido no commit. Enquanto não for editada, a mensagem acompanha
             os arquivos selecionados.
           </p>
-          <Collapsible open={avancadasOpen} onOpenChange={setAvancadasOpen}>
-            <CollapsibleTrigger asChild>
-              <button type="button" className="inline-flex min-h-11 items-center gap-1 text-xs text-muted-foreground hover:text-foreground md:min-h-0">
-                <ChevronRight className={cn("h-3.5 w-3.5 transition-transform duration-200 ease-out-strong", avancadasOpen && "rotate-90")} aria-hidden />
-                Opções avançadas
-                {outraBranch && <span className="ml-1 rounded-full bg-warning/15 px-1.5 text-[10px] text-warning">outra branch</span>}
-              </button>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <div className="mt-3 space-y-2 pl-5">
-                <label htmlFor="outra-branch" className="flex w-fit cursor-pointer select-none items-center gap-2 text-sm">
-                  <Checkbox
-                    id="outra-branch"
-                    checked={outraBranch}
-                    onCheckedChange={(v) => { setOutraBranch(!!v); if (!v) setBranchUrl(""); }}
-                  />
-                  Regravar arquivos em outra branch
-                </label>
-                {outraBranch && (
-                  <>
-                    <Select value={branchUrl} onValueChange={setBranchUrl}>
-                      <SelectTrigger className="ml-6 h-9 w-[280px] max-w-[calc(100%-1.5rem)]" aria-label="Branch para regravar">
-                        <SelectValue placeholder="Escolha a branch" />
-                      </SelectTrigger>
-                      <SelectContent className="max-h-[320px]">
-                        {outrasBranches.map((b) => <SelectItem key={b.url} value={b.url}>{b.rotulo}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    {outrasBranches.length === 0 && (
-                      <p className="ml-6 text-xs text-muted-foreground">A lista de branches do SVN ainda não chegou. Tente de novo em alguns minutos.</p>
-                    )}
-                    <p className="flex items-start gap-1.5 text-xs text-warning">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                      A base nessa branch precisa ser igual à da rodagem. Se for diferente, nada é gravado (mesma conferência de sempre).
-                    </p>
-                  </>
-                )}
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
           <Button
             size="lg"
             className="w-full"
@@ -630,6 +730,11 @@ export default function RegravarBases() {
                 : `Regravar ${marcados.size} ${marcados.size === 1 ? "arquivo" : "arquivos"}${outraBranch ? ` na ${destinoLabel(branchUrl)}` : ""}`}
           </Button>
           {!podeRegravar && <SemPermissao permissao="regravar" />}
+          <div className="flex border-t border-border/60 pt-4">
+            <Button variant="ghost" onClick={() => setEtapa(2)}>
+              <ArrowLeft className="h-4 w-4 mr-2" /> Voltar
+            </Button>
+          </div>
         </Card>
       )}
 
@@ -736,13 +841,13 @@ export default function RegravarBases() {
       )}
 
       {/* Celular: o botao de regravar fica longe da lista; barra fixa leva ate ele. */}
-      {isMobile && marcados.size > 0 && (
+      {isMobile && etapa === 2 && marcados.size > 0 && (
         <>
           <div className="h-16" />
           <div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-3 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] animate-in slide-in-from-bottom fade-in-0 duration-200 ease-out-strong">
             <span className="text-sm">{marcados.size} {marcados.size === 1 ? "marcado" : "marcados"}</span>
             <Button size="sm" className="h-11"
-              onClick={() => envioRef.current?.scrollIntoView({ block: "start" })}>
+              onClick={() => setEtapa(3)}>
               <GitCommitHorizontal className="h-4 w-4 mr-1" /> Ir para regravar
             </Button>
           </div>

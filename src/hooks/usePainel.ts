@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 /**
  * Ultimo valor nao nulo: o painel continua montado com o conteudo de antes enquanto fecha
@@ -27,4 +27,15 @@ export function useFocoDeVolta(aberto: boolean) {
       el.focus({ preventScroll: true });
     }
   }, []);
+}
+
+/** Ao trocar de etapa o botao apertado some junto: o foco vai para o titulo da etapa nova. */
+export function useFocoNaEtapa(etapa: number) {
+  const titulo = useRef<HTMLHeadingElement>(null);
+  const primeira = useRef(true);
+  useEffect(() => {
+    if (primeira.current) { primeira.current = false; return; }
+    titulo.current?.focus();
+  }, [etapa]);
+  return titulo;
 }

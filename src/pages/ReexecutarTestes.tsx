@@ -1,6 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { SemPermissao } from "@/components/SemPermissao";
+import { SelectBusca } from "@/components/SelectBusca";
+import { EtapasNav } from "@/components/EtapasNav";
+import { useFocoNaEtapa } from "@/hooks/usePainel";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
 import { mensagemDaApi } from "@/lib/apiErro";
@@ -37,7 +40,6 @@ import {
 } from "@/components/ui/collapsible";
 import {
   Copy,
-  Check,
   ChevronLeft,
   ChevronDown,
   ChevronRight,
@@ -142,13 +144,7 @@ export default function ReexecutarTestes() {
   const [selectedRunId, setSelectedRunId] = useState<string>(() => searchParams.get("run") || "");
   const [casos, setCasos] = useState<CasoReexecutavel[]>([]);
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
-  // Ao trocar de etapa o botao apertado some junto: o foco vai para o titulo da etapa nova.
-  const tituloEtapa = useRef<HTMLHeadingElement>(null);
-  const primeiraEtapa = useRef(true);
-  useEffect(() => {
-    if (primeiraEtapa.current) { primeiraEtapa.current = false; return; }
-    tituloEtapa.current?.focus();
-  }, [etapa]);
+  const tituloEtapa = useFocoNaEtapa(etapa);
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -429,41 +425,7 @@ export default function ReexecutarTestes() {
       {!podeSolicitar && <SemPermissao permissao="rodagem" className="mb-5" />}
 
       {/* Etapas */}
-      <nav aria-label="Etapas" className="mb-4">
-        <ol className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3">
-          {ETAPAS.map(({ n, label }, i) => {
-            const atual = etapa === n;
-            const feita = n < etapa;
-            return (
-              <li key={n} className={cn("flex items-center gap-2", i < ETAPAS.length - 1 && "flex-1")}>
-                <button
-                  type="button"
-                  onClick={() => podeIrPara(n) && setEtapa(n)}
-                  disabled={!podeIrPara(n)}
-                  aria-current={atual ? "step" : undefined}
-                  className={cn(
-                    "flex min-h-11 items-center gap-2 text-sm transition-colors disabled:cursor-not-allowed md:min-h-0",
-                    atual ? "font-semibold text-foreground" : "text-muted-foreground enabled:hover:text-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border text-xs",
-                      atual && "border-primary bg-primary text-primary-foreground",
-                      feita && "border-primary/40 bg-primary/10 text-primary",
-                      !atual && !feita && "border-border",
-                    )}
-                  >
-                    {feita ? <Check className="h-3.5 w-3.5" /> : n}
-                  </span>
-                  {label}
-                </button>
-                {i < ETAPAS.length - 1 && <span className="h-px flex-1 bg-border" aria-hidden />}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+      <EtapasNav etapas={ETAPAS} atual={etapa} podeIrPara={podeIrPara} onIr={setEtapa} />
 
       {/* 1. Rodagem */}
       {etapa === 1 && (
@@ -478,13 +440,11 @@ export default function ReexecutarTestes() {
                   {vmOptions.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
                 </SelectContent>
               </Select>
-              <Select value={fVersao} onValueChange={setFVersao}>
-                <SelectTrigger className="h-11 w-[200px] text-xs md:h-8" aria-label="Filtrar por versão"><SelectValue /></SelectTrigger>
-                <SelectContent className="max-h-[320px]">
-                  <SelectItem value="all">Todas as versões</SelectItem>
-                  {versaoOptions.map((v) => <SelectItem key={v} value={v}>{v}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SelectBusca
+                className="h-11 w-[200px] text-xs md:h-8" ariaLabel="Filtrar por versão" value={fVersao} onChange={setFVersao}
+                opcoes={[{ valor: "all", rotulo: "Todas as versões" }, ...versaoOptions.map((v) => ({ valor: v, rotulo: v }))]}
+                buscaPlaceholder="Buscar versão…" vazio="Nenhuma versão encontrada."
+              />
             </div>
           </div>
 

@@ -78,6 +78,9 @@ function renderPage() {
 }
 
 const textarea = () => screen.getByLabelText("Mensagem do commit") as HTMLTextAreaElement;
+const revisar = () => fireEvent.click(screen.getByRole("button", { name: /Revisar/ }));
+const voltar = () => fireEvent.click(screen.getByRole("button", { name: /Voltar/ }));
+const etapa = (nome: string) => fireEvent.click(within(screen.getByRole("navigation", { name: "Etapas" })).getByRole("button", { name: new RegExp(nome) }));
 
 beforeEach(() => {
   queryClient.clear();
@@ -131,23 +134,29 @@ describe("tela de regravacao", () => {
     expect(screen.getByText("Versão testada:")).toBeInTheDocument();
     expect(screen.getByText("PROXIMA")).toBeInTheDocument();
     expect(screen.getByText("Branch do TC (destino):")).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: "Rodagem" })).toHaveTextContent("TC: minha-branch");
     expect(screen.getByText(/2 de 3 regraváveis/)).toBeInTheDocument();
+    etapa("Rodagem");
+    expect(screen.getByRole("combobox", { name: "Rodagem" })).toHaveTextContent("TC: minha-branch");
   });
 
   it("a mensagem vem com o padrao, acompanha a selecao ate ser editada e pode ser restaurada", async () => {
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
     expect(textarea().value).toContain("Pedido: {pedido}");
     expect(textarea().value).toContain("- CT 9.1.4.2.5: Files/Tarefas/Processos/Central de tarefas/RelTarefas_248408 balancete.txt");
     expect(textarea().value).not.toContain("RelatorioTarefa_232498");
 
+    voltar();
     fireEvent.click(screen.getByLabelText("Selecionar d2_Atual.txt"));
+    revisar();
     expect(textarea().value).toContain("Files/Tarefas/Relatórios/Relatório de tarefas/RelatorioTarefa_232498.txt");
 
     fireEvent.change(textarea(), { target: { value: "Minha mensagem" } });
     expect(screen.getByText("Editada")).toBeInTheDocument();
+    voltar();
     fireEvent.click(screen.getByLabelText("Selecionar d2_Atual.txt")); // desmarca: nao mexe no texto editado
+    revisar();
     expect(textarea().value).toBe("Minha mensagem");
 
     fireEvent.click(screen.getByRole("button", { name: /Restaurar padrão/ }));
@@ -160,6 +169,7 @@ describe("tela de regravacao", () => {
     api.createRegravacao.mockResolvedValue({});
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
     fireEvent.change(textarea(), { target: { value: "Ajuste esperado do relatório (#248408)\nPedido {pedido}" } });
     fireEvent.click(screen.getByRole("button", { name: /Regravar 1 arquivo/ }));
 
@@ -183,7 +193,8 @@ describe("tela de regravacao", () => {
     const opcao = screen.getByRole("checkbox", { name: "Regravar arquivos em outra branch" });
     expect(opcao).not.toBeChecked();
     fireEvent.click(opcao);
-    expect(screen.getByRole("button", { name: "Escolha a branch nas opções avançadas" })).toBeDisabled();
+    expect(screen.getByText("Escolha a branch nas opções avançadas.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeDisabled();
 
     fireEvent.keyDown(screen.getByRole("combobox", { name: "Branch para regravar" }), { key: "ArrowDown" });
     const lista = await screen.findByRole("listbox");
@@ -196,6 +207,7 @@ describe("tela de regravacao", () => {
     expect(screen.getByText("Regravar em:")).toBeInTheDocument();
 
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
     fireEvent.click(screen.getByRole("button", { name: "Regravar 1 arquivo na branch Proxima10_0" }));
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/Destino: branch Proxima10_0 \(outra branch\)/)).toBeInTheDocument();
@@ -237,7 +249,7 @@ describe("tela de regravacao", () => {
     expect(await screen.findByText("Pedido em andamento")).toBeInTheDocument();
 
     api.pedidos = [{ ...pedido, status: "concluido", svn_revision: "23501" }];
-    api.candidatos!.itens[0] = { ...api.candidatos!.itens[0], motivo: "ja_regravado" };
+    api.candidatos = { ...api.candidatos!, itens: [{ ...api.candidatos!.itens[0], motivo: "ja_regravado" }, ...api.candidatos!.itens.slice(1)] };
     await queryClient.invalidateQueries({ queryKey: ["regravacoes", "rod_1"] });
 
     expect(await screen.findByText("Já regravado")).toBeInTheDocument();
@@ -302,6 +314,7 @@ describe("tela de regravacao", () => {
     auth.profile = { username: "ana", permissions: ["rodagem", "merge"] };
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
     expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).toBeDisabled();
     expect(screen.getByRole("note")).toHaveTextContent("Você não tem permissão para regravar arquivos");
   });
@@ -321,6 +334,7 @@ describe("tela de regravacao", () => {
     auth.profile = { username: "ana", permissions: ["regravar"] };
     renderPage();
     fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
     expect(screen.getByRole("button", { name: /Regravar 1 arquivo/ })).not.toBeDisabled();
     expect(screen.queryByRole("note")).toBeNull();
   });
@@ -384,13 +398,62 @@ describe("tela de regravacao", () => {
 });
 
 describe("auditoria parte 4: regravacao", () => {
-  it("passos 1, 2 e 3 com titulo e a rodagem escrita como no resto do app", async () => {
+  it("a rodagem escrita como no resto do app", async () => {
     renderPage();
     await screen.findByText("Caminho errado no script");
-    fireEvent.click(screen.getByLabelText("Selecionar d1_Atual.txt"));
-    expect(screen.getAllByRole("heading", { level: 2 }).map((h) => h.textContent)).toEqual(
-      expect.arrayContaining(["1. Rodagem", "2. Arquivos", "3. Mensagem do commit"]),
-    );
+    etapa("Rodagem");
     expect(screen.getByRole("combobox", { name: "Rodagem" })).not.toHaveTextContent(/\b1 falhas\b/);
+  });
+});
+
+describe("regravacao em etapas", () => {
+  it("aberta pelo link ja vai para os arquivos; confirmar so com arquivo marcado", async () => {
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Marque os arquivos para regravar" })).toBeInTheDocument();
+    expect(within(screen.getByRole("navigation", { name: "Etapas" })).getByRole("button", { name: /Arquivos/ })).toHaveAttribute("aria-current", "step");
+    expect(screen.getByRole("button", { name: /Revisar/ })).toBeDisabled();
+    expect(screen.queryByLabelText("Mensagem do commit")).toBeNull();
+
+    fireEvent.click(screen.getByLabelText("Selecionar d1_Atual.txt"));
+    revisar();
+    expect(screen.getByRole("heading", { name: "Confirme a regravação" })).toBeInTheDocument();
+    expect(screen.getByText(/1 arquivo para branch minha-branch/)).toBeInTheDocument();
+    // Voltando, a selecao continua.
+    voltar();
+    expect(screen.getByLabelText("Selecionar d1_Atual.txt")).toBeChecked();
+    etapa("Rodagem");
+    expect(screen.getByRole("heading", { name: "Escolha a rodagem" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Escolher arquivos/ }));
+    expect(screen.getByLabelText("Selecionar d1_Atual.txt")).toBeChecked();
+  });
+
+  it("busca pelo id do caso filtra a lista e o marcar regravaveis respeita a busca", async () => {
+    api.candidatos!.itens = [
+      item("b_lanc", "2.5.1.1.12", "Files\\Fiscal\\c.txt", true),
+      item("a_serv", "2.5.1.1.5", "Files\\Fiscal\\a.txt", true),
+      item("c_outro", "9.1.4.2.5", "Files\\Tarefas\\b.txt", true),
+    ];
+    renderPage();
+    await screen.findByLabelText("Selecionar a_serv_Atual.txt");
+    fireEvent.change(screen.getByLabelText("Buscar pelo id do caso de teste"), { target: { value: "2.5.1.1" } });
+    expect(screen.queryByLabelText("Selecionar c_outro_Atual.txt")).toBeNull();
+    expect(screen.getByLabelText("Selecionar a_serv_Atual.txt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Marcar regraváveis" }));
+    fireEvent.change(screen.getByLabelText("Buscar pelo id do caso de teste"), { target: { value: "" } });
+    expect(screen.getByLabelText("Selecionar a_serv_Atual.txt")).toBeChecked();
+    expect(screen.getByLabelText("Selecionar b_lanc_Atual.txt")).toBeChecked();
+    expect(screen.getByLabelText("Selecionar c_outro_Atual.txt")).not.toBeChecked();
+  });
+
+  it("a lista de arquivos pode ser minimizada e aberta de novo", async () => {
+    renderPage();
+    await screen.findByLabelText("Selecionar d1_Atual.txt");
+    const botao = screen.getByRole("button", { name: /Minimizar lista/ });
+    expect(botao).toHaveAttribute("aria-expanded", "true");
+    fireEvent.click(botao);
+    expect(screen.queryByLabelText("Selecionar d1_Atual.txt")).toBeNull();
+    expect(screen.getByText(/2 de 3 regraváveis/)).toBeInTheDocument(); // o resumo continua
+    fireEvent.click(screen.getByRole("button", { name: /Mostrar lista/ }));
+    expect(screen.getByLabelText("Selecionar d1_Atual.txt")).toBeInTheDocument();
   });
 });

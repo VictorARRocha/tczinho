@@ -1,15 +1,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  AlertTriangle, ArrowLeftRight, ArrowRight, CheckCircle2, ChevronsUpDown, GitMerge, Loader2, Plus, RotateCcw, X, XCircle,
+  AlertTriangle, ArrowLeftRight, ArrowRight, CheckCircle2, GitMerge, Loader2, Plus, RotateCcw, X, XCircle,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Paginacao } from "./module/common";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,12 +15,13 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { usePermissao } from "@/hooks/use-permissao";
 import { SemPermissao } from "@/components/SemPermissao";
 import { ConfirmarAcao } from "@/components/ConfirmarAcao";
+import { SelectBusca } from "@/components/SelectBusca";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cancelMerge, createMerge, type MergePedido, type SvnBranch } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateMerges, useMergeBranches, useMerges } from "@/services/queries";
 import {
-  combinaBusca, dataCurta, MERGE_CANCELAVEL, MERGE_EM_ANDAMENTO, mensagemPadrao, mergeStatus, ordenarBranches, TIPO_CONFLITO,
+  dataCurta, MERGE_CANCELAVEL, MERGE_EM_ANDAMENTO, mensagemPadrao, mergeStatus, ordenarBranches, TIPO_CONFLITO,
 } from "@/lib/merge";
 
 function apiMessage(e: unknown): string {
@@ -331,83 +330,18 @@ function ResultadoBadge({ pedido, comDica = false }: { pedido: MergePedido; comD
 function BranchPicker({ label, branches, value, onChange, placeholder, loading }: {
   label: string; branches: SvnBranch[]; value: string; onChange: (url: string) => void; placeholder: string; loading: boolean;
 }) {
-  const [open, setOpen] = useState(false);
-  const [busca, setBusca] = useState("");
-  const [ativa, setAtiva] = useState(0);
-  const buscaRef = useRef<HTMLInputElement>(null);
-  const listaId = useId();
-  const atual = branches.find((b) => b.url === value) || null;
-  const visiveis = branches.filter((b) => combinaBusca(b.name, busca));
-  const indiceAtivo = Math.min(ativa, Math.max(0, visiveis.length - 1));
-  const escolher = (url: string) => { onChange(url); setOpen(false); setBusca(""); };
-  const mover = (passo: number) => {
-    if (!visiveis.length) return;
-    const proximo = (indiceAtivo + passo + visiveis.length) % visiveis.length;
-    setAtiva(proximo);
-    document.getElementById(`${listaId}-${proximo}`)?.scrollIntoView({ block: "nearest" });
-  };
+  const opcoes = branches.map((b) => ({
+    valor: b.url, rotulo: b.name, selo: b.kind === "trunk" ? "principal" : undefined,
+    detalhe: b.last_revision || b.last_author ? `última alteração r${b.last_revision} · ${b.last_author || "—"} · ${dataCurta(b.last_date)}` : undefined,
+  }));
   return (
     <div className="min-w-0 space-y-1">
       <div className="text-sm font-medium">{label}</div>
-      <Popover
-        open={open}
-        onOpenChange={(o) => {
-          setOpen(o);
-          if (!o) setBusca("");
-          // Abre com a branch escolhida ativa (ou a primeira).
-          else setAtiva(Math.max(0, branches.findIndex((b) => b.url === value)));
-        }}
-      >
-        <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-label={label} className="w-full justify-between font-normal">
-            <span className="truncate">
-              {atual ? atual.name : loading ? "Carregando branches…" : placeholder}
-              {atual?.kind === "trunk" && <span className="ml-2 text-xs text-muted-foreground">principal</span>}
-            </span>
-            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start" className="w-[var(--radix-popover-trigger-width)] min-w-[260px] p-0 max-sm:w-[calc(100vw-2rem)]"
-          // Abre ja digitando na busca (o Radix focaria a caixa da lista).
-          onOpenAutoFocus={(e) => { e.preventDefault(); buscaRef.current?.focus(); }}
-        >
-          <div className="border-b border-border p-2">
-            <Input
-              ref={buscaRef} placeholder="Buscar branch… (setas escolhem, Enter confirma)" value={busca} className="h-11 md:h-9" aria-label="Buscar branch"
-              role="combobox" aria-expanded aria-controls={listaId} aria-autocomplete="list"
-              aria-activedescendant={visiveis.length ? `${listaId}-${indiceAtivo}` : undefined}
-              onChange={(e) => { setBusca(e.target.value); setAtiva(0); }}
-              onKeyDown={(e) => {
-                if (e.key === "ArrowDown") { e.preventDefault(); mover(1); }
-                else if (e.key === "ArrowUp") { e.preventDefault(); mover(-1); }
-                else if (e.key === "Enter" && visiveis[indiceAtivo]) { e.preventDefault(); escolher(visiveis[indiceAtivo].url); }
-              }}
-            />
-          </div>
-          <div id={listaId} className="max-h-72 overflow-auto p-1" role="listbox" aria-label={label}>
-            {visiveis.length === 0 && <p className="px-2 py-3 text-xs text-muted-foreground">Nenhuma branch encontrada.</p>}
-            {visiveis.map((b, i) => (
-              <button
-                key={b.url} id={`${listaId}-${i}`} type="button" role="option" aria-selected={b.url === value} tabIndex={-1}
-                onClick={() => escolher(b.url)}
-                onMouseMove={() => setAtiva(i)}
-                className={`flex w-full flex-col items-start rounded-sm px-2 py-1.5 text-left max-md:min-h-11 ${b.url === value ? "bg-primary/10" : ""} ${i === indiceAtivo ? "bg-secondary/80 ring-1 ring-inset ring-border" : ""}`}
-              >
-                <span className="text-sm">
-                  {b.name}
-                  {b.kind === "trunk" && <span className="ml-2 rounded border border-border px-1 text-[9px] text-muted-foreground">principal</span>}
-                </span>
-                {(b.last_revision || b.last_author) && (
-                  <span className="text-[10px] text-muted-foreground">
-                    última alteração r{b.last_revision} · {b.last_author || "—"} · {dataCurta(b.last_date)}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </PopoverContent>
-      </Popover>
+      <SelectBusca
+        opcoes={opcoes} value={value} onChange={onChange} ariaLabel={label}
+        placeholder={loading ? "Carregando branches…" : placeholder}
+        buscaPlaceholder="Buscar branch… (setas escolhem, Enter confirma)" vazio="Nenhuma branch encontrada."
+      />
     </div>
   );
 }
