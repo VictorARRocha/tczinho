@@ -197,6 +197,21 @@ export interface ConfirmMergePayload {
   confirma_trunk?: boolean;
 }
 
+/** Importacao de rodagem pelo dashboard (GET/POST /imports): o RegravacaoBridge roda o .bat na D01. */
+export interface ImportPedido {
+  id: string;
+  status: string;
+  requested_by: string | null;
+  run_folder: string;
+  vm: string | null;
+  exit_code: number | null;
+  output: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  finished_at: string | null;
+}
+
 /** Item de GET /modules/latest-runs: o modulo e sua rodagem mais recente (null se nunca rodou). */
 export interface ModuleLatestRun {
   modulo: Modulo;
@@ -261,6 +276,10 @@ export interface QaDataSource {
   createMerge(payload: CreateMergePayload): Promise<MergePedido>;
   confirmMerge(id: string, payload: ConfirmMergePayload): Promise<MergePedido>;
   cancelMerge(id: string): Promise<void>;
+
+  // Importar rodagem (pasta do log compactado)
+  fetchImports(): Promise<ImportPedido[]>;
+  createImport(pasta: string): Promise<ImportPedido>;
 }
 
 /** Historico de tempo de um caso (GET /testcase-times/:id). */

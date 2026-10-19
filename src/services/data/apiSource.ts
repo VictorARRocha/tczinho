@@ -15,6 +15,7 @@
 //   GET  /runs/:id/regravacao  |  GET /regravacoes?run_id=  |  POST /regravacoes  |  POST /regravacoes/:id/cancel
 //   GET  /merge/branches  |  GET /merges  |  POST /merges  |  POST /merges/:id/confirm  |  POST /merges/:id/cancel
 //   GET  /testcase-times/:id  |  POST /testcase-times/:id/base
+//   GET  /imports  |  POST /imports
 //
 // Toda chamada envia o token de sessao; 401 leva ao login (notifySessionExpired).
 // =====================================================================
@@ -22,6 +23,7 @@ import type {
   QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload, CasoDesativado, HistoricoTempo,
   RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
   MergeBranches, MergePedido, ConfirmMergePayload, CreateMergePayload,
+  ImportPedido,
 } from "./types";
 import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
@@ -387,4 +389,9 @@ export const ApiQaDataSource: QaDataSource = {
 
   cancelMerge: (id: string) =>
     req<unknown>(`/merges/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }).then(() => undefined),
+
+  fetchImports: () => req<ImportPedido[]>(`/imports`),
+
+  createImport: (pasta: string) =>
+    req<ImportPedido>(`/imports`, { method: "POST", body: JSON.stringify({ pasta }) }),
 };

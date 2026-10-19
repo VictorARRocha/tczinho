@@ -5,7 +5,7 @@ import type { AppUserProfile } from "@/services/authApi";
 export type Permissao = "rodagem" | "merge" | "regravar";
 
 export const PERMISSOES: { id: Permissao; label: string; descricao: string }[] = [
-  { id: "rodagem", label: "Solicitar rodagem", descricao: "Pedir e cancelar rodagens no Jenkins (completa e reexecução) e salvar pré-definições." },
+  { id: "rodagem", label: "Solicitar rodagem", descricao: "Pedir e cancelar rodagens no Jenkins (completa e reexecução), importar rodagens e salvar pré-definições." },
   { id: "merge", label: "Fazer merge", descricao: "Fazer merge entre branches do TC." },
   { id: "regravar", label: "Regravar arquivos", descricao: "Regravar no SVN os arquivos base das diferenças esperadas." },
 ];

@@ -12,6 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useLatestRuns } from "@/services/queries";
 import { useAuth } from "@/contexts/AuthContext";
 import { SEM_NENHUM_MODULO } from "@/lib/permissoes";
+import { ImportarRodagem } from "@/components/ImportarRodagem";
 
 export default function Dashboard() {
   // Uma chamada (/modules/latest-runs) traz a ultima rodagem de cada modulo, a cada minuto.
@@ -43,11 +44,14 @@ export default function Dashboard() {
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
-      <div className="mb-6 sm:mb-8">
-        <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">AgenteTC</h1>
-        <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
-          Resultado da última rodagem de testes automáticos do Único em cada módulo. Abra um módulo para ver o que falhou e por quê.
-        </p>
+      <div className="mb-6 sm:mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">AgenteTC</h1>
+          <p className="mt-2 text-sm text-muted-foreground max-w-2xl">
+            Resultado da última rodagem de testes automáticos do Único em cada módulo. Abra um módulo para ver o que falhou e por quê.
+          </p>
+        </div>
+        <ImportarRodagem />
       </div>
 
       <div className="mb-3">

@@ -22,6 +22,8 @@ import {
   fetchRegravacoes,
   fetchMergeBranches,
   fetchMerges,
+  fetchImports,
+  type ImportPedido,
   type MergePedido,
   fetchEvidenceByRun,
   type RegravacaoPedido,
@@ -44,6 +46,7 @@ export const queryKeys = {
   regravacoes: (runId: string) => ["regravacoes", runId] as const,
   mergeBranches: ["merge-branches"] as const,
   merges: ["merges"] as const,
+  imports: ["imports"] as const,
   runEvidences: (runId: string) => ["run-evidences", runId] as const,
 };
 
@@ -181,6 +184,26 @@ export function useMerges() {
 
 export function invalidateMerges() {
   return queryClient.invalidateQueries({ queryKey: queryKeys.merges });
+}
+
+const ACTIVE_IMPORT = new Set(["solicitado", "processando"]);
+
+/** Importacoes: 5s enquanto houver uma na fila ou rodando; parado nao consulta (so ao abrir a janela). */
+export function importRefetchInterval(pedidos: ImportPedido[] | undefined): number | false {
+  return (pedidos || []).some((p) => ACTIVE_IMPORT.has(p.status)) ? 5_000 : false;
+}
+
+export function useImports(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.imports,
+    queryFn: fetchImports,
+    enabled,
+    refetchInterval: (query) => importRefetchInterval(query.state.data),
+  });
+}
+
+export function invalidateImports() {
+  return queryClient.invalidateQueries({ queryKey: queryKeys.imports });
 }
 
 /** Pedido mudou de status (ex.: o Bridge terminou): a situacao dos arquivos muda junto. */
