@@ -125,7 +125,8 @@ describe("CONFIG_JSON", () => {
     const ok = { vm_name: "a07", versao: "PROXIMA", casos_teste: "[2]", ct_desmarcar: "[0.3]", data_hora: "05/10/2026 10:00:00", branch: "" };
     expect(validateConfigForSubmit(ok)).toBeNull();
     expect(validateConfigForSubmit({ ...ok, versao: " " })).toMatch(/versao/);
-    expect(validateConfigForSubmit({ ...ok, casos_teste: "2.1" })).toMatch(/colchetes/);
+    expect(validateConfigForSubmit({ ...ok, casos_teste: "uExportacaoSpedContribuicoes" })).toBeNull();
+    expect(validateConfigForSubmit({ ...ok, casos_teste: " " })).toMatch(/casos_teste/);
     expect(validateConfigForSubmit({ ...ok, data_hora: "2026-10-05" })).toMatch(/dd\/MM\/yyyy/);
     expect(validateConfigForSubmit({ ...ok, branch: 1 })).toMatch(/branch/);
     expect(validateConfigForSubmit({ ...ok, status: "finalizado_sucesso" })).toMatch(/"status" é reservada/);

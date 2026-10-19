@@ -7,9 +7,8 @@ const REQUIRED_KEYS = ["vm_name", "versao", "casos_teste", "ct_desmarcar", "data
 const DATA_HORA_RE = /^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}:\d{2}$/;
 
 export function casosTesteValido(s: string): boolean {
-  if (!s.trim()) return false;
-  // precisa ter ao menos um par de colchetes
-  return /\[[^\]]+\]/.test(s);
+  // Sem exigir colchetes: o nome de uma unit (ex.: uExportacaoSpedContribuicoes) roda todos os casos que a usam.
+  return !!s.trim();
 }
 
 /** Configuracao com a data/hora informada, nas chaves na ordem usual do Jenkins. */
