@@ -393,9 +393,10 @@ export function FileComparatorDialog({ open, onClose, pair, falha }: Props) {
                       // No celular o Monaco ja mostra o diff em linha; sem minimapa e com quebra de linha.
                       minimap: { enabled: !isMobile },
                       scrollBeyondLastLine: false,
-                      // Linhas longas (XML do eSocial) quebram: a diferenca no fim da linha fica visivel.
-                      wordWrap: "on",
-                      diffWordWrap: "on",
+                      // Como no TortoiseMerge (pedido das usuarias): uma linha por linha, rolagem para o lado.
+                      // No celular (diff em uma coluna) continua quebrando.
+                      wordWrap: isMobile ? "on" : "off",
+                      diffWordWrap: isMobile ? "on" : "off",
                       renderWhitespace: "boundary",
                       fontSize: 12,
                       originalEditable: false,
