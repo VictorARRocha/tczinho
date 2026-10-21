@@ -108,6 +108,58 @@ describe("aba Performance com tempos no banco", () => {
     expect(screen.queryByRole("button", { name: /novo tempo base/ })).not.toBeInTheDocument();
   });
 
+  it("regravar varios: todos marcados, atalhos de lentos/rapidos, desmarcar e confirmar", async () => {
+    const onBaseTrocada = vi.fn();
+    api.trocar.mockResolvedValue(HISTORICO);
+    const dados = [...DADOS, linha("3.2.20", 200, 150, "mais_rapido"), linha("3.2.21", 100, 140, "mais_lento")];
+    renderAba(<PerformanceTab data={dados} moduloSlug="contabil" onBaseTrocada={onBaseTrocada} />);
+    fireEvent.click(screen.getByRole("button", { name: "Regravar vários" }));
+
+    const janela = await screen.findByRole("dialog");
+    const caixa = (ct: string) => within(janela).getByRole("checkbox", { name: `CT [${ct}]` });
+    // O 3.1.2 (sem variacao) nao entra; os outros comecam marcados, com base e tempo novo.
+    expect(within(janela).queryByRole("checkbox", { name: "CT [3.1.2]" })).toBeNull();
+    expect(within(janela).getByText("3 de 3 selecionados")).toBeInTheDocument();
+    expect(caixa("3.2.20").closest("label")).toHaveTextContent("03:20 → 02:30");
+
+    fireEvent.click(within(janela).getByRole("button", { name: "Somente mais rápidos" }));
+    expect(caixa("3.2.20")).toBeChecked();
+    expect(caixa("3.2.14")).not.toBeChecked();
+    fireEvent.click(within(janela).getByRole("button", { name: "Somente mais lentos" }));
+    expect(caixa("3.2.20")).not.toBeChecked();
+    expect(caixa("3.2.21")).toBeChecked();
+    fireEvent.click(within(janela).getByRole("button", { name: "Selecionar todos" }));
+    fireEvent.click(caixa("3.2.21")); // desmarca
+    expect(within(janela).getByText("2 de 3 selecionados")).toBeInTheDocument();
+
+    fireEvent.click(within(janela).getByRole("button", { name: "Confirmar" }));
+    expect(await screen.findByText("Regravar 2 casos de teste?")).toBeInTheDocument();
+    expect(api.trocar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Regravar" }));
+    await waitFor(() => expect(onBaseTrocada).toHaveBeenCalledTimes(1));
+    expect(api.trocar.mock.calls).toEqual([["3.2.14", 161], ["3.2.20", 150]]);
+  });
+
+  it("regravar varios: o que falhar continua marcado", async () => {
+    api.trocar.mockImplementation(async (ct: string) => {
+      if (ct === "3.2.20") throw new Error("sem acesso");
+      return HISTORICO;
+    });
+    renderAba(<PerformanceTab data={[...DADOS, linha("3.2.20", 200, 150, "mais_rapido")]} moduloSlug="contabil" />);
+    fireEvent.click(screen.getByRole("button", { name: "Regravar vários" }));
+    const janela = await screen.findByRole("dialog");
+    fireEvent.click(within(janela).getByRole("button", { name: "Confirmar" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Regravar" }));
+    await waitFor(() => expect(within(janela).getByText("1 de 2 selecionados")).toBeInTheDocument());
+    expect(within(janela).getByRole("checkbox", { name: "CT [3.2.20]" })).toBeChecked();
+  });
+
+  it("sem permissao de regravar, nao mostra o regravar varios", () => {
+    auth.profile = { username: "ana", permissions: ["rodagem"], modules: ["contabil"] };
+    renderAba(<PerformanceTab data={DADOS} moduloSlug="contabil" />);
+    expect(screen.queryByRole("button", { name: "Regravar vários" })).toBeNull();
+  });
+
   it("de outro modulo, nao oferece a troca", async () => {
     auth.profile = { username: "ana", permissions: ["regravar"], modules: ["folha"] };
     renderAba(<PerformanceTab data={DADOS} moduloSlug="contabil" />);

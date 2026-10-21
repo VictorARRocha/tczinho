@@ -9,6 +9,8 @@ vi.mock("recharts", async () => {
   const names = ["PieChart", "Pie", "Cell", "ResponsiveContainer", "BarChart", "Bar", "XAxis", "YAxis", "Tooltip"];
   return Object.fromEntries(names.map((name) => [name, Stub]));
 });
+// A aba Performance confere a permissao de regravar (no app ela fica dentro do AuthProvider).
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ isAdmin: false, profile: null }) }));
 
 import { PerformanceTab } from "@/pages/module/PerformanceTab";
 import { ErrorBoundary } from "@/components/ErrorBoundary";

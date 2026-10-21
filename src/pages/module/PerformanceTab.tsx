@@ -13,6 +13,8 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Empty, Paginacao, SEM_RESULTADO } from "./common";
 import { TempoCasoPainel } from "./TempoCasoPainel";
+import { RegravarTemposVarios, casosRegravaveis } from "./RegravarTemposVarios";
+import { usePermissao, useModulos } from "@/hooks/use-permissao";
 import { useUltimoValor } from "@/hooks/usePainel";
 
 const PAGE_SIZE = 25;
@@ -72,6 +74,10 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const debouncedQ = useDebounce(q, 250);
   const isMobile = useIsMobile();
+  const temPermissaoRegravar = usePermissao("regravar");
+  const modulos = useModulos();
+  const podeRegravar = temPermissaoRegravar && modulos.pode(moduloSlug);
+  const regravaveis = useMemo(() => casosRegravaveis(data), [data]);
   const [page, setPage] = useState(1);
   useEffect(() => { setPage(1); }, [debouncedQ, statusFilter, groupFilter, sortKey, sortDir, data]);
 
@@ -227,6 +233,7 @@ export function PerformanceTab({ data, moduloSlug = "", onBaseTrocada = () => {}
               </SelectContent>
             </Select>
           )}
+          {podeRegravar && <div className="ml-auto"><RegravarTemposVarios casos={regravaveis} onBaseTrocada={onBaseTrocada} /></div>}
         </div>
 
       </Card>
