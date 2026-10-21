@@ -92,10 +92,9 @@ export function rerunRefetchInterval(requests: RerunRequest[] | undefined): numb
   return hasActiveRerun(requests) ? RERUN_ACTIVE_POLL_MS : RERUN_IDLE_POLL_MS;
 }
 
-export function useRerunRequests(limit = 50, enabled = true) {
+export function useRerunRequests(limit = 50) {
   return useQuery({
     queryKey: [...queryKeys.rerunRequests, limit],
-    enabled,
     queryFn: () => fetchRerunRequests(limit),
     refetchInterval: (query) => rerunRefetchInterval(query.state.data),
   });

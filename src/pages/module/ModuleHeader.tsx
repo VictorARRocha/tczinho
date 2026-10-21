@@ -12,15 +12,9 @@ import { ChevronsUpDown, Check } from "lucide-react";
 import { formatDateTime, getHealthStatus, resultadoRodagem } from "@/lib/format";
 import { formatarSistema, formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { isMeaningful } from "./common";
-import { origemDaRodagem } from "@/lib/origemRodagem";
-import { useImports, useRerunRequests } from "@/services/queries";
-import { TOM_STATUS } from "@/lib/statusPedido";
 
 export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void }) {
   const [open, setOpen] = useState(false);
-  // Selos de reexecucao/importada: so busca com a lista aberta.
-  const { data: pedidos = [] } = useRerunRequests(100, open);
-  const { data: importacoes = [] } = useImports(open);
   const health = getHealthStatus(rodagem?.status_label || rodagem?.status_geral, rodagem?.score_saude);
   const fields: { label: string; value: ReactNode }[] = rodagem ? [
     { label: "Sistema", value: formatarSistema(rodagem.sistema) },
@@ -59,22 +53,18 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
                     {runs.map((r) => {
                       const active = r.id === rodagem?.id;
                       const h = getHealthStatus(r.status_label || r.status_geral, r.score_saude);
-                      const vm = formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem));
-                      const origem = origemDaRodagem(r, vm, pedidos, importacoes);
                       return (
                         <button key={r.id} type="button" aria-current={active ? "true" : undefined} onClick={() => { onPickRun(r.id); setOpen(false); }} className={`w-full text-left px-3 py-2.5 hover:bg-secondary/60 active:bg-secondary transition-colors border-b border-border/50 ${active ? "bg-primary/5" : ""}`}>
                           <div className="flex items-center gap-2">
                             {active && <Check className="h-3.5 w-3.5 text-primary shrink-0" />}
                             <span className="text-sm font-medium truncate flex-1">{formatDateTime(r.data_analise)}</span>
-                            {origem && (
-                              <Badge variant="outline" className={`${origem.tipo === "reexecucao" ? TOM_STATUS.andamento : TOM_STATUS.espera} text-[10px] h-5 font-normal`} title={origem.detalhe}>
-                                {origem.tipo === "reexecucao" ? "Reexecução" : "Importada"}{origem.por ? ` · ${origem.por}` : ""}
-                              </Badge>
-                            )}
                             {h.label !== "Sem dados" && <Badge variant="outline" className={`${h.className} text-[10px] h-5`}>{h.label}</Badge>}
                           </div>
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground mt-1 ml-5">
-                            {vm && <span>VM: <span className="text-foreground/80">{vm}</span></span>}
+                            {(() => {
+                              const vm = formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem));
+                              return vm && <span>VM: <span className="text-foreground/80">{vm}</span></span>;
+                            })()}
                             {r.versao_sistema && <span>Versão: <span className="text-foreground/80">{formatarVersao(r.versao_sistema)}</span></span>}
                             {r.branch && <span className="font-mono">{r.branch}</span>}
                             <span>
