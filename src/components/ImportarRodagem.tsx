@@ -37,15 +37,13 @@ export function ImportarRodagem() {
   const [pasta, setPasta] = useState("");
   const [branchUrl, setBranchUrl] = useState("");
   const { data: branchesSvn } = useMergeBranches();
-  // A D01 nao rodou a rodagem: o svn info dela daria sempre a principal. Vazio = deixa a D01 detectar.
+  // A D01 nao rodou a rodagem: a branch vem daqui. Sem escolha, a principal (a primeira da lista).
   const branches = useMemo(() => {
     const lista = branchesSvn?.branches || [];
     const urlPorNome = new Map(lista.map((b) => [b.kind === "trunk" ? "local" : b.name, b.url]));
-    return [
-      { valor: "", rotulo: "Detectar pela D01" },
-      ...opcoesBranch(lista).map((o) => ({ valor: urlPorNome.get(o.valor) || "", rotulo: o.rotulo })).filter((o) => o.valor),
-    ];
+    return opcoesBranch(lista).map((o) => ({ valor: urlPorNome.get(o.valor) || "", rotulo: o.rotulo })).filter((o) => o.valor);
   }, [branchesSvn]);
+  const branchEscolhida = branchUrl || branches[0]?.valor || "";
   const [enviando, setEnviando] = useState(false);
   const statusAnterior = useRef<Map<string, string> | null>(null);
   const ativos = pedidos.filter((p) => ATIVOS.has(p.status));
@@ -79,7 +77,7 @@ export function ImportarRodagem() {
     if (!valor) return toast.error("Informe o caminho da pasta da rodagem");
     setEnviando(true);
     try {
-      await createImport(valor, branchUrl);
+      await createImport(valor, branchEscolhida);
       toast.success("Importação na fila", { description: "A D01 importa a rodagem; o aviso aparece quando terminar." });
       setPasta("");
       setBranchUrl("");
@@ -129,11 +127,11 @@ export function ImportarRodagem() {
             <div className="space-y-1.5">
               <Label htmlFor="importar-branch" className="text-xs text-muted-foreground">Branch do TC em que a rodagem rodou</Label>
               <SelectBusca
-                id="importar-branch" ariaLabel="Branch do TC em que a rodagem rodou" value={branchUrl} onChange={setBranchUrl}
+                id="importar-branch" ariaLabel="Branch do TC em que a rodagem rodou" value={branchEscolhida} onChange={setBranchUrl}
                 opcoes={branches} buscaPlaceholder="Buscar branch…" vazio="Nenhuma branch encontrada."
               />
               <p className="text-xs text-muted-foreground">
-                A D01 sempre está na principal: escolha a branch da VM para a regravação ir para o lugar certo.
+                A regravação desta rodagem vai para a branch escolhida aqui.
               </p>
             </div>
             <DialogFooter className="gap-2 sm:gap-0">

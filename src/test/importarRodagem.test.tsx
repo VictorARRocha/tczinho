@@ -76,12 +76,12 @@ describe("Adicionar rodagem", () => {
     expect(importar).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Pasta da rodagem"), { target: { value: `  ${PASTA} ` } });
     fireEvent.click(importar);
-    await waitFor(() => expect(api.createImport).toHaveBeenCalledWith(PASTA, ""));
+    await waitFor(() => expect(api.createImport).toHaveBeenCalledWith(PASTA, "svn://svn/ProjetoUnico/Unico"));
     expect(await screen.findByRole("button", { name: /importando/i })).toBeTruthy();
     expect(toast.success).toHaveBeenCalledWith("Importação na fila", expect.anything());
   });
 
-  it("envia a branch do TC escolhida (a D01 so detecta a principal)", async () => {
+  it("envia a branch do TC escolhida (sem escolha, a principal)", async () => {
     renderBotao();
     fireEvent.click(await screen.findByRole("button", { name: /adicionar rodagem/i }));
     fireEvent.change(screen.getByLabelText("Pasta da rodagem"), { target: { value: PASTA } });

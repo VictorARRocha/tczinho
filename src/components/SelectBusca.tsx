@@ -30,7 +30,9 @@ export function SelectBusca({
     document.getElementById(`${listaId}-${proximo}`)?.scrollIntoView({ block: "nearest" });
   };
   return (
+    // modal: dentro de um Dialog, sem isto a trava de rolagem do Dialog engole a roda do mouse na lista.
     <Popover
+      modal
       open={open}
       onOpenChange={(o) => {
         setOpen(o);
