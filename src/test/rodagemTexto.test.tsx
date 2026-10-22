@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { QueryClientProvider } from "@tanstack/react-query";
 import type { Rodagem } from "@/types/db";
+import { queryClient } from "@/lib/queryClient";
 import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { ModuleHeader } from "@/pages/module/ModuleHeader";
+
+// Sem permissao de rodagem: o botao de importar nao aparece no cabecalho.
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ isAdmin: false, profile: null }) }));
 
 describe("texto da rodagem", () => {
   it("versao como as pessoas falam (nomes reais das pastas de rodagem)", () => {
@@ -32,7 +37,7 @@ describe("texto da rodagem", () => {
     }) as Rodagem;
     // r1 com o total rodado nela (completa x reexecucao); r2 de rodagem antiga, sem o total.
     const runs = [{ ...rodagem("r1", "CONTABIL_DERE", 6), total_analisados: 1558 }, rodagem("r2", "PROXIMA1.26.10.0", 1)];
-    render(<ModuleHeader modulo={null} rodagem={runs[0]} runs={runs} onPickRun={vi.fn()} />);
+    render(<QueryClientProvider client={queryClient}><ModuleHeader modulo={null} rodagem={runs[0]} runs={runs} onPickRun={vi.fn()} /></QueryClientProvider>);
     fireEvent.click(screen.getByRole("button", { name: /Trocar rodagem/ }));
     const [primeira, segunda] = screen.getAllByRole("button").filter((b) => b.textContent?.includes("VM:"));
     expect(primeira).toHaveTextContent("VM: A08");

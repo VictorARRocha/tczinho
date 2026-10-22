@@ -392,6 +392,6 @@ export const ApiQaDataSource: QaDataSource = {
 
   fetchImports: () => req<ImportPedido[]>(`/imports`),
 
-  createImport: (pasta: string) =>
-    req<ImportPedido>(`/imports`, { method: "POST", body: JSON.stringify({ pasta }) }),
+  createImport: (pasta: string, branchUrl = "") =>
+    req<ImportPedido>(`/imports`, { method: "POST", body: JSON.stringify({ pasta, branch_url: branchUrl }) }),
 };

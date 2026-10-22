@@ -70,4 +70,4 @@ export const createMerge = (payload: import("./types").CreateMergePayload) => qa
 export const confirmMerge = (id: string, payload: import("./types").ConfirmMergePayload) => qaData.confirmMerge(id, payload);
 export const cancelMerge = (id: string) => qaData.cancelMerge(id);
 export const fetchImports = () => qaData.fetchImports();
-export const createImport = (pasta: string) => qaData.createImport(pasta);
+export const createImport = (pasta: string, branchUrl?: string) => qaData.createImport(pasta, branchUrl);

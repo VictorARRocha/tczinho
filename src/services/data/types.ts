@@ -204,6 +204,7 @@ export interface ImportPedido {
   requested_by: string | null;
   run_folder: string;
   vm: string | null;
+  branch_url?: string | null;
   exit_code: number | null;
   output: string | null;
   error_message: string | null;
@@ -279,7 +280,7 @@ export interface QaDataSource {
 
   // Importar rodagem (pasta do log compactado)
   fetchImports(): Promise<ImportPedido[]>;
-  createImport(pasta: string): Promise<ImportPedido>;
+  createImport(pasta: string, branchUrl?: string): Promise<ImportPedido>;
 }
 
 /** Historico de tempo de um caso (GET /testcase-times/:id). */

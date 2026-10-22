@@ -15,6 +15,13 @@ vi.mock("@/services/data", async (importOriginal) => {
   return {
     ...actual,
     fetchImports: async () => api.imports,
+    fetchMergeBranches: async () => ({
+      updated_at: null,
+      branches: [
+        { name: "Unico", url: "svn://svn/ProjetoUnico/Unico", kind: "trunk" },
+        { name: "PRE-CLIENTES", url: "svn://svn/ProjetoUnico/branches/PRE-CLIENTES", kind: "branch" },
+      ],
+    }),
     createImport: (...args: unknown[]) => api.createImport(...args),
   };
 });
@@ -69,9 +76,19 @@ describe("Adicionar rodagem", () => {
     expect(importar).toBeDisabled();
     fireEvent.change(screen.getByLabelText("Pasta da rodagem"), { target: { value: `  ${PASTA} ` } });
     fireEvent.click(importar);
-    await waitFor(() => expect(api.createImport).toHaveBeenCalledWith(PASTA));
+    await waitFor(() => expect(api.createImport).toHaveBeenCalledWith(PASTA, ""));
     expect(await screen.findByRole("button", { name: /importando/i })).toBeTruthy();
     expect(toast.success).toHaveBeenCalledWith("Importação na fila", expect.anything());
+  });
+
+  it("envia a branch do TC escolhida (a D01 so detecta a principal)", async () => {
+    renderBotao();
+    fireEvent.click(await screen.findByRole("button", { name: /adicionar rodagem/i }));
+    fireEvent.change(screen.getByLabelText("Pasta da rodagem"), { target: { value: PASTA } });
+    fireEvent.click(screen.getByRole("combobox", { name: "Branch do TC em que a rodagem rodou" }));
+    fireEvent.click(await screen.findByText("PRE-CLIENTES"));
+    fireEvent.click(screen.getByRole("button", { name: "Importar" }));
+    await waitFor(() => expect(api.createImport).toHaveBeenCalledWith(PASTA, "svn://svn/ProjetoUnico/branches/PRE-CLIENTES"));
   });
 
   it("mostra o erro da API sem fechar a janela", async () => {

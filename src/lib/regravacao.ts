@@ -60,7 +60,7 @@ export const PEDIDO_STATUS: Record<string, { label: string; className: string }>
   cancelado: { label: "Cancelado", className: TOM_STATUS.espera },
 };
 
-const CONFLITO_STATUS = { label: "Conflito", className: TOM_STATUS.aviso };
+const CONFLITO_STATUS = { label: "Conflito", className: TOM_STATUS.erro };
 
 /** Status para mostrar: erro por conflito no SVN aparece como "Conflito". */
 export function pedidoStatus(p: { status: string; result_json?: { conflito?: boolean } | null }) {

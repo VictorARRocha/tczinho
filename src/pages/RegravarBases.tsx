@@ -1037,11 +1037,18 @@ function ConflitoAviso({ pedido, destino, onOcultar }: { pedido: RegravacaoPedid
   );
 }
 
+// Regravavel = azul, regravando = amarelo, conflito = vermelho, regravado = verde; os demais motivos seguem em amarelo.
+const TOM_MOTIVO: Record<string, string> = {
+  em_andamento: TOM_STATUS.aviso,
+  conflito_svn: TOM_STATUS.erro,
+  ja_regravado: TOM_STATUS.sucesso,
+};
+
 function SituacaoBadge({ item }: { item: RegravacaoItem }) {
   return item.regravavel ? (
-    <Badge variant="outline" className={`whitespace-nowrap ${TOM_STATUS.sucesso}`}>Regravável</Badge>
+    <Badge variant="outline" className={`whitespace-nowrap ${TOM_STATUS.andamento}`}>Regravável</Badge>
   ) : (
-    <Badge variant="outline" className={`whitespace-nowrap ${TOM_STATUS.aviso}`} title={item.motivo_texto || ""}>
+    <Badge variant="outline" className={`whitespace-nowrap ${TOM_MOTIVO[item.motivo || ""] || TOM_STATUS.aviso}`} title={item.motivo_texto || ""}>
       {MOTIVO_CURTO[item.motivo || ""] || item.motivo}
     </Badge>
   );

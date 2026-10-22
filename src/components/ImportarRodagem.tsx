@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,12 +9,14 @@ import {
 } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { temPermissao } from "@/lib/permissoes";
-import { PEDIDO_STATUS } from "@/lib/regravacao";
+import { PEDIDO_STATUS, branchTc } from "@/lib/regravacao";
+import { opcoesBranch } from "@/lib/branchVm";
+import { SelectBusca } from "@/components/SelectBusca";
 import { mensagemDaApi } from "@/lib/apiErro";
 import { formatRelative } from "@/lib/format";
 import { queryClient } from "@/lib/queryClient";
 import { createImport, type ImportPedido } from "@/services/data";
-import { invalidateImports, queryKeys, useImports } from "@/services/queries";
+import { invalidateImports, queryKeys, useImports, useMergeBranches } from "@/services/queries";
 
 const EXEMPLO = "S:\\Teste automatico\\Arquivos\\Arquivos De Log\\ArquivosCompactados\\A07\\PROXIMA1.26.10.99 18_10_2026 08_16_16";
 const ATIVOS = new Set(["solicitado", "processando"]);
@@ -33,6 +35,17 @@ export function ImportarRodagem() {
   const { data: pedidos = [], refetch } = useImports(pode);
   const [aberto, setAberto] = useState(false);
   const [pasta, setPasta] = useState("");
+  const [branchUrl, setBranchUrl] = useState("");
+  const { data: branchesSvn } = useMergeBranches();
+  // A D01 nao rodou a rodagem: o svn info dela daria sempre a principal. Vazio = deixa a D01 detectar.
+  const branches = useMemo(() => {
+    const lista = branchesSvn?.branches || [];
+    const urlPorNome = new Map(lista.map((b) => [b.kind === "trunk" ? "local" : b.name, b.url]));
+    return [
+      { valor: "", rotulo: "Detectar pela D01" },
+      ...opcoesBranch(lista).map((o) => ({ valor: urlPorNome.get(o.valor) || "", rotulo: o.rotulo })).filter((o) => o.valor),
+    ];
+  }, [branchesSvn]);
   const [enviando, setEnviando] = useState(false);
   const statusAnterior = useRef<Map<string, string> | null>(null);
   const ativos = pedidos.filter((p) => ATIVOS.has(p.status));
@@ -66,9 +79,10 @@ export function ImportarRodagem() {
     if (!valor) return toast.error("Informe o caminho da pasta da rodagem");
     setEnviando(true);
     try {
-      await createImport(valor);
+      await createImport(valor, branchUrl);
       toast.success("Importação na fila", { description: "A D01 importa a rodagem; o aviso aparece quando terminar." });
       setPasta("");
+      setBranchUrl("");
       setAberto(false);
       await invalidateImports();
     } catch (e) {
@@ -94,32 +108,44 @@ export function ImportarRodagem() {
             </DialogDescription>
           </DialogHeader>
           <form
-            className="space-y-2"
+            className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
               importar();
             }}
           >
-            <Label htmlFor="importar-pasta" className="text-xs text-muted-foreground">Pasta da rodagem</Label>
-            <Input
-              id="importar-pasta"
-              autoFocus
-              value={pasta}
-              onChange={(e) => setPasta(e.target.value)}
-              placeholder={EXEMPLO}
-              className="font-mono text-xs"
-              disabled={enviando}
-            />
-            <DialogFooter className="gap-2 pt-2 sm:gap-0">
+            <div className="space-y-1.5">
+              <Label htmlFor="importar-pasta" className="text-xs text-muted-foreground">Pasta da rodagem</Label>
+              <Input
+                id="importar-pasta"
+                autoFocus
+                value={pasta}
+                onChange={(e) => setPasta(e.target.value)}
+                placeholder={EXEMPLO}
+                className="font-mono text-xs"
+                disabled={enviando}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="importar-branch" className="text-xs text-muted-foreground">Branch do TC em que a rodagem rodou</Label>
+              <SelectBusca
+                id="importar-branch" ariaLabel="Branch do TC em que a rodagem rodou" value={branchUrl} onChange={setBranchUrl}
+                opcoes={branches} buscaPlaceholder="Buscar branch…" vazio="Nenhuma branch encontrada."
+              />
+              <p className="text-xs text-muted-foreground">
+                A D01 sempre está na principal: escolha a branch da VM para a regravação ir para o lugar certo.
+              </p>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button type="button" variant="ghost" onClick={() => setAberto(false)} disabled={enviando}>Cancelar</Button>
               <Button type="submit" disabled={enviando || !pasta.trim()}>{enviando ? "Enviando…" : "Importar"}</Button>
             </DialogFooter>
           </form>
 
           {pedidos.length > 0 && (
-            <div className="border-t border-border/60 pt-3">
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Últimas importações</h3>
-              <ul className="space-y-2">
+            <div className="border-t border-border/60 pt-4">
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Últimas importações</h3>
+              <ul className="max-h-72 divide-y divide-border/60 overflow-y-auto">
                 {pedidos.slice(0, 5).map((p) => <ItemImportacao key={p.id} pedido={p} />)}
               </ul>
             </div>
@@ -133,21 +159,22 @@ export function ImportarRodagem() {
 function ItemImportacao({ pedido }: { pedido: ImportPedido }) {
   const meta = PEDIDO_STATUS[pedido.status] || { label: pedido.status, className: "" };
   return (
-    <li className="text-xs">
-      <div className="flex items-center gap-2">
-        <span className={`shrink-0 rounded border px-1.5 py-0.5 ${meta.className}`}>{meta.label}</span>
-        <span className="min-w-0 truncate font-mono" title={pedido.run_folder}>{nomeDaPasta(pedido.run_folder)}</span>
-        <span className="ml-auto shrink-0 text-muted-foreground">
-          {[pedido.vm, pedido.requested_by, formatRelative(pedido.created_at)].filter(Boolean).join(" · ")}
-        </span>
+    // Selo numa coluna fixa e o resto empilhado ao lado: nome inteiro na 1a linha, detalhes embaixo.
+    <li className="grid grid-cols-[5.5rem_minmax(0,1fr)] items-start gap-x-3 py-2.5 text-xs">
+      <span className={`rounded border px-1.5 py-0.5 text-center ${meta.className}`}>{meta.label}</span>
+      <div className="min-w-0 space-y-0.5">
+        <p className="truncate font-mono font-medium" title={pedido.run_folder}>{nomeDaPasta(pedido.run_folder)}</p>
+        <p className="truncate text-muted-foreground">
+          {[pedido.vm, branchTc(pedido.branch_url), pedido.requested_by, formatRelative(pedido.created_at)].filter(Boolean).join(" · ")}
+        </p>
+        {pedido.error_message && <p className="pt-0.5 text-destructive">{pedido.error_message}</p>}
+        {pedido.status === "erro" && pedido.output && (
+          <details>
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">Saída do .bat</summary>
+            <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 font-mono text-[11px]">{pedido.output}</pre>
+          </details>
+        )}
       </div>
-      {pedido.error_message && <p className="mt-1 text-destructive">{pedido.error_message}</p>}
-      {pedido.status === "erro" && pedido.output && (
-        <details className="mt-1">
-          <summary className="cursor-pointer text-muted-foreground">Saída do .bat</summary>
-          <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 font-mono text-[11px]">{pedido.output}</pre>
-        </details>
-      )}
     </li>
   );
 }

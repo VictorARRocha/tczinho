@@ -11,6 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ChevronsUpDown, Check } from "lucide-react";
 import { formatDateTime, getHealthStatus, resultadoRodagem } from "@/lib/format";
 import { formatarSistema, formatarVersao, formatarVm } from "@/lib/rodagemTexto";
+import { ImportarRodagem } from "@/components/ImportarRodagem";
 import { isMeaningful } from "./common";
 
 export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Modulo | null; rodagem: Rodagem | null; runs: Rodagem[]; onPickRun: (id: string) => void }) {
@@ -24,7 +25,7 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
   ].filter((f) => isMeaningful(f.value)) : [];
   return (
     <Card className="p-4 sm:p-6">
-      <div className="flex flex-col lg:flex-row lg:items-start gap-6 justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start gap-6 justify-between">
         <div className="min-w-0">
           <div className="flex items-center gap-3 mb-2 flex-wrap">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{modulo?.nome || "Módulo"}</h1>
@@ -90,14 +91,15 @@ export function ModuleHeader({ modulo, rodagem, runs, onPickRun }: { modulo: Mod
             </div>
           )}
         </div>
-        {rodagem?.score_saude != null && (
-          <div className="flex items-center gap-3">
+        <div className="flex shrink-0 items-start gap-6">
+          {rodagem?.score_saude != null && (
             <div className="text-right">
               <div className="text-4xl font-bold font-mono">{rodagem.score_saude}</div>
               <div className="text-xs text-muted-foreground">Score de saúde</div>
             </div>
-          </div>
-        )}
+          )}
+          <ImportarRodagem />
+        </div>
       </div>
     </Card>
   );
