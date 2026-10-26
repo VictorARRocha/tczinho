@@ -92,7 +92,11 @@ function montarArvore(nodes: TestcaseHierarchyNode[]): No[] {
     while (atual.length === 1 && atual[0].filhos.length && semAcento(atual[0].nome) === semAcento(r.nome)) atual = atual[0].filhos;
     return atual;
   };
-  const nivel = raizes.flatMap(desembrulhar);
+  // Mais de um codigo no modulo (Contabil: [3] Contabil, [4] Lalur, [7] Patrimonio): cada um vira uma pasta.
+  const variosCodigos = raizes.filter((r) => !r.id.includes(".")).length > 1;
+  const nivel = variosCodigos
+    ? raizes.map((r) => (r.id.includes(".") ? r : { ...r, filhos: desembrulhar(r) }))
+    : raizes.flatMap(desembrulhar);
   nivel.forEach((n) => contar(n, []));
   return nivel.sort((a, b) => compararIds(a.id, b.id));
 }

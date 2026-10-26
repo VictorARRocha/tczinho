@@ -61,20 +61,29 @@ const desativado = (node_id: string, disabled_by = "mod_xml"): CasoDesativado =>
   node_id, module_slug: "contabil", reason: MOTIVO, disabled_by, disabled_at: "2026-10-08T13:00:00+00:00",
 });
 
+/** Abre a pasta [3] Contabil (o modulo tem [3] e [4], cada codigo e uma pasta). */
+function abrirContabil() {
+  fireEvent.click(screen.getByRole("button", { name: /^3\s*Contábil/ }));
+}
+
 /** Abre a linha do caso (descricao e Kanboard ficam ali dentro). */
 function abrirCaso(id: string) {
   fireEvent.click(screen.getByRole("button", { name: new RegExp("^" + id.replace(/\./g, "\\.") + "(?!\\.)") }));
 }
 
 describe("Casos de teste (lista do modulo)", () => {
-  it("mostra os grupos de verdade no primeiro nivel, em ordem numerica, com a contagem de casos", () => {
+  it("um codigo por pasta no primeiro nivel ([3] Contabil, [4] Lalur), grupos em ordem numerica, com a contagem de casos", () => {
     renderAba(<CasosTab hierarchy={ARVORE} />);
-    expect(screen.getByText("4")).toBeInTheDocument(); // 4 casos
+    expect(screen.getAllByText("4")).toHaveLength(2); // 4 casos e o codigo da pasta [4] Lalur
+    const raizes = screen.getAllByRole("button", { expanded: false }).map((b) => b.textContent);
+    expect(raizes[0]).toMatch(/^3Contábil3 casos$/);
+    expect(raizes[1]).toMatch(/^4Lalur1 caso$/);
+    abrirContabil();
+    // [3.1] (so repete o nome do modulo) some dentro de [3]; 3.1.2 antes de 3.1.10.
     const grupos = screen.getAllByRole("button", { expanded: false }).map((b) => b.textContent);
-    // [3] e [3.1] (so repetem o nome do modulo) somem; 3.1.2 antes de 3.1.10.
     expect(grupos[0]).toMatch(/^3\.1\.2Planos/);
     expect(grupos[1]).toMatch(/^3\.1\.10Lançamentos2 casos$/);
-    expect(grupos[2]).toMatch(/^4\.2Lalur Mensal/);
+    expect(grupos[2]).toMatch(/^4Lalur/);
   });
 
   it("sem nada de falhas: e so a lista dos casos atuais", () => {
@@ -85,6 +94,7 @@ describe("Casos de teste (lista do modulo)", () => {
 
   it("caso em uma linha; clicar abre a descricao com o chamado separado", () => {
     renderAba(<CasosTab hierarchy={ARVORE} />);
+    abrirContabil();
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
     expect(screen.getByText("Plano de contas")).toBeInTheDocument();
     // O codigo na linha e o link do Kanboard (azul, com o icone) e clicar nele nao abre a linha.
@@ -108,6 +118,7 @@ describe("Casos de teste (lista do modulo)", () => {
   it("sem os botoes de desativar, reativar ou copiar", async () => {
     api.desativados = [desativado("3.1.2.1")];
     renderAba(<CasosTab hierarchy={ARVORE} />);
+    abrirContabil();
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
     await screen.findByText("mod_xml");
     abrirCaso("3.1.2.1");
@@ -122,7 +133,7 @@ describe("Casos de teste (lista do modulo)", () => {
     const arvore = await screen.findByRole("list", { name: "Casos encontrados" });
     expect(screen.getByRole("status")).toHaveTextContent("2 casos encontrados");
     // O grupo aberto e o unico com aria-expanded=true (o realce muda o nome acessivel, por isso o texto).
-    const grupo = within(arvore).getByRole("button", { expanded: true });
+    const grupo = within(arvore).getAllByRole("button", { expanded: true }).find((b) => /Lançamentos/.test(b.textContent || ""))!;
     expect(grupo).toHaveTextContent(/^3\.1\.10Lançamentos2 casos$/);
     expect(within(arvore).queryByRole("button", { name: /Planos/ })).toBeNull();
     expect(within(arvore).getByRole("button", { name: /^3\.1\.10\.1/ })).toBeInTheDocument();
@@ -132,7 +143,7 @@ describe("Casos de teste (lista do modulo)", () => {
     fireEvent.change(busca, { target: { value: "[4.2.1]" } });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 caso encontrado"));
     expect(screen.getByText("Apuração mensal")).toBeInTheDocument();
-    expect(screen.getByRole("button", { expanded: true })).toHaveTextContent(/^4\.2Lalur Mensal1 caso$/);
+    expect(screen.getAllByRole("button", { expanded: true }).map((b) => b.textContent)).toContain("4.2Lalur Mensal1 caso");
     fireEvent.change(busca, { target: { value: "nada disso" } });
     expect(await screen.findByText("Nada encontrado com essa busca e esses filtros.")).toBeInTheDocument();
   });
@@ -146,7 +157,7 @@ describe("Casos de teste (lista do modulo)", () => {
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("1 caso encontrado"));
     const lista = screen.getByRole("list", { name: "Casos encontrados" });
     expect(within(lista).getAllByRole("listitem")).toHaveLength(1);
-    expect(within(lista).getByText("Lalur Mensal")).toBeInTheDocument(); // caminho
+    expect(within(lista).getByText("Lalur › Lalur Mensal")).toBeInTheDocument(); // caminho
     unmount();
     renderAba(<CasosTab hierarchy={ARVORE} />);
     expect(screen.getByRole("button", { name: "Lista" })).toHaveAttribute("aria-pressed", "true");
@@ -167,6 +178,7 @@ describe("Casos de teste (lista do modulo)", () => {
   it("mod_xml: caso e grupo desmarcados aparecem travados e os de dentro do grupo tambem", async () => {
     api.desativados = [desativado("3.1.2.1"), desativado("3.1.10")];
     renderAba(<CasosTab hierarchy={ARVORE} />);
+    abrirContabil();
     expect(await screen.findByText("Desmarcado no mod_xml")).toBeInTheDocument(); // selo no grupo [3.1.10]
     expect(screen.getByText((_, el) => el?.tagName === "SPAN" && el.textContent === "3 desmarcados no mod_xml")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
@@ -189,6 +201,7 @@ describe("Casos de teste (lista do modulo)", () => {
     api.desativados = [desativado("3.1.2.1", "bia"), desativado("4.2.1")];
     renderAba(<CasosTab hierarchy={ARVORE} />);
     expect(await screen.findByText((_, el) => el?.tagName === "SPAN" && el.textContent === "1 desmarcado no mod_xml")).toBeInTheDocument();
+    abrirContabil();
     fireEvent.click(screen.getByRole("button", { name: /Planos/ }));
     expect(screen.getByText("Plano de contas")).not.toHaveClass("line-through");
   });

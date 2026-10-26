@@ -21,12 +21,15 @@ const no = (node_id: string, node_name: string, node_type: "grupo" | "caso"): Te
   modulo_codigo: node_id.split(".")[0], modulo_nome: "Contábil", sistema: "Unico",
 });
 
+const UM_CODIGO = [no("3", "Contábil", "grupo"), no("3.1", "Cadastros", "grupo"), no("3.1.1", "Sócio", "caso"), no("3.1.2", "Contadores", "caso")];
+const arvore = { nos: UM_CODIGO };
+
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
   return {
     ...actual,
     fetchModules: async () => MODULOS,
-    fetchTestcaseHierarchy: async () => [no("3", "Contábil", "grupo"), no("3.1", "Cadastros", "grupo"), no("3.1.1", "Sócio", "caso"), no("3.1.2", "Contadores", "caso")],
+    fetchTestcaseHierarchy: async () => arvore.nos,
     fetchCasosDesativados: async () => [],
   };
 });
@@ -55,6 +58,7 @@ function renderEm(rota: string) {
 
 beforeEach(() => {
   queryClient.clear();
+  arvore.nos = UM_CODIGO;
   auth.profile = { username: "ana", permissions: ["rodagem"], modules: ["contabil", "folha"] };
 });
 
@@ -72,6 +76,17 @@ describe("Casos de teste (menu lateral)", () => {
     expect(await screen.findByRole("button", { name: /Cadastros/ })).toBeInTheDocument();
     expect(screen.getByText(/casos cadastrados no módulo/).parentElement).toHaveTextContent("2 casos cadastrados no módulo");
     expect(screen.queryByText(/falh/i)).toBeNull();
+  });
+
+  it("modulo com varios codigos ([3] Contabil, [4] Lalur): cada codigo vira uma pasta", async () => {
+    arvore.nos = [
+      no("3", "Contábil", "grupo"), no("3.1", "Contábil", "grupo"), no("3.1.2", "Planos", "grupo"), no("3.1.2.1", "Plano", "caso"),
+      no("4", "Lalur", "grupo"), no("4.2", "Lalur - Mensal/Anual", "grupo"), no("4.2.1", "Parte A", "caso"),
+    ];
+    renderEm("/casos-de-teste/contabil");
+    expect(await screen.findByRole("button", { name: /^3\s*Contábil/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^4\s*Lalur/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^4\.2/ })).toBeNull();
   });
 
   it("modulo sem acesso: explica e nao mostra a arvore", async () => {
