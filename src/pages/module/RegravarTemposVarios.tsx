@@ -84,6 +84,7 @@ export function RegravarTemposVarios({ casos, onBaseTrocada }: { casos: AtrasoRo
             <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => marcar(() => true)}>Selecionar todos</Button>
             <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => marcar((d) => d.status === "mais_lento")}>Somente mais lentos</Button>
             <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => marcar((d) => d.status === "mais_rapido")}>Somente mais rápidos</Button>
+            <Button size="sm" variant="secondary" disabled={ocupado} onClick={() => marcar(() => false)}>Limpar seleção</Button>
           </div>
 
           <ul className="max-h-[50vh] divide-y divide-border/60 overflow-y-auto rounded-md border border-border" aria-label="Casos que podem ser regravados">
