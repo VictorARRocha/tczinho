@@ -643,8 +643,13 @@ describe("auditoria parte 3: rodagem completa", () => {
     // Em andamento mostra a barra; encerrado mostra so o selo (Status e Progresso viraram uma coluna).
     expect(await screen.findByRole("progressbar", { name: "Progresso: Na fila" })).toBeInTheDocument();
     expect(screen.getByText("Finalizado")).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Copiar a configuração enviada" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /Detalhes do pedido de/ })).toHaveLength(2);
     expect(screen.getAllByRole("progressbar")).toHaveLength(1);
+    // Copiar a configuracao fica nos detalhes do pedido, nao na linha.
+    expect(screen.queryByRole("button", { name: "Copiar a configuração enviada" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: /Detalhes do pedido de/ })[0]);
+    const detalhes = await screen.findByRole("dialog", { name: "Detalhes do pedido" });
+    expect(within(detalhes).getByRole("button", { name: "Copiar" })).toBeInTheDocument();
   });
 
   it("cancelar pede confirmacao numa janela com os dados do pedido", async () => {

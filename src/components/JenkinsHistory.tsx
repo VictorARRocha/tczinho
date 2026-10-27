@@ -237,7 +237,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                       <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
                     </div>
                     <p className="text-sm">
-                      <span className="font-mono">{r.vm_name}</span> · {r.versao} · {r.modulo_nome || r.modulo_codigo || "—"}
+                      <span className="font-mono">{r.vm_name}</span> · {r.versao}{r.branch && ` · ${r.branch}`} · {r.modulo_nome || r.modulo_codigo || "—"}
                     </p>
                     {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
                     {r.data_hora && <p className="text-[11px] text-muted-foreground">Agendado: <span className="font-mono">{r.data_hora}</span></p>}
@@ -276,17 +276,18 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                   <TableHead>Data/hora</TableHead>
                   <TableHead>VM</TableHead>
                   <TableHead>Versão</TableHead>
+                  <TableHead>Branch TC</TableHead>
                   <TableHead>Módulo</TableHead>
                   <TableHead>Casos</TableHead>
                   <TableHead>Agendado</TableHead>
                   <TableHead className="w-[180px]">Status</TableHead>
                   <TableHead className="w-px whitespace-nowrap text-center">Cancelar</TableHead>
-                  <TableHead className="w-28 text-right">Ações</TableHead>
+                  <TableHead className="w-px text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
                 ) : pedidosDaPagina.map((r) => {
                   const status = statusDoPedido(r);
                   const erro = safeError(r.erro);
@@ -297,6 +298,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                       <TableCell className="text-xs">{quando}</TableCell>
                       <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
                       <TableCell className="text-xs">{r.versao}</TableCell>
+                      <TableCell className="text-xs">{r.branch || "—"}</TableCell>
                       <TableCell className="text-xs">{r.modulo_nome || r.modulo_codigo || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
                       <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
@@ -328,27 +330,6 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                             </TooltipTrigger>
                             <TooltipContent>Detalhes</TooltipContent>
                           </Tooltip>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button size="sm" variant="ghost" aria-label="Copiar a configuração enviada" onClick={() => copiarConfig(r)}>
-                                <Copy className="h-3.5 w-3.5" aria-hidden />
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Copiar a configuração enviada</TooltipContent>
-                          </Tooltip>
-                          {r.build_url && (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                {/* O link e o proprio botao (antes era um botao dentro do link: dois alvos de foco). */}
-                                <Button size="sm" variant="ghost" asChild>
-                                  <a href={r.build_url} target="_blank" rel="noreferrer" aria-label="Abrir o build no Jenkins">
-                                    <ExternalLink className="h-3.5 w-3.5" aria-hidden />
-                                  </a>
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>Abrir o build no Jenkins</TooltipContent>
-                            </Tooltip>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -417,6 +398,7 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
             ["Modo", MODO_LABEL[r.modo_configuracao || ""] || r.modo_configuracao || "—"],
             ["VM", r.vm_name || "—"],
             ["Versão", r.versao || "—"],
+            ["Branch TC", r.branch || "—"],
             ["Módulo", r.modulo_nome || r.modulo_codigo || "—"],
             ["Casos", <span className="font-mono text-xs break-all">{r.casos_teste || "—"}</span>],
             ["Agendado", r.data_hora || "—"],
@@ -444,7 +426,12 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
                 ))}
               </div>
               <div>
-                <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">Configuração enviada</div>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                  <div className="text-xs uppercase tracking-wider text-muted-foreground">Configuração enviada</div>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => copiarConfig(r)}>
+                    <Copy className="h-3.5 w-3.5 mr-1" aria-hidden /> Copiar
+                  </Button>
+                </div>
                 <pre className="text-xs bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto">
 {JSON.stringify(r.config_json, null, 2)}
                 </pre>
