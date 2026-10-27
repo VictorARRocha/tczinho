@@ -338,8 +338,11 @@ export default function ReexecutarTestes() {
           .filter(Boolean),
       ),
     );
+    // Financeiro usa base propria: o mod_xml ja tira [0.4]/[0.5], mas so marca o [5.0] (Configura base) se ele vier no pedido.
+    if (!manterBase && ids.some((id) => id.startsWith("5."))) ids.unshift("5.0");
     return ids.map((id) => `[${id}]`).join(", ");
-  }, [casosSelecionados]);
+  }, [casosSelecionados, manterBase]);
+  const financeiro = casosSelecionados.some((c) => (c.id_caso_teste || "").trim().startsWith("5."));
   const ctDesmarcar = manterBase ? "[0.3], [0.4], [0.5]" : "[0.3]";
 
   const configJsonPreview = useMemo(() => ({
@@ -747,8 +750,14 @@ export default function ReexecutarTestes() {
             <span>
               <span className="block text-sm font-medium">Manter base atual</span>
               <span className="block text-xs text-muted-foreground">
-                Não restaura nem atualiza a base antes de rodar (desmarca as rotinas <code className="font-mono">[0.4]</code> e{" "}
-                <code className="font-mono">[0.5]</code>).
+                {financeiro ? (
+                  <>Não restaura nem atualiza a base antes de rodar (não inclui o grupo <code className="font-mono">[5.0]</code> Configura base).</>
+                ) : (
+                  <>
+                    Não restaura nem atualiza a base antes de rodar (desmarca as rotinas <code className="font-mono">[0.4]</code> e{" "}
+                    <code className="font-mono">[0.5]</code>).
+                  </>
+                )}
               </span>
             </span>
           </label>

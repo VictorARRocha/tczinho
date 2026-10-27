@@ -18,6 +18,7 @@ const caso = (id: string, nome: string, tipo: CasoReexecutavel["tipo_ocorrencia"
 const api = {
   createRerunRequest: vi.fn(),
   historico: [] as Record<string, unknown>[],
+  casos: null as CasoReexecutavel[] | null,
 };
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
@@ -30,9 +31,9 @@ vi.mock("@/services/data", async (importOriginal) => {
       run("rod_a08_old", "a08", "PROXIMA1.26.9.99", "contabil", "2026-10-12T06:10:00-03:00", 1),
     ],
     fetchCasosReexecutaveis: async (runId: string) =>
-      runId === "rod_a08"
+      api.casos ?? (runId === "rod_a08"
         ? [caso("3.1.1", "Cadastro de sócio", "quebra"), caso("3.2.4", "Lançamento em lote", "diferenca")]
-        : [caso("1.1.1", "Admissão", "quebra")],
+        : [caso("1.1.1", "Admissão", "quebra")]),
     fetchRerunRequests: async () => api.historico,
     createRerunRequest: (...args: unknown[]) => api.createRerunRequest(...args),
   };
@@ -57,6 +58,7 @@ beforeEach(() => {
   queryClient.clear();
   api.createRerunRequest.mockReset().mockResolvedValue({ id: "req1" });
   api.historico = [];
+  api.casos = null;
 });
 
 function renderPagina(rota = "/jenkins/reexecutar") {
@@ -221,6 +223,24 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ vm_name: "a08", versao: "clientes", casos_teste: "[3.1.1]" });
+  });
+
+  it("financeiro: inclui o [5.0] Configura base no pedido", async () => {
+    api.casos = [caso("5.1.2", "Cadastro de sócio", "quebra")];
+    await irParaConfirmacao();
+    expect(screen.getByText(/Configura base/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[5.0], [5.1.2]" });
+  });
+
+  it("financeiro com base mantida nao manda o [5.0]", async () => {
+    api.casos = [caso("5.1.2", "Cadastro de sócio", "quebra")];
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("checkbox", { name: /Manter base atual/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[5.1.2]" });
   });
 
   it("rodagem PRE-CLIENTES vai no pedido como pre-cliente (nome que o Gerenciador conhece)", async () => {
