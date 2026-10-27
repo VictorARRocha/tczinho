@@ -659,9 +659,9 @@ describe("auditoria parte 3: rodagem completa", () => {
 });
 
 describe("status final do Jenkins", () => {
-  it("UNSTABLE (foi ate o fim com quebras ou diferencas) vira Finalizado com ocorrencias", async () => {
+  it("UNSTABLE (foi ate o fim com quebras ou diferencas) vira Finalizado, como o SUCCESS", async () => {
     const { metaDoStatus } = await import("@/lib/statusPedido");
-    expect(metaDoStatus("finalizado_ocorrencias").label).toBe("Finalizado com ocorrências");
+    expect(metaDoStatus("finalizado_ocorrencias").label).toBe("Finalizado");
     expect(metaDoStatus("finalizado_falha").label).toBe("Falhou");
   });
 });

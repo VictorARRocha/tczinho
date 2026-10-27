@@ -29,7 +29,7 @@ import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
 } from "@/types/db";
 import type {
-  TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel, ResultadoReexecucao,
+  TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel, ResultadoReexecucao, CasoInstavel,
 } from "@/services/qa";
 import { getDataConfig } from "./config";
 import { getAuthHeader, notifySessionExpired } from "@/services/authApi";
@@ -326,6 +326,10 @@ export const ApiQaDataSource: QaDataSource = {
   fetchResultadosReexecucao: (runId) =>
     req<ResultadoReexecucao[]>(`/runs/${encodeURIComponent(runId)}/rerun-results`)
       .catch((e) => { logFallback("fetchResultadosReexecucao", e); return []; }),
+
+  fetchCasosInstaveis: (runId) =>
+    req<Record<string, CasoInstavel>>(`/runs/${encodeURIComponent(runId)}/unstable-cases`)
+      .catch((e) => { logFallback("fetchCasosInstaveis", e); return {}; }),
 
   fetchRerunRequests: (limit = 50) =>
     req<ApiRow[]>(`/rerun-requests?limit=${limit}`)

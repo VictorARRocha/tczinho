@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
-import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, fetchResultadosReexecucao, type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
+import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, fetchResultadosReexecucao, fetchCasosInstaveis, type CasoInstavel, type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
 import { getHierarchyCached, getModulesCached, useLatestRuns } from "@/services/queries";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -79,6 +79,7 @@ function PaginaDoModulo() {
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [hierarchy, setHierarchy] = useState<TestcaseHierarchyNode[]>([]);
   const [reexecucoes, setReexecucoes] = useState<ResultadoReexecucao[]>([]);
+  const [instaveis, setInstaveis] = useState<Record<string, CasoInstavel>>({});
   const podePedirRodagem = usePermissao("rodagem");
   const [loading, setLoading] = useState(true);
   const [runLoading, setRunLoading] = useState(false);
@@ -272,9 +273,11 @@ function PaginaDoModulo() {
   const rodagemId = rodagem?.id;
   useEffect(() => {
     setReexecucoes([]);
+    setInstaveis({});
     if (!rodagemId) return;
     let vivo = true;
     fetchResultadosReexecucao(rodagemId).then((r) => { if (vivo) setReexecucoes(r); });
+    fetchCasosInstaveis(rodagemId).then((r) => { if (vivo) setInstaveis(r || {}); });
     return () => { vivo = false; };
   }, [rodagemId]);
 
@@ -399,7 +402,7 @@ function PaginaDoModulo() {
           </div>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} historico={historico} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab slug={slug} reexecucoes={reexecucoes} acaoReexecutar={acaoReexecutar} moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab slug={slug} reexecucoes={reexecucoes} instaveis={instaveis} acaoReexecutar={acaoReexecutar} moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>

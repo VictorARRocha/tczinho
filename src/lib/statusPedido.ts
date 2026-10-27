@@ -31,7 +31,7 @@ export const STATUS_PEDIDO: Record<string, MetaStatus> = {
   rodando: { label: "Rodando", selo: ANDAMENTO, barra: "bg-primary", animado: true },
   finalizado_sucesso: { label: "Finalizado", selo: SUCESSO, barra: "bg-success" },
   // Foi ate o fim com quebras ou diferencas (UNSTABLE no Jenkins): o normal de uma rodagem.
-  finalizado_ocorrencias: { label: "Finalizado com ocorrências", selo: SUCESSO, barra: "bg-success" },
+  finalizado_ocorrencias: { label: "Finalizado", selo: SUCESSO, barra: "bg-success" },
   finalizado_falha: { label: "Falhou", selo: ERRO, barra: "bg-destructive" },
   cancelado: { label: "Cancelado", selo: ESPERA, barra: "bg-muted-foreground/40" },
   cancel_requested: { label: "Cancelamento solicitado", selo: AVISO, barra: "bg-warning", animado: true },

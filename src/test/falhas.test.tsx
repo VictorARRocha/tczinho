@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { Evidencia, Falha } from "@/types/db";
+import type { ResultadoReexecucao } from "@/services/data";
 import { FalhasTab, montarItensFalhas } from "@/pages/module/FalhasTab";
 
 const falha = (id: string, caso: string, extra: Partial<Falha> = {}) =>
@@ -71,11 +72,11 @@ describe("aba Falhas: resultado das reexecucoes", () => {
   it("cada caso reexecutado ganha o selo da reexecucao mais recente, com link para a rodagem dela", async () => {
     const { MemoryRouter } = await import("react-router-dom");
     window.localStorage.setItem("agenttc.falhas.view", "lista");
-    const reexecucoes = [
+    const reexecucoes: ResultadoReexecucao[] = [
       { pedido_id: "p1", criado_em: "2026-10-27T12:00:00Z", vm_name: "a07", status: "finalizado_falha", rodagem_id: null,
-        casos: { "1.2.1": { resultado: "nao_rodou" as const } } },
+        casos: { "1.2.1": { resultado: "nao_rodou" } } },
       { pedido_id: "p2", criado_em: "2026-10-27T15:00:00Z", vm_name: "a07", status: "finalizado_ocorrencias", rodagem_id: "rod_reexec",
-        casos: { "1.2.1": { resultado: "passou" as const }, "1.2.2": { resultado: "quebrou_de_novo" as const, tipo: "diferenca" } } },
+        casos: { "1.2.1": { resultado: "passou" }, "1.2.2": { resultado: "quebrou_de_novo" as const, tipo: "diferenca" } } },
     ];
     render(
       <MemoryRouter>
@@ -88,5 +89,18 @@ describe("aba Falhas: resultado das reexecucoes", () => {
     expect(passou).toHaveAttribute("href", "/modulo/folha?run=rod_reexec&tab=falhas");
     expect(screen.getAllByRole("link", { name: /Quebrou de novo/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Não rodou na reexecução/)).toBeNull(); // a reexecucao antiga foi substituida
+  });
+});
+
+describe("aba Falhas: casos instaveis", () => {
+  it("caso que alterna entre falhar e passar ganha o selo Instavel com o historico na dica", () => {
+    window.localStorage.setItem("agenttc.falhas.view", "lista");
+    const instaveis = { "1.2.2": { historico: ["falhou", "passou", "falhou", "passou", "falhou"] as ("falhou" | "passou")[], falhou: 3, passou: 2 } };
+    render(
+      <FalhasTab instaveis={instaveis} moduloNome="Folha" falhas={FALHAS} evidencias={[]} hierarchy={[]} subTab="todos" setSubTab={vi.fn()} onSelect={vi.fn()} onCompare={vi.fn()} />,
+    );
+    const selos = screen.getAllByText("Instável");
+    expect(selos).toHaveLength(1);
+    expect(selos[0]).toHaveAttribute("title", expect.stringContaining("falhou 3, passou 2"));
   });
 });

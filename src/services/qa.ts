@@ -94,6 +94,13 @@ export interface ResultadoReexecucao {
   casos: Record<string, { resultado: "passou" | "quebrou_de_novo" | "nao_rodou" | "aguardando" | "aguardando_importacao"; tipo?: string | null }>;
 }
 
+/** Caso que alterna entre falhar e passar nas ultimas rodagens da mesma VM (historico da mais antiga para a mais nova). */
+export interface CasoInstavel {
+  historico: ("falhou" | "passou")[];
+  falhou: number;
+  passou: number;
+}
+
 export interface CasoReexecutavel {
   id_falha: string;
   id_caso_teste: string | null;

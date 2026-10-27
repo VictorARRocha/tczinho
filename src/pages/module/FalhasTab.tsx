@@ -1,7 +1,7 @@
 // Aba Falhas: arvore por hierarquia do MDS, filtros e pares de comparacao.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
+import { type CasoInstavel, type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
 import type { Falha, Evidencia } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,7 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { useDebounce } from "@/hooks/useDebounce";
 import { withCaseMetadata, failureDescription, cleanFileName } from "./caseText";
 import { Paginacao, TIPO_COR, TipoBadge, ToggleChip } from "./common";
-import { ReexecucaoContext, SeloReexecucao, mapaReexecucao } from "./reexecucao";
+import { ReexecucaoContext, SeloInstavel, SeloReexecucao, mapaReexecucao } from "./reexecucao";
 
 type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
 
@@ -284,7 +284,7 @@ function SubTabBtn({ ativo, label, count, tone, onClick }: { ativo: boolean; lab
 }
 
 export function FalhasTab({
-  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare, slug = "", reexecucoes, acaoReexecutar,
+  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare, slug = "", reexecucoes, instaveis, acaoReexecutar,
 }: {
   moduloNome: string;
   falhas: Falha[];
@@ -297,10 +297,17 @@ export function FalhasTab({
   slug?: string;
   /** Reexecucoes pedidas a partir desta rodagem: viram um selo em cada caso reexecutado. */
   reexecucoes?: ResultadoReexecucao[];
+  /** Casos que alternam entre falhar e passar nas ultimas rodagens da VM: selo "Instavel". */
+  instaveis?: Record<string, CasoInstavel>;
   /** Botao "Reexecutar casos" (montado pela pagina, que sabe a rodagem e a permissao). */
   acaoReexecutar?: ReactNode;
 }) {
-  const reexecucaoCtx = useMemo(() => (reexecucoes?.length ? { mapa: mapaReexecucao(reexecucoes), slug } : null), [reexecucoes, slug]);
+  const reexecucaoCtx = useMemo(
+    () => (reexecucoes?.length || (instaveis && Object.keys(instaveis).length)
+      ? { mapa: mapaReexecucao(reexecucoes || []), slug, instaveis: instaveis || {} }
+      : null),
+    [reexecucoes, instaveis, slug],
+  );
   const [q, setQ] = useState("");
   const [view, setView] = useState<FalhasView>(readStoredView);
   const changeView = (v: FalhasView) => { setView(v); storeView(v); };
@@ -610,6 +617,7 @@ function LeafItemCard({
         {/* Tipo, severidade e o botao de detalhe na mesma linha: o card fica mais baixo. */}
         <div className="flex items-center gap-2 flex-wrap">
           <TipoBadge tipo={tipo} />
+          <SeloInstavel casoId={f.id_caso_teste} />
           <SeloReexecucao casoId={f.id_caso_teste} />
           {f.severidade && <SeverityBadge value={f.severidade} />}
           {showClassification && <ClassificationBadge value={f.classificacao} />}
@@ -751,6 +759,7 @@ function FalhasLista({
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium truncate" title={nome}>{nome}</span>
+                  <SeloInstavel casoId={f.id_caso_teste} />
                   <SeloReexecucao casoId={f.id_caso_teste} />
                 </div>
                 {desc && desc !== f.caso_teste_provavel && <div className="text-xs text-muted-foreground line-clamp-1" title={desc}>{desc}</div>}

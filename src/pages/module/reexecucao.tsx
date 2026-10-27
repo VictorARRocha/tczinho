@@ -1,7 +1,7 @@
-// Resultado das reexecucoes na aba Falhas da rodagem de origem: um selo por caso reexecutado.
+// Selos da aba Falhas: resultado das reexecucoes pedidas a partir da rodagem e casos instaveis na VM.
 import { createContext, useContext } from "react";
 import { Link } from "react-router-dom";
-import type { ResultadoReexecucao } from "@/services/data";
+import type { CasoInstavel, ResultadoReexecucao } from "@/services/data";
 import { formatDateTime } from "@/lib/format";
 import { TOM_STATUS } from "@/lib/statusPedido";
 
@@ -25,7 +25,7 @@ export function mapaReexecucao(lista: ResultadoReexecucao[]): Map<string, CasoRe
   return mapa;
 }
 
-export const ReexecucaoContext = createContext<{ mapa: Map<string, CasoReexecutado>; slug: string } | null>(null);
+export const ReexecucaoContext = createContext<{ mapa: Map<string, CasoReexecutado>; slug: string; instaveis: Record<string, CasoInstavel> } | null>(null);
 
 const SELO: Record<Resultado, { texto: string; tom: string }> = {
   passou: { texto: "Passou na reexecução", tom: TOM_STATUS.sucesso },
@@ -34,6 +34,19 @@ const SELO: Record<Resultado, { texto: string; tom: string }> = {
   aguardando: { texto: "Reexecução na fila", tom: TOM_STATUS.andamento },
   aguardando_importacao: { texto: "Reexecução sem importar", tom: TOM_STATUS.espera },
 };
+
+/** Selo "Instavel": o caso alterna entre falhar e passar nas ultimas rodagens desta VM (TC ou ambiente, nao bug). */
+export function SeloInstavel({ casoId }: { casoId: string | null | undefined }) {
+  const caso = useContext(ReexecucaoContext)?.instaveis[String(casoId || "").trim()];
+  if (!caso) return null;
+  const linha = caso.historico.map((r) => (r === "falhou" ? "✗" : "✓")).join(" ");
+  const dica = `Nas últimas ${caso.historico.length} rodagens desta VM em que rodou: falhou ${caso.falhou}, passou ${caso.passou} (${linha}, da mais antiga para esta). Provável problema do TC ou do ambiente.`;
+  return (
+    <span title={dica} className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${TOM_STATUS.aviso}`}>
+      Instável
+    </span>
+  );
+}
 
 export function SeloReexecucao({ casoId }: { casoId: string | null | undefined }) {
   const ctx = useContext(ReexecucaoContext);

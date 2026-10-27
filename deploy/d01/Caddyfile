@@ -2,7 +2,11 @@
 	encode zstd gzip
 
 	handle_path /api/* {
-		reverse_proxy host.docker.internal:8001
+		reverse_proxy host.docker.internal:8001 {
+			# A API pode ficar alguns segundos sem atender (rebuild, pico de pedidos): tenta de novo antes de devolver 502.
+			lb_try_duration 15s
+			lb_try_interval 500ms
+		}
 	}
 
 	@internal_api {
@@ -10,7 +14,11 @@
 	}
 
 	handle @internal_api {
-		reverse_proxy host.docker.internal:8001
+		reverse_proxy host.docker.internal:8001 {
+			# A API pode ficar alguns segundos sem atender (rebuild, pico de pedidos): tenta de novo antes de devolver 502.
+			lb_try_duration 15s
+			lb_try_interval 500ms
+		}
 	}
 
 	handle {
