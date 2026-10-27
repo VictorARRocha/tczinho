@@ -223,6 +223,16 @@ describe("Reexecutar rodagens (etapas)", () => {
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ vm_name: "a08", versao: "clientes", casos_teste: "[3.1.1]" });
   });
 
+  it("rodagem PRE-CLIENTES vai no pedido como pre-cliente (nome que o Gerenciador conhece)", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Reexecutar casos em outra versão" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Versão para reexecutar" }), { target: { value: "PRE-CLIENTES" } });
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ versao: "pre-cliente" });
+  });
+
   it("voltar e trocar de rodagem limpa as marcacoes e desliga a VM especifica", async () => {
     await irParaConfirmacao();
     fireEvent.click(screen.getByRole("button", { name: /Opções avançadas/ }));

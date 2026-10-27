@@ -284,7 +284,8 @@ export default function ReexecutarTestes() {
 
   const versaoDaRodagem = (selectedRun?.versao || "").toLowerCase();
   // Versao que vai no pedido: a da rodagem, ou a digitada nas opcoes avancadas.
-  const versao = outraVersao ? versaoEscolhida.trim().toLowerCase() : versaoDaRodagem;
+  // A rodagem leva o nome da branch instalada (PRE-CLIENTES), mas o Gerenciador so conhece "pre-cliente".
+  const versao = (outraVersao ? versaoEscolhida.trim().toLowerCase() : versaoDaRodagem).replace(/^pre-clientes$/, "pre-cliente");
   // Sugestoes: as versoes que ja rodaram (Proxima e Pre-clientes primeiro), menos a da rodagem.
   const outrasVersoes = useMemo(
     () => ordenarVersoes(Array.from(new Set(runs.map((r) => (r.versao || "").toString()).filter(Boolean))))
