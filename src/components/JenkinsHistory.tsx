@@ -279,7 +279,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                   <TableHead>Módulo</TableHead>
                   <TableHead>Casos</TableHead>
                   <TableHead>Agendado</TableHead>
-                  <TableHead className="min-w-[180px]">Status</TableHead>
+                  <TableHead className="w-[180px]">Status</TableHead>
                   <TableHead className="w-px whitespace-nowrap text-center">Cancelar</TableHead>
                   <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
