@@ -59,6 +59,7 @@ function resolveProgress(r: RerunRequest, status: string): { value: number; inde
     case "cancelando":          return { value: hasReal ? value : 0, indeterminate: !hasReal };
     case "finalizado_sucesso":
     case "finalizado_falha":
+    case "finalizado_ocorrencias":
     case "cancelado":
     case "erro_envio":
     case "erro_monitoramento":
@@ -132,6 +133,13 @@ function copiarConfig(r: RerunRequest) {
 function SeloStatus({ status }: { status: string }) {
   const meta = metaDoStatus(status);
   return <Badge variant="outline" className={meta.selo}>{meta.label}</Badge>;
+}
+
+/** Status que ainda andam: mostram a barra de progresso; os encerrados mostram so o selo. */
+const EM_ANDAMENTO = new Set<string>(["solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "cancel_requested", "cancelando"]);
+
+function StatusOuProgresso({ r, status }: { r: RerunRequest; status: string }) {
+  return EM_ANDAMENTO.has(status) ? <Progresso r={r} status={status} /> : <SeloStatus status={status} />;
 }
 
 const CANCELANDO = (
@@ -227,7 +235,6 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                   <li key={r.id} className="space-y-2 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
-                      <SeloStatus status={status} />
                     </div>
                     <p className="text-sm">
                       <span className="font-mono">{r.vm_name}</span> · {r.versao} · {r.modulo_nome || r.modulo_codigo || "—"}
@@ -235,7 +242,7 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                     {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
                     {r.data_hora && <p className="text-[11px] text-muted-foreground">Agendado: <span className="font-mono">{r.data_hora}</span></p>}
                     {erro && <p className="break-words text-[11px] text-destructive">{erro}</p>}
-                    <Progresso r={r} status={status} />
+                    <StatusOuProgresso r={r} status={status} />
                     <div className="flex flex-wrap gap-2">
                       <Button size="sm" variant="outline" className="h-11 flex-1" onClick={() => setDetail(r)}>
                         <Info className="h-3.5 w-3.5 mr-1" aria-hidden /> Detalhes
@@ -272,15 +279,14 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                   <TableHead>Módulo</TableHead>
                   <TableHead>Casos</TableHead>
                   <TableHead>Agendado</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="min-w-[180px]">Progresso</TableHead>
+                  <TableHead className="min-w-[180px]">Status</TableHead>
                   <TableHead className="w-32 text-center">Cancelar</TableHead>
                   <TableHead className="w-28 text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
                 ) : pedidosDaPagina.map((r) => {
                   const status = statusDoPedido(r);
                   const erro = safeError(r.erro);
@@ -295,10 +301,9 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                       <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
                       <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
                       <TableCell className="max-w-[220px]">
-                        <SeloStatus status={status} />
+                        <StatusOuProgresso r={r} status={status} />
                         {erro && <p className="mt-1 truncate text-xs text-destructive" title={erro}>{erro}</p>}
                       </TableCell>
-                      <TableCell><Progresso r={r} status={status} /></TableCell>
                       <TableCell className="text-center" onClick={(e) => e.stopPropagation()}>
                         {podeCancelar && CANCELABLE_STATUSES.has(status) ? (
                           <Button

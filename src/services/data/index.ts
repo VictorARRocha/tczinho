@@ -23,6 +23,7 @@ export type {
   RerunRequest,
   RodagemListItem,
   CasoReexecutavel,
+  ResultadoReexecucao,
 } from "@/services/qa";
 export {
   extractVmName,
@@ -45,6 +46,7 @@ export const fetchNextStepsByRun = (runId: string) => qaData.fetchNextStepsByRun
 export const fetchPerformanceByRun = (runId: string) => qaData.fetchPerformanceByRun(runId);
 export const fetchTestcaseHierarchy = (slug: string) => qaData.fetchTestcaseHierarchy(slug);
 export const fetchCasosReexecutaveis = (runId: string) => qaData.fetchCasosReexecutaveis(runId);
+export const fetchResultadosReexecucao = (runId: string) => qaData.fetchResultadosReexecucao(runId);
 export const fetchRerunRequests = (limit?: number) => qaData.fetchRerunRequests(limit);
 export const createRerunRequest = (payload: import("./types").CreateRerunPayload) =>
   qaData.createRerunRequest(payload);

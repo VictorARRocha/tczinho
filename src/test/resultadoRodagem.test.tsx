@@ -45,6 +45,21 @@ describe("resultado da rodagem", () => {
     expect(screen.getByText("Tempo total")).toBeInTheDocument();
     expect(screen.getByText("10h06min").parentElement).toHaveAttribute("title", "De 12/10/2026 07:19 até 12/10/2026 17:26");
     expect(screen.getByText("555")).toBeInTheDocument();
+    expect(screen.queryByText(/ao importar esta rodagem/)).toBeNull();
+  });
+
+  it("resumo avisa os problemas da importacao (RAR que nao chegou)", () => {
+    globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver;
+    const rodagem = { id: "r1", total_analisados: 10, total_falhas: 0, total_automacao: 0, total_massa_dados: 0,
+      total_inconclusivo: 0, total_possivel_funcional: 0, data_inicio_rodagem: null, data_fim_rodagem: null,
+      erros_processamento: [
+        { etapa: "compactado_ausente", arquivo: "1.6.20-26_10_2026-23_33_20.RAR", mensagem: "procure na VM" },
+        { tipo: "tempos_casos", mensagem: "sem acesso" },
+      ] } as unknown as Rodagem;
+    render(<ResumoTab rodagem={rodagem} falhas={[]} evidencias={[]} performance={[]} onOpenPerformance={vi.fn()} onOpenFalhas={vi.fn()} />);
+    const aviso = screen.getByRole("region", { name: "2 problemas ao importar esta rodagem" });
+    expect(aviso).toHaveTextContent("Log compactado não chegou à pasta da rodagem1.6.20-26_10_2026-23_33_20.RAR");
+    expect(aviso).toHaveTextContent("Tempos dos casos não foram lidos");
   });
 
   it("variacao do tempo contra a rodagem anterior do modulo com tempo total", () => {

@@ -16,6 +16,7 @@ import type {
   RerunRequest,
   RodagemListItem,
   CasoReexecutavel,
+  ResultadoReexecucao,
 } from "@/services/qa";
 
 export interface CreateRerunPayload {
@@ -26,6 +27,8 @@ export interface CreateRerunPayload {
   ct_desmarcar?: string;
   data_hora?: string;
   branch?: string;
+  /** Rodagem de onde a reexecucao saiu (liga o resultado de volta na aba Falhas). */
+  source_run_id?: string;
 }
 
 export type RunPresetMode = "simplificada" | "configurada";
@@ -244,6 +247,7 @@ export interface QaDataSource {
 
   // Casos reexecutáveis
   fetchCasosReexecutaveis(runId: string): Promise<CasoReexecutavel[]>;
+  fetchResultadosReexecucao(runId: string): Promise<ResultadoReexecucao[]>;
 
   // Rerun requests (Jenkins)
   fetchRerunRequests(limit?: number): Promise<RerunRequest[]>;

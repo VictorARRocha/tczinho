@@ -45,6 +45,15 @@ export interface Rodagem {
   total_baixa: number;
   json_original: unknown;
   created_at: string;
+  /** Problemas da ultima importacao (RAR que nao chegou ou nao abriu, analise que falhou...). */
+  erros_processamento?: ErroProcessamento[];
+}
+
+export interface ErroProcessamento {
+  etapa?: string | null;
+  tipo?: string | null;
+  arquivo?: string | null;
+  mensagem?: string | null;
 }
 
 export interface Falha {

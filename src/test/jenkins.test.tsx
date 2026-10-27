@@ -576,6 +576,25 @@ describe("branch do projeto na rodagem simplificada", () => {
     expect(screen.getByText(/"branch": "local"/)).toBeInTheDocument();
     expect(screen.getByText(/desfaz as alterações locais/)).toBeInTheDocument();
   });
+
+  it("pre-definicao guarda a branch e a aplica", async () => {
+    api.presets = [preset("p1", "Folha branch", "simplificada", { vm_name: "a09", modulo: "Folha", versao: "x", branch: "Proxima10_0" })];
+    renderPage(<JenkinsRodagemCompleta />);
+    await waitFor(() => expect(queryClient.getQueryState(["merge-branches"])?.status).toBe("success"));
+    await choosePreset("Folha branch");
+    expect(await screen.findByRole("combobox", { name: "Branch" })).toHaveTextContent("Proxima10_0");
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("branch da pre-definicao excluida do SVN volta para manter a branch atual", async () => {
+    api.presets = [preset("p1", "Folha antiga", "simplificada", { vm_name: "a09", modulo: "Folha", versao: "x", branch: "Apagada" })];
+    renderPage(<JenkinsRodagemCompleta />);
+    await waitFor(() => expect(queryClient.getQueryState(["merge-branches"])?.status).toBe("success"));
+    await choosePreset("Folha antiga");
+    await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Branch não encontrada", expect.anything()));
+    expect(screen.getByRole("combobox", { name: "Branch" })).toHaveTextContent("Manter a branch atual");
+    expect(screen.getByText(/"branch": ""/)).toBeInTheDocument();
+  });
 });
 
 describe("ordem das branches", () => {
@@ -621,10 +640,11 @@ describe("auditoria parte 3: rodagem completa", () => {
     renderPage(<JenkinsRodagemCompleta />);
     expect(screen.getByRole("combobox", { name: "VM" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Módulo" })).toBeInTheDocument();
-    expect(await screen.findByText("Na fila")).toBeInTheDocument();
+    // Em andamento mostra a barra; encerrado mostra so o selo (Status e Progresso viraram uma coluna).
+    expect(await screen.findByRole("progressbar", { name: "Progresso: Na fila" })).toBeInTheDocument();
     expect(screen.getByText("Finalizado")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Copiar a configuração enviada" })).toHaveLength(2);
-    expect(screen.getAllByRole("progressbar")).toHaveLength(2);
+    expect(screen.getAllByRole("progressbar")).toHaveLength(1);
   });
 
   it("cancelar pede confirmacao numa janela com os dados do pedido", async () => {
@@ -635,5 +655,13 @@ describe("auditoria parte 3: rodagem completa", () => {
     expect(janela).toHaveTextContent("a07");
     fireEvent.click(within(janela).getByRole("button", { name: "Voltar" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+});
+
+describe("status final do Jenkins", () => {
+  it("UNSTABLE (foi ate o fim com quebras ou diferencas) vira Finalizado com ocorrencias", async () => {
+    const { metaDoStatus } = await import("@/lib/statusPedido");
+    expect(metaDoStatus("finalizado_ocorrencias").label).toBe("Finalizado com ocorrências");
+    expect(metaDoStatus("finalizado_falha").label).toBe("Falhou");
   });
 });

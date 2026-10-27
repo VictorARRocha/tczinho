@@ -26,7 +26,7 @@ import {
   casosTesteValido, configToText, parseConfigText, trimConfigStrings, validateConfigForSubmit, withDataHora,
 } from "@/lib/jenkinsConfig";
 
-const SIMPLIFIED_LABELS = { vm_name: "VM", modulo: "Módulo", versao: "Versão" };
+const SIMPLIFIED_LABELS = { vm_name: "VM", modulo: "Módulo", versao: "Versão", branch: "Branch" };
 
 // Modulos que o Jenkins roda, nesta ordem; nome e codigos vem da lista oficial (lib/permissoes).
 const MODULOS = ["folha", "fiscal", "contabil", "financeiro", "geral", "gestao"].map((slug) => {
@@ -98,9 +98,18 @@ export default function JenkinsRodagemCompleta() {
   );
 
   const sPresetConfig = useMemo(
-    () => ({ vm_name: sVm, modulo: sModulo, versao: sVersao.trim() }),
-    [sVm, sModulo, sVersao],
+    // "Manter a branch atual" nao vai para a pre-definicao (a API so grava a branch quando escolhida).
+    () => ({ vm_name: sVm, modulo: sModulo, versao: sVersao.trim(), ...(sBranch !== MANTER_BRANCH && { branch: sBranch }) }),
+    [sVm, sModulo, sVersao, sBranch],
   );
+
+  // Branch da pre-definicao que foi excluida do SVN: volta para "Manter a branch atual" e avisa.
+  useEffect(() => {
+    // Lista vazia = SVN ainda nao listado ou fora do ar: nao da para dizer que a branch sumiu.
+    if (!branchesSvn?.branches?.length || sBranch === MANTER_BRANCH || opcoes.some((o) => o.valor === sBranch)) return;
+    toast.error("Branch não encontrada", { description: `A branch ${sBranch} não existe mais no SVN. A rodagem vai manter a branch atual da VM.` });
+    setSBranch(MANTER_BRANCH);
+  }, [branchesSvn, opcoes, sBranch]);
 
   // useCallback: mantem as props da RunPresetBar (memo) estaveis entre renders.
   const applySimplifiedPreset = useCallback((preset: RunPreset) => {
@@ -108,6 +117,7 @@ export default function JenkinsRodagemCompleta() {
     if (typeof c.vm_name === "string" && c.vm_name) setSVm(c.vm_name);
     if (typeof c.modulo === "string" && MODULOS.some((m) => m.nome === c.modulo)) setSModulo(c.modulo);
     setSVersao(typeof c.versao === "string" ? c.versao : "");
+    setSBranch(typeof c.branch === "string" && c.branch ? c.branch : MANTER_BRANCH);
     setSFromPreset(true);
   }, []);
 
@@ -165,7 +175,7 @@ export default function JenkinsRodagemCompleta() {
       toast.success("Pedido enviado", { description: "O Jenkins começa em instantes." });
       invalidateRerunRequests();
       if (!sFromPreset) setSVersao("");
-      setSBranch(MANTER_BRANCH); // a troca vale so para este pedido
+      if (!sFromPreset) setSBranch(MANTER_BRANCH); // sem pre-definicao, a troca vale so para este pedido
     } catch (e) {
       toast.error("Falha ao criar solicitação", { description: mensagemDaApi(e) });
     } finally {

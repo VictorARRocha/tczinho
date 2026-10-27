@@ -1,16 +1,49 @@
 // Aba Resumo: totais da rodagem e atalhos para falhas e performance.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
 import { useMemo } from "react";
-import type { Rodagem, Falha, Evidencia, AtrasoRodagem } from "@/types/db";
+import type { Rodagem, Falha, Evidencia, AtrasoRodagem, ErroProcessamento } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Gauge } from "lucide-react";
+import { AlertTriangle, ArrowRight, Gauge } from "lucide-react";
 import { classifyOccurrence, groupEvidsByFailure } from "@/lib/occurrence";
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from "recharts";
 import { formatDuration } from "./PerformanceTab";
 import { isMeaningful, StatCard, Empty, TIPO_COR } from "./common";
 import { formatDateTime, formatPercent, formatarTempoTotal, resultadoRodagem, rodagemAnteriorComTempo, tempoTotalRodagem, variacaoTempo } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const ETAPA_IMPORTACAO: Record<string, string> = {
+  compactado_ausente: "Log compactado não chegou à pasta da rodagem",
+  extracao: "Log compactado não abriu",
+  analise: "Falha ao analisar o log",
+  integridade_compactacao: "Total de compactados diferente do informado pelo TC",
+  tempos_casos: "Tempos dos casos não foram lidos",
+};
+
+/** Aviso de que a importacao teve problemas: a rodagem pode parecer mais limpa do que foi (A05N, 26/10/2026). */
+function ProblemasImportacao({ erros }: { erros: ErroProcessamento[] }) {
+  return (
+    <section aria-labelledby="problemas-importacao" className="rounded-lg border border-warning/40 bg-warning/5 p-4 sm:p-5">
+      <h2 id="problemas-importacao" className="flex items-center gap-2 text-sm font-semibold text-warning">
+        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+        {erros.length === 1 ? "1 problema ao importar esta rodagem" : `${erros.length} problemas ao importar esta rodagem`}
+      </h2>
+      <p className="mt-1 text-xs text-muted-foreground">Os totais abaixo podem estar incompletos. Confira a pasta da rodagem antes de confiar neles.</p>
+      <ul className="mt-3 space-y-2">
+        {erros.map((e, i) => {
+          const chave = e.etapa || e.tipo || "";
+          return (
+            <li key={i} className="text-sm">
+              <span className="font-medium">{ETAPA_IMPORTACAO[chave] || chave || "Problema na importação"}</span>
+              {e.arquivo && <span className="ml-2 break-all font-mono text-xs text-muted-foreground">{e.arquivo}</span>}
+              {e.mensagem && <p className="mt-0.5 break-words text-xs text-muted-foreground">{e.mensagem}</p>}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
 
 function OccCard({ label, hint, value, tone, onClick }: { label: string; hint: string; value: number; tone: string; onClick: () => void }) {
   return (
@@ -76,6 +109,8 @@ export function ResumoTab({ rodagem, falhas, evidencias, performance, onOpenPerf
 
   return (
     <div className="space-y-6">
+      {!!rodagem.erros_processamento?.length && <ProblemasImportacao erros={rodagem.erros_processamento} />}
+
       {hasDiagText && (
         <Card className="glass-card p-4 sm:p-6">
           <h2 className="text-sm font-medium text-muted-foreground mb-3">Diagnóstico da rodagem</h2>

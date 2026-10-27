@@ -173,7 +173,7 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
-      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]", ct_desmarcar: "[0.3]", branch: "",
+      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]", ct_desmarcar: "[0.3]", branch: "", source_run_id: "rod_a08",
     });
     // Depois de enviar volta para a etapa 1.
     expect(await screen.findByRole("heading", { name: "Escolha a rodagem" })).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe("auditoria parte 3: reexecucao", () => {
     renderPagina();
     await screen.findAllByRole("radio");
     fireEvent.click(screen.getByRole("button", { name: "Expandir" }));
-    expect(await screen.findByText("Na fila")).toBeInTheDocument();
+    expect(await screen.findByRole("progressbar", { name: "Progresso: Na fila" })).toBeInTheDocument();
     expect(screen.queryByText("na_fila")).toBeNull();
     expect(screen.queryByText("Finalizado")).toBeNull();
   });

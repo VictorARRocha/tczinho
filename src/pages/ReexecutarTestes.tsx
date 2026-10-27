@@ -376,6 +376,7 @@ export default function ReexecutarTestes() {
         ct_desmarcar: ctDesmarcar,
         data_hora: configJsonPreview.data_hora,
         branch: "",
+        source_run_id: selectedRun.id_rodagem,
       });
       toast.success("Pedido enviado", {
         description: "O pedido foi para a fila do Jenkins.",

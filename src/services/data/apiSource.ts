@@ -29,7 +29,7 @@ import type {
   Modulo, Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, AtrasoRodagem,
 } from "@/types/db";
 import type {
-  TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel,
+  TestcaseHierarchyNode, RerunRequest, RodagemListItem, CasoReexecutavel, ResultadoReexecucao,
 } from "@/services/qa";
 import { getDataConfig } from "./config";
 import { getAuthHeader, notifySessionExpired } from "@/services/authApi";
@@ -119,7 +119,7 @@ function normalizeExecutionStatus(row: ApiRow): string {
     success: "finalizado_sucesso",
     failed: "finalizado_falha",
     failure: "finalizado_falha",
-    unstable: "finalizado_falha",
+    unstable: "finalizado_ocorrencias",
     canceled: "cancelado",
     cancelled: "cancelado",
     error: "erro",
@@ -322,6 +322,10 @@ export const ApiQaDataSource: QaDataSource = {
     req<CasoReexecutavel[]>(`/runs/${encodeURIComponent(runId)}/reexecutable-cases`)
       .then((list) => (list || []).map((c) => normalizeFailure(c) as CasoReexecutavel))
       .catch((e) => { logFallback("fetchCasosReexecutaveis", e); return []; }),
+
+  fetchResultadosReexecucao: (runId) =>
+    req<ResultadoReexecucao[]>(`/runs/${encodeURIComponent(runId)}/rerun-results`)
+      .catch((e) => { logFallback("fetchResultadosReexecucao", e); return []; }),
 
   fetchRerunRequests: (limit = 50) =>
     req<ApiRow[]>(`/rerun-requests?limit=${limit}`)

@@ -66,3 +66,27 @@ describe("aba Falhas", () => {
     expect(screen.getByRole("searchbox", { name: "Buscar falhas" })).toBeInTheDocument();
   });
 });
+
+describe("aba Falhas: resultado das reexecucoes", () => {
+  it("cada caso reexecutado ganha o selo da reexecucao mais recente, com link para a rodagem dela", async () => {
+    const { MemoryRouter } = await import("react-router-dom");
+    window.localStorage.setItem("agenttc.falhas.view", "lista");
+    const reexecucoes = [
+      { pedido_id: "p1", criado_em: "2026-10-27T12:00:00Z", vm_name: "a07", status: "finalizado_falha", rodagem_id: null,
+        casos: { "1.2.1": { resultado: "nao_rodou" as const } } },
+      { pedido_id: "p2", criado_em: "2026-10-27T15:00:00Z", vm_name: "a07", status: "finalizado_ocorrencias", rodagem_id: "rod_reexec",
+        casos: { "1.2.1": { resultado: "passou" as const }, "1.2.2": { resultado: "quebrou_de_novo" as const, tipo: "diferenca" } } },
+    ];
+    render(
+      <MemoryRouter>
+        <FalhasTab slug="folha" reexecucoes={reexecucoes} acaoReexecutar={<a href="/jenkins/reexecutar?run=r1">Reexecutar casos</a>}
+          moduloNome="Folha" falhas={FALHAS} evidencias={[]} hierarchy={[]} subTab="todos" setSubTab={vi.fn()} onSelect={vi.fn()} onCompare={vi.fn()} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("link", { name: "Reexecutar casos" })).toBeInTheDocument();
+    const passou = screen.getAllByRole("link", { name: /Passou na reexecução/ })[0];
+    expect(passou).toHaveAttribute("href", "/modulo/folha?run=rod_reexec&tab=falhas");
+    expect(screen.getAllByRole("link", { name: /Quebrou de novo/ }).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Não rodou na reexecução/)).toBeNull(); // a reexecucao antiga foi substituida
+  });
+});

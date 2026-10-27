@@ -1,7 +1,7 @@
 // Aba Falhas: arvore por hierarquia do MDS, filtros e pares de comparacao.
 // Extraido de pages/ModulePage.tsx sem alteracao de comportamento.
-import { useEffect, useMemo, useState } from "react";
-import { type TestcaseHierarchyNode } from "@/services/data";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
 import type { Falha, Evidencia } from "@/types/db";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,7 @@ import { classifyOccurrence, groupEvidsByFailure, pairBaseAtual, type Comparison
 import { useDebounce } from "@/hooks/useDebounce";
 import { withCaseMetadata, failureDescription, cleanFileName } from "./caseText";
 import { Paginacao, TIPO_COR, TipoBadge, ToggleChip } from "./common";
+import { ReexecucaoContext, SeloReexecucao, mapaReexecucao } from "./reexecucao";
 
 type EnrichedItem = { f: Falha; evs: Evidencia[]; tipo: OccurrenceType; pairs: ComparisonPair[] };
 
@@ -283,7 +284,7 @@ function SubTabBtn({ ativo, label, count, tone, onClick }: { ativo: boolean; lab
 }
 
 export function FalhasTab({
-  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare,
+  moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare, slug = "", reexecucoes, acaoReexecutar,
 }: {
   moduloNome: string;
   falhas: Falha[];
@@ -293,7 +294,13 @@ export function FalhasTab({
   setSubTab: (s: "todos" | "quebra" | "diferenca" | "quebra_diferenca") => void;
   onSelect: (f: Falha) => void;
   onCompare: (pair: ComparisonPair, falha: Falha) => void;
+  slug?: string;
+  /** Reexecucoes pedidas a partir desta rodagem: viram um selo em cada caso reexecutado. */
+  reexecucoes?: ResultadoReexecucao[];
+  /** Botao "Reexecutar casos" (montado pela pagina, que sabe a rodagem e a permissao). */
+  acaoReexecutar?: ReactNode;
 }) {
+  const reexecucaoCtx = useMemo(() => (reexecucoes?.length ? { mapa: mapaReexecucao(reexecucoes), slug } : null), [reexecucoes, slug]);
   const [q, setQ] = useState("");
   const [view, setView] = useState<FalhasView>(readStoredView);
   const changeView = (v: FalhasView) => { setView(v); storeView(v); };
@@ -412,13 +419,15 @@ export function FalhasTab({
   const isEmpty = filtered.length === 0;
 
   return (
+    <ReexecucaoContext.Provider value={reexecucaoCtx}>
     <div className="space-y-4">
       <Card className="glass-card p-4 space-y-3">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <SubTabBtn ativo={subTab === "quebra"} onClick={() => setSubTab("quebra")} label="Quebras" count={counts.quebra} tone={TIPO_COR.quebra.texto} />
           <SubTabBtn ativo={subTab === "diferenca"} onClick={() => setSubTab("diferenca")} label="Diferenças" count={counts.diferenca} tone={TIPO_COR.diferenca.texto} />
           <SubTabBtn ativo={subTab === "quebra_diferenca"} onClick={() => setSubTab("quebra_diferenca")} label="Quebra + Diferença" count={counts.quebra_diferenca} tone={TIPO_COR.quebra_diferenca.texto} />
           <SubTabBtn ativo={subTab === "todos"} onClick={() => setSubTab("todos")} label="Todos" count={counts.todos} />
+          {acaoReexecutar && <div className="ml-auto max-sm:ml-0 max-sm:w-full">{acaoReexecutar}</div>}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
@@ -469,6 +478,7 @@ export function FalhasTab({
         </Card>
       )}
     </div>
+    </ReexecucaoContext.Provider>
   );
 }
 
@@ -600,6 +610,7 @@ function LeafItemCard({
         {/* Tipo, severidade e o botao de detalhe na mesma linha: o card fica mais baixo. */}
         <div className="flex items-center gap-2 flex-wrap">
           <TipoBadge tipo={tipo} />
+          <SeloReexecucao casoId={f.id_caso_teste} />
           {f.severidade && <SeverityBadge value={f.severidade} />}
           {showClassification && <ClassificationBadge value={f.classificacao} />}
           <Button
@@ -738,7 +749,10 @@ function FalhasLista({
                 {f.id_caso_teste && <Badge variant="outline" className="font-mono text-[11px]">#{f.id_caso_teste}</Badge>}
               </div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium truncate" title={nome}>{nome}</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium truncate" title={nome}>{nome}</span>
+                  <SeloReexecucao casoId={f.id_caso_teste} />
+                </div>
                 {desc && desc !== f.caso_teste_provavel && <div className="text-xs text-muted-foreground line-clamp-1" title={desc}>{desc}</div>}
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

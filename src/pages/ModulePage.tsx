@@ -1,18 +1,18 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
-import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, type TestcaseHierarchyNode } from "@/services/data";
+import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, fetchResultadosReexecucao, type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
 import { getHierarchyCached, getModulesCached, useLatestRuns } from "@/services/queries";
 import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, AtrasoRodagem } from "@/types/db";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Lock, RefreshCw } from "lucide-react";
+import { ChevronLeft, Lock, RefreshCw, RotateCcw } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { type ComparisonPair } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
-import { useModulos } from "@/hooks/use-permissao";
+import { useModulos, usePermissao } from "@/hooks/use-permissao";
 import { useUltimoValor } from "@/hooks/usePainel";
 import { nomeModulo, SEM_MODULO } from "@/lib/permissoes";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
@@ -78,6 +78,8 @@ function PaginaDoModulo() {
   const [performance, setPerformance] = useState<AtrasoRodagem[]>([]);
   const [groupLinks, setGroupLinks] = useState<Record<string, string[]>>({});
   const [hierarchy, setHierarchy] = useState<TestcaseHierarchyNode[]>([]);
+  const [reexecucoes, setReexecucoes] = useState<ResultadoReexecucao[]>([]);
+  const podePedirRodagem = usePermissao("rodagem");
   const [loading, setLoading] = useState(true);
   const [runLoading, setRunLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -266,6 +268,24 @@ function PaginaDoModulo() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rodagemSlug]);
 
+  // Reexecucoes pedidas a partir da rodagem aberta: viram um selo em cada caso da aba Falhas.
+  const rodagemId = rodagem?.id;
+  useEffect(() => {
+    setReexecucoes([]);
+    if (!rodagemId) return;
+    let vivo = true;
+    fetchResultadosReexecucao(rodagemId).then((r) => { if (vivo) setReexecucoes(r); });
+    return () => { vivo = false; };
+  }, [rodagemId]);
+
+  const acaoReexecutar = podePedirRodagem && rodagemId && falhas.length > 0 ? (
+    <Button asChild size="sm" variant="outline" className="h-11 w-full text-xs sm:w-auto md:h-8">
+      <Link to={`/jenkins/reexecutar?run=${encodeURIComponent(rodagemId)}`}>
+        <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Reexecutar casos
+      </Link>
+    </Button>
+  ) : null;
+
 
   if (semAcesso) {
     return (
@@ -379,7 +399,7 @@ function PaginaDoModulo() {
           </div>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} historico={historico} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab slug={slug} reexecucoes={reexecucoes} acaoReexecutar={acaoReexecutar} moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
           <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>

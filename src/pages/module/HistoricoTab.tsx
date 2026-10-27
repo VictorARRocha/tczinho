@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { formatDateTime } from "@/lib/format";
 import { formatarVersao, formatarVm } from "@/lib/rodagemTexto";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { AlertTriangle } from "lucide-react";
 import { Empty, Paginacao } from "./common";
 
 export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; currentId?: string; onPick: (id: string) => void }) {
@@ -19,6 +20,17 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
   const totalPages = Math.max(1, Math.ceil(runs.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageRuns = runs.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  // Selo de rodagem cuja importacao teve problemas (os totais podem estar incompletos).
+  const selo = (r: Rodagem) => {
+    const n = r.erros_processamento?.length || 0;
+    if (!n) return null;
+    const texto = n === 1 ? "1 problema na importação" : `${n} problemas na importação`;
+    return (
+      <span title={texto} className="mx-1.5 inline-flex items-center gap-1 align-middle text-xs text-warning">
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" /><span className="sr-only">{texto}</span>
+      </span>
+    );
+  };
   const vmDe = (r: Rodagem) => formatarVm(r.maquina || extractVmName(r.id) || extractVmName(r.pasta_origem)) || "—";
   return (
     <div className="space-y-3">
@@ -34,7 +46,7 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
                     <div className="text-xs text-muted-foreground">
                       <span className="font-mono">{vmDe(r)}</span>
                       {" · "}<span>{formatarVersao(r.versao_sistema) || "—"}</span>
-                      {" · "}{r.total_falhas} {r.total_falhas === 1 ? "falha" : "falhas"}
+                      {" · "}{r.total_falhas} {r.total_falhas === 1 ? "falha" : "falhas"}{selo(r)}
                     </div>
                   </div>
                   {active
@@ -67,7 +79,7 @@ export function HistoricoTab({ runs, currentId, onPick }: { runs: Rodagem[]; cur
                   <TableCell className="py-2 text-sm">{formatDateTime(r.data_analise)}</TableCell>
                   <TableCell className="py-2 font-mono text-xs">{vmDe(r)}</TableCell>
                   <TableCell className="py-2 text-sm">{formatarVersao(r.versao_sistema) || "—"}</TableCell>
-                  <TableCell className="py-2 text-right font-mono text-sm">{r.total_falhas}</TableCell>
+                  <TableCell className="py-2 text-right font-mono text-sm">{selo(r)}{r.total_falhas}</TableCell>
                   <TableCell className="py-2 text-right">
                     {active
                       ? <span className="px-3 text-xs text-muted-foreground">Aberta</span>

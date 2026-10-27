@@ -83,6 +83,17 @@ export interface RodagemListItem {
   repository_url?: string | null;
 }
 
+/** Uma reexecucao pedida a partir da rodagem e o que cada caso deu nela. */
+export interface ResultadoReexecucao {
+  pedido_id: string;
+  criado_em: string | null;
+  vm_name: string | null;
+  status: string;
+  /** Rodagem gerada pela reexecucao (null enquanto nao foi importada). */
+  rodagem_id: string | null;
+  casos: Record<string, { resultado: "passou" | "quebrou_de_novo" | "nao_rodou" | "aguardando" | "aguardando_importacao"; tipo?: string | null }>;
+}
+
 export interface CasoReexecutavel {
   id_falha: string;
   id_caso_teste: string | null;
