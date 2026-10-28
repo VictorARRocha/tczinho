@@ -123,10 +123,6 @@ export function useCasosDesativados(slug: string) {
   return useQuery({ queryKey: queryKeys.casosDesativados(slug), queryFn: () => fetchCasosDesativados(slug), enabled: !!slug, staleTime: 30_000 });
 }
 
-export function invalidateCasosDesativados(slug: string) {
-  return queryClient.invalidateQueries({ queryKey: queryKeys.casosDesativados(slug) });
-}
-
 const ACTIVE_REGRAVACAO = new Set(["solicitado", "processando"]);
 
 /** Pedidos de regravacao da rodagem: 10s enquanto houver pedido ativo, senao 1 minuto. */

@@ -57,7 +57,7 @@ import { toast } from "sonner";
 import JenkinsHome from "@/pages/JenkinsHome";
 import JenkinsRodagemCompleta from "@/pages/JenkinsRodagemCompleta";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
-import { parseConfigText, sameConfig, validateConfigForSubmit, withDataHora } from "@/lib/jenkinsConfig";
+import { parseConfigText, validateConfigForSubmit, withDataHora } from "@/lib/jenkinsConfig";
 import { opcoesBranch } from "@/lib/branchVm";
 
 // Componentes Radix usam APIs de ponteiro/rolagem que o jsdom nao tem.
@@ -137,8 +137,6 @@ describe("CONFIG_JSON", () => {
   it("insere a data/hora na ordem usual e compara ignorando data/hora e ordem", () => {
     const merged = withDataHora({ branch: "x", vm_name: "a07", extra: 1 }, "01/01/2026 00:00:00");
     expect(Object.keys(merged)).toEqual(["vm_name", "data_hora", "branch", "extra"]);
-    expect(sameConfig({ a: 1, b: { c: 2 }, data_hora: "1" }, { b: { c: 2 }, a: 1 })).toBe(true);
-    expect(sameConfig({ a: 1 }, { a: 2 })).toBe(false);
   });
 });
 

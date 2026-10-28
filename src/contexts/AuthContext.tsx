@@ -79,10 +79,6 @@ function authMessage(error: unknown): string {
   return err?.message || "Falha ao autenticar.";
 }
 
-export function usernameToEmail(username: string) {
-  return `${normalizeUsername(username)}@agent-tc.local`;
-}
-
 export { normalizeUsername };
 
 export function AuthProvider({ children }: { children: ReactNode }) {

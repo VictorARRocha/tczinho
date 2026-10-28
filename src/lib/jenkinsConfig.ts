@@ -85,12 +85,6 @@ function stable(value: unknown): unknown {
   return value;
 }
 
-/** Compara configuracoes ignorando a ordem das chaves e a data/hora (que nao e salva). */
-export function sameConfig(a: JenkinsConfig, b: JenkinsConfig): boolean {
-  const strip = ({ data_hora: _ignored, ...rest }: JenkinsConfig) => rest;
-  return JSON.stringify(stable(strip(a))) === JSON.stringify(stable(strip(b)));
-}
-
 export interface ConfigChange {
   key: string;
   before: string;

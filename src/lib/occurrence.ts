@@ -48,13 +48,6 @@ export function isImageEvidence(e: Evidencia): boolean {
   return ["png", "jpg", "jpeg", "webp", "bmp", "gif"].includes(ext);
 }
 
-export function isComparableFile(e: Evidencia): boolean {
-  const ext = (e.extensao || "").toLowerCase();
-  if (["txt", "csv", "pdf", "log", "json", "xml"].includes(ext)) return true;
-  if (isImageEvidence(e)) return true;
-  return false;
-}
-
 export function isInComparacaoFolder(e: Evidencia): boolean {
   if (e.tipo === "comparacao") return true;
   return /(^|\/)comparacao\//i.test(e.storage_path || "");

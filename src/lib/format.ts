@@ -85,22 +85,6 @@ export function getHealthStatus(status: string | null | undefined, score?: numbe
   return { label: "Sem dados", className: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" };
 }
 
-export function getConfidence(c: string | null | undefined) {
-  const v = (c || "").toLowerCase();
-  if (v.includes("alta")) return { label: "Alta", className: "bg-success/15 text-success border-success/30" };
-  if (v.includes("med")) return { label: "Média", className: "bg-warning/15 text-warning border-warning/30" };
-  if (v.includes("baixa")) return { label: "Baixa", className: "bg-muted text-muted-foreground border-border" };
-  return { label: c || "—", className: "bg-muted text-muted-foreground border-border" };
-}
-
-export function severityRank(s: string | null | undefined): number {
-  const v = (s || "").toLowerCase();
-  if (v.includes("alta")) return 3;
-  if (v.includes("med")) return 2;
-  if (v.includes("baixa")) return 1;
-  return 0;
-}
-
 /**
  * Tempo total da rodagem (inicio da pasta ate o pipeline do AgenteTC comecar, logo depois do fim).
  * Rodagens antigas nao tem o fim; valor estranho (negativo ou mais de 2 dias) fica de fora.
