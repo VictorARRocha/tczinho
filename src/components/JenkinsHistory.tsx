@@ -125,9 +125,29 @@ function safeError(s?: string | null): string | null {
   return s.replace(/(authorization|apikey|service[_-]?role|bearer\s+\S+|token=\S+)/gi, "[redacted]");
 }
 
-function copiarConfig(r: RerunRequest) {
-  navigator.clipboard.writeText(JSON.stringify(r.config_json, null, 2));
-  toast.success("Configuração copiada");
+function copiarConfig(r: RerunRequest, origem?: HTMLElement) {
+  const texto = JSON.stringify(r.config_json, null, 2);
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(texto).then(
+      () => toast.success("Configuração copiada"),
+      () => toast.error("Não foi possível copiar"),
+    );
+    return;
+  }
+  // O dashboard roda em http (sem HTTPS), onde nao existe navigator.clipboard: copia pelo jeito antigo.
+  // O textarea vai dentro da janela de detalhes, senao o foco preso do Dialog desfaz a selecao.
+  const area = document.createElement("textarea");
+  area.value = texto;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  (origem?.parentElement ?? document.body).appendChild(area);
+  area.focus();
+  area.select();
+  const copiou = typeof document.execCommand === "function" && document.execCommand("copy");
+  area.remove();
+  if (copiou) toast.success("Configuração copiada");
+  else toast.error("Não foi possível copiar");
 }
 
 function SeloStatus({ status }: { status: string }) {
@@ -428,7 +448,7 @@ function DetailDialog({ request, onClose }: { request: RerunRequest | null; onCl
               <div>
                 <div className="mb-1 flex items-center justify-between gap-2">
                   <div className="text-xs uppercase tracking-wider text-muted-foreground">Configuração enviada</div>
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => copiarConfig(r)}>
+                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={(e) => copiarConfig(r, e.currentTarget)}>
                     <Copy className="h-3.5 w-3.5 mr-1" aria-hidden /> Copiar
                   </Button>
                 </div>

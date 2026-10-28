@@ -652,6 +652,23 @@ describe("auditoria parte 3: rodagem completa", () => {
     expect(within(detalhes).getByRole("button", { name: "Copiar" })).toBeInTheDocument();
   });
 
+  it("copiar nos detalhes copia o JSON mesmo sem navigator.clipboard (dashboard em http)", async () => {
+    api.requests = [{ ...request("r1", "2026-10-01T10:00:00Z", "finalizado_sucesso"), config_json: { vm_name: "a09", branch: "Folha_sustentação" } } as RerunRequest];
+    let copiado = "";
+    const execCommand = vi.fn(() => { copiado = (document.activeElement as HTMLTextAreaElement).value; return true; });
+    Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
+    try {
+      renderPage(<JenkinsRodagemCompleta />);
+      fireEvent.click((await screen.findAllByRole("button", { name: /Detalhes do pedido de/ }))[0]);
+      const detalhes = await screen.findByRole("dialog", { name: "Detalhes do pedido" });
+      fireEvent.click(within(detalhes).getByRole("button", { name: "Copiar" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(JSON.parse(copiado)).toEqual({ vm_name: "a09", branch: "Folha_sustentação" });
+    } finally {
+      delete (document as { execCommand?: unknown }).execCommand;
+    }
+  });
+
   it("cancelar pede confirmacao numa janela com os dados do pedido", async () => {
     api.requests = [request("r1", "2026-10-01T10:00:00Z", "rodando")];
     renderPage(<JenkinsRodagemCompleta />);
