@@ -32,7 +32,8 @@ export interface CreateRerunPayload {
   source_run_id?: string;
 }
 
-export type RunPresetMode = "simplificada" | "configurada";
+/** "merge": bloco de merges entre branches (tela de merge); os outros sao da rodagem Jenkins. */
+export type RunPresetMode = "simplificada" | "configurada" | "merge";
 
 /** Pre-definicao de rodagem Jenkins salva na API (compartilhada entre usuarios). */
 export interface RunPreset {

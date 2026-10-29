@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle, ArrowLeftRight, ArrowRight, CheckCircle2, GitMerge, Loader2, Plus, RotateCcw, X, XCircle,
@@ -16,13 +16,20 @@ import { usePermissao } from "@/hooks/use-permissao";
 import { SemPermissao } from "@/components/SemPermissao";
 import { ConfirmarAcao } from "@/components/ConfirmarAcao";
 import { SelectBusca } from "@/components/SelectBusca";
+import { RunPresetBar } from "@/components/RunPresetBar";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { cancelMerge, createMerge, type MergePedido, type SvnBranch } from "@/services/data";
+import { cancelMerge, createMerge, type MergePedido, type RunPreset, type SvnBranch } from "@/services/data";
 import { ApiError } from "@/services/data/apiSource";
 import { invalidateMerges, useMergeBranches, useMerges } from "@/services/queries";
 import {
   dataCurta, MERGE_CANCELAVEL, MERGE_EM_ANDAMENTO, mensagemPadrao, mergeStatus, ordenarBranches, TIPO_CONFLITO,
 } from "@/lib/merge";
+
+/** Pares origem/destino salvos numa pre-definicao de merge (ignora o que nao for par de textos). */
+function lerMerges(config: Record<string, unknown> | null | undefined): { origem: string; destino: string }[] {
+  const lista = Array.isArray(config?.merges) ? config.merges : [];
+  return lista.flatMap((m) => (m && typeof m.origem === "string" && typeof m.destino === "string" ? [{ origem: m.origem, destino: m.destino }] : []));
+}
 
 function apiMessage(e: unknown): string {
   if (e instanceof ApiError && e.detail) return e.detail;
@@ -76,6 +83,36 @@ export default function MergeBranches() {
   const linhaValida = (l: Linha) => !!l.origem && !!l.destino && l.origem !== l.destino && !repetidas.has(chave(l)) && !!mensagemDe(l).trim();
   const temTrunk = linhas.some((l) => l.destino && l.destino === trunk?.url);
   const podeFazer = podeMerge && linhas.length > 0 && linhas.every(linhaValida) && (!temTrunk || confirmaTrunk) && !enviando;
+
+  // Pre-definicao: o bloco de merges da tela (so origem e destino; a mensagem do commit nao e salva).
+  // A principal pode ser origem, nunca destino (a API tambem recusa).
+  const presetInvalido = temTrunk
+    ? `A ${trunk?.name || "principal"} (principal) não pode ser destino numa pré-definição.`
+    : !linhas.every(linhaValida)
+      ? "Escolha origem e destino diferentes em todos os merges."
+      : null;
+  const presetAtual = useMemo(
+    () => (presetInvalido ? null : { merges: linhas.map((l) => ({ origem: l.origem, destino: l.destino })) }),
+    [presetInvalido, linhas],
+  );
+  const nomePorUrl = useMemo(() => new Map(branches.map((b) => [b.url, b.name])), [branches]);
+  const exibirPreset = useCallback((config: Record<string, unknown>) => Object.fromEntries(
+    lerMerges(config).map((m, i) => [`Merge ${i + 1}`, `${nomePorUrl.get(m.origem) || m.origem} → ${nomePorUrl.get(m.destino) || m.destino}`]),
+  ), [nomePorUrl]);
+  const aplicarPreset = useCallback((preset: RunPreset) => {
+    // Branch apagada do SVN (ex.: a proxima trocou de 11_0 para 11_99) volta vazia, para escolher de novo.
+    let sumiram = 0;
+    const existe = (url: string) => (nomePorUrl.has(url) ? url : (sumiram += 1, ""));
+    const novas = lerMerges(preset.config_json).map((m) => ({ ...novaLinha(""), origem: existe(m.origem), destino: existe(m.destino) }));
+    if (!novas.length) return;
+    setLinhas(novas);
+    setConfirmaTrunk(false);
+    if (sumiram) {
+      toast.warning(`${sumiram} branch(es) desta pré-definição não existem mais no SVN`, {
+        description: "Escolha a branch nova nos campos vazios e, se quiser, salve a pré-definição de novo.",
+      });
+    }
+  }, [nomePorUrl]);
 
   // Abre sozinho so o que a pessoa ainda tem na fila/em andamento; continua aberto ate o fim nesta visita.
   // Merges ja terminados nao abrem ao voltar para a tela: o resultado fica no historico.
@@ -153,6 +190,9 @@ export default function MergeBranches() {
       {/* Novos merges */}
       <Card className="p-4 sm:p-5 mb-5">
         <h2 className="mb-3 text-base font-semibold">Novo merge</h2>
+        <div className="mb-4">
+          <RunPresetBar mode="merge" current={presetAtual} invalidReason={presetInvalido} exibir={exibirPreset} onApply={aplicarPreset} />
+        </div>
         <div className="space-y-4">
           {linhas.map((linha, index) => (
             <div key={linha.id} className={linhas.length > 1 ? "rounded-lg border border-border/60 p-3" : ""}>

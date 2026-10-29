@@ -2,9 +2,10 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import type { MergeBranches, MergePedido } from "@/services/data";
+import type { MergeBranches, MergePedido, RunPreset } from "@/services/data";
+import { toast } from "sonner";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }));
 
 const auth = { isAdmin: false, profile: { username: "ana", permissions: ["rodagem", "merge", "regravar"] as string[] } };
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
@@ -20,6 +21,8 @@ const api = {
   createMerge: vi.fn(),
   confirmMerge: vi.fn(),
   cancelMerge: vi.fn(),
+  presets: [] as RunPreset[],
+  createRunPreset: vi.fn(),
 };
 vi.mock("@/services/data", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/data")>();
@@ -30,6 +33,8 @@ vi.mock("@/services/data", async (importOriginal) => {
     createMerge: (...args: unknown[]) => api.createMerge(...args),
     confirmMerge: (...args: unknown[]) => api.confirmMerge(...args),
     cancelMerge: (...args: unknown[]) => api.cancelMerge(...args),
+    fetchRunPresets: async () => api.presets,
+    createRunPreset: (...args: unknown[]) => api.createRunPreset(...args),
   };
 });
 
@@ -87,6 +92,10 @@ beforeEach(() => {
   api.createMerge.mockReset();
   api.confirmMerge.mockReset();
   api.cancelMerge.mockReset();
+  api.presets = [];
+  api.createRunPreset.mockReset();
+  vi.mocked(toast.error).mockClear();
+  vi.mocked(toast.warning).mockClear();
 });
 
 describe("regras", () => {
@@ -324,5 +333,77 @@ describe("auditoria parte 4: merge", () => {
     const tabela = await screen.findByRole("table");
     expect(screen.queryByText(/Passe o mouse/)).toBeNull();
     expect(within(tabela).getByRole("button", { name: /Já atualizado\s*: O destino já tinha tudo da origem/ })).toBeInTheDocument();
+  });
+});
+
+describe("pre-definicao de merges", () => {
+  const preset = (merges: { origem: string; destino: string }[], extra: Partial<RunPreset> = {}): RunPreset => ({
+    id: "p1", name: "Atualiza branches", mode: "merge", config_json: { merges }, created_by: "ana",
+    created_at: "2026-10-29T10:00:00Z", updated_at: "2026-10-29T10:00:00Z", ...extra,
+  });
+  const abrirPresets = async () => fireEvent.click(await screen.findByRole("button", { name: "Pré-definição" }));
+
+  it("usar preenche todas as linhas e o envio continua o mesmo (um pedido direto por merge)", async () => {
+    api.presets = [
+      preset([{ origem: UNICO, destino: PROXIMA }, { origem: UNICO, destino: FOLHA }]),
+      preset([], { id: "rod", name: "Fiscal a07", mode: "simplificada", config_json: { vm_name: "a07" } }),
+    ];
+    api.createMerge.mockResolvedValue(pedido({ status: "solicitado" }));
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Origem/ })).toHaveTextContent("Unico"));
+    await abrirPresets();
+    // So as de merge aparecem aqui (as de rodagem ficam na tela do Jenkins).
+    expect(screen.queryByText("Fiscal a07")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Atualiza branches$/ }));
+    expect(screen.getByRole("combobox", { name: /^Destino do merge 2/ })).toHaveTextContent("Folha_sustentação");
+    fireEvent.click(screen.getByRole("button", { name: "Fazer os 2 merges" }));
+    await waitFor(() => expect(api.createMerge).toHaveBeenCalledTimes(2));
+    expect(api.createMerge).toHaveBeenCalledWith(expect.objectContaining({ source_url: UNICO, target_url: FOLHA, direto: true }));
+  });
+
+  it("branch que nao existe mais volta vazia, com aviso, para escolher a nova", async () => {
+    api.presets = [preset([{ origem: UNICO, destino: ROOT + "/branches/Proxima9_99" }])];
+    renderPage();
+    await waitFor(() => expect(screen.getByRole("combobox", { name: /Origem/ })).toHaveTextContent("Unico"));
+    await abrirPresets();
+    fireEvent.click(screen.getByRole("button", { name: /^Atualiza branches$/ }));
+    expect(screen.getByRole("combobox", { name: /Destino/ })).toHaveTextContent("Escolha a branch de destino");
+    expect(toast.warning).toHaveBeenCalledWith("1 branch(es) desta pré-definição não existem mais no SVN", expect.anything());
+  });
+
+  it("salva so origem e destino; a principal como destino nao pode ser salva", async () => {
+    api.createRunPreset.mockResolvedValue(preset([{ origem: UNICO, destino: PROXIMA }], { id: "nova" }));
+    renderPage();
+    await escolher(/Destino/, "proxima", /Proxima10_0/);
+    await abrirPresets();
+    fireEvent.click(screen.getByRole("button", { name: /Nova a partir da tela atual/ }));
+    const janela = await screen.findByRole("dialog", { name: "Nova pré-definição" });
+    expect(janela).toHaveTextContent("Merge 1: Unico → Proxima10_0");
+    fireEvent.change(within(janela).getByLabelText("Nome"), { target: { value: "Atualiza branches" } });
+    fireEvent.click(within(janela).getByRole("button", { name: "Salvar" }));
+    await waitFor(() => expect(api.createRunPreset).toHaveBeenCalledWith({
+      nome: "Atualiza branches", modo: "merge", config: { merges: [{ origem: UNICO, destino: PROXIMA }] },
+    }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    fireEvent.click(screen.getByRole("button", { name: "Inverter origem e destino" }));
+    await abrirPresets();
+    fireEvent.click(screen.getByRole("button", { name: /Nova a partir da tela atual/ }));
+    expect(toast.error).toHaveBeenCalledWith("Corrija a configuração antes de salvar", {
+      description: "A Unico (principal) não pode ser destino numa pré-definição.",
+    });
+    expect(api.createRunPreset).toHaveBeenCalledTimes(1);
+  });
+
+  it("sem a permissao de merge pode usar, mas nao salvar", async () => {
+    auth.profile = { username: "ana", permissions: ["rodagem"] };
+    api.presets = [preset([{ origem: UNICO, destino: PROXIMA }], { created_by: "marcelo" })];
+    renderPage();
+    await abrirPresets();
+    expect(screen.queryByRole("button", { name: /Nova a partir da tela atual/ })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /De outros usuários/ }));
+    expect(screen.queryByRole("button", { name: /Copiar Atualiza branches/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /^Atualiza branches$/ }));
+    expect(screen.getByRole("combobox", { name: /Destino/ })).toHaveTextContent("Proxima10_0");
   });
 });

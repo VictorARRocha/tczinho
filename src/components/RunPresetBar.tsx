@@ -48,6 +48,7 @@ export const RunPresetBar = memo(function RunPresetBar({
   current,
   invalidReason,
   labels = {},
+  exibir = semMudanca,
   onApply,
 }: {
   mode: RunPresetMode;
@@ -55,12 +56,14 @@ export const RunPresetBar = memo(function RunPresetBar({
   invalidReason?: string | null;
   /** Nomes amigaveis das chaves no aviso/resumo (ex.: vm_name -> VM). */
   labels?: Record<string, string>;
+  /** Como a configuracao aparece no resumo e nas diferencas (ex.: merges como "Unico → Proxima11_0"). */
+  exibir?: (config: JenkinsConfig) => JenkinsConfig;
   onApply: (preset: RunPreset) => void;
 }) {
   const { profile, isAdmin } = useAuth();
   const username = profile?.username || "";
-  // Criar, editar, copiar e excluir as suas exigem "solicitar rodagem"; usar uma salva, nao.
-  const podeSalvar = temPermissao(profile, isAdmin, "rodagem");
+  // Criar, editar, copiar e excluir as suas exigem "solicitar rodagem" (ou "merge", nas de merge); usar uma salva, nao.
+  const podeSalvar = temPermissao(profile, isAdmin, mode === "merge" ? "merge" : "rodagem");
   const { data, isError: queryError, isLoading } = useRunPresets();
   const allPresets = useMemo(() => data || [], [data]);
   // Falha num recarregamento mantem a lista ja carregada; so desliga sem nada.
@@ -96,8 +99,8 @@ export const RunPresetBar = memo(function RunPresetBar({
   }, [selectedId, selected, isLoading]);
 
   const changes = useMemo(
-    () => (selected && current ? diffConfig(selected.config_json || {}, current) : []),
-    [selected, current],
+    () => (selected && current ? diffConfig(exibir(selected.config_json || {}), exibir(current)) : []),
+    [selected, current, exibir],
   );
   const label = (key: string) => labels[key] || key;
 
@@ -197,7 +200,7 @@ export const RunPresetBar = memo(function RunPresetBar({
   };
 
   const dialogChanges: ConfigChange[] =
-    dialog?.kind === "edit" && current ? diffConfig(dialog.preset.config_json || {}, current) : [];
+    dialog?.kind === "edit" && current ? diffConfig(exibir(dialog.preset.config_json || {}), exibir(current)) : [];
 
   const placeholder = isError
     ? "Pré-definições indisponíveis"
@@ -376,8 +379,8 @@ export const RunPresetBar = memo(function RunPresetBar({
               {dialog?.kind === "edit" ? "Editar pré-definição" : dialog?.kind === "copy" ? "Copiar para as minhas" : "Nova pré-definição"}
             </DialogTitle>
             <DialogDescription>
-              Fica nas suas pré-definições: os outros usuários podem usar e copiar, mas só você altera. A data/hora não é salva:
-              é definida no envio.
+              Fica nas suas pré-definições: os outros usuários podem usar e copiar, mas só você altera.
+              {mode === "merge" ? " A mensagem do commit não é salva." : " A data/hora não é salva: é definida no envio."}
             </DialogDescription>
           </DialogHeader>
           <form
@@ -395,17 +398,17 @@ export const RunPresetBar = memo(function RunPresetBar({
                 maxLength={MAX_NAME}
                 value={dialog?.name || ""}
                 onChange={(e) => setDialog((d) => (d ? { ...d, name: e.target.value } : d))}
-                placeholder="ex.: Fiscal a07 PROXIMA"
+                placeholder={mode === "merge" ? "ex.: Atualiza branches da próxima" : "ex.: Fiscal a07 PROXIMA"}
               />
             </div>
 
             {dialog?.kind === "create" && current && (
-              <ConfigSummary title="Será salvo" config={current} label={label} />
+              <ConfigSummary title="Será salvo" config={exibir(current)} label={label} />
             )}
             {dialog?.kind === "copy" && (
               <ConfigSummary
                 title={`Será copiado de ${dialog.preset.created_by || "todos (sem dono)"}`}
-                config={(dialog.preset.config_json || {}) as JenkinsConfig}
+                config={exibir((dialog.preset.config_json || {}) as JenkinsConfig)}
                 label={label}
               />
             )}
@@ -463,6 +466,10 @@ export const RunPresetBar = memo(function RunPresetBar({
     </div>
   );
 });
+
+function semMudanca(config: JenkinsConfig): JenkinsConfig {
+  return config;
+}
 
 function ConfigSummary({ title, config, label }: { title: string; config: JenkinsConfig; label: (k: string) => string }) {
   const entries = Object.entries(config).filter(([k]) => k !== "data_hora");
