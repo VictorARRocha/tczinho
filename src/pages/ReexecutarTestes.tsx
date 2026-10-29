@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { SemPermissao } from "@/components/SemPermissao";
-import { SelectBusca } from "@/components/SelectBusca";
 import { EtapasNav } from "@/components/EtapasNav";
 import { useFocoNaEtapa } from "@/hooks/usePainel";
 import { usePermissao } from "@/hooks/use-permissao";
@@ -13,6 +12,7 @@ import { formatDateTime } from "@/lib/format";
 import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { copiarTexto } from "@/lib/copiar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,7 @@ import {
   ArrowUpDown,
   Circle,
   CircleCheck,
+  Monitor,
 } from "lucide-react";
 import {
   fetchCasosReexecutaveis,
@@ -150,7 +151,6 @@ export default function ReexecutarTestes() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [fVm, setFVm] = useState<string>("all");
   const [fModulo, setFModulo] = useState<string>("all");
-  const [fVersao, setFVersao] = useState<string>("all");
   const [mostrarTodas, setMostrarTodas] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("id_caso_teste");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -210,35 +210,14 @@ export default function ReexecutarTestes() {
     () => Array.from(new Set(runs.map(runModulo).filter(Boolean))).sort(),
     [runs],
   );
-  // Versoes so das rodagens da VM (e do modulo) escolhidos: a A08 so mostra o que a A08 ja rodou.
-  const versaoOptions = useMemo(
-    () =>
-      ordenarVersoes(
-        Array.from(
-          new Set(
-            runs
-              .filter((r) => (fVm === "all" || runVm(r) === fVm) && (fModulo === "all" || runModulo(r) === fModulo))
-              .map((r) => (r.versao || "").toString())
-              .filter(Boolean),
-          ),
-        ),
-      ),
-    [runs, fVm, fModulo],
-  );
-  // Versao escolhida que a VM nova nunca rodou volta para "todas".
-  useEffect(() => {
-    if (fVersao !== "all" && !versaoOptions.includes(fVersao)) setFVersao("all");
-  }, [fVersao, versaoOptions]);
-
   const filteredRuns = useMemo(
     () =>
       runs.filter((r) => {
         if (fVm !== "all" && runVm(r) !== fVm) return false;
         if (fModulo !== "all" && runModulo(r) !== fModulo) return false;
-        if (fVersao !== "all" && (r.versao || "") !== fVersao) return false;
         return true;
       }),
-    [runs, fVm, fModulo, fVersao],
+    [runs, fVm, fModulo],
   );
 
   const runsVisiveis = useMemo(() => {
@@ -437,20 +416,16 @@ export default function ReexecutarTestes() {
         <Card className="p-4 sm:p-5 mb-8 animate-fade-in">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
             <h2 ref={tituloEtapa} tabIndex={-1} className="text-base font-semibold focus:outline-none">Escolha a rodagem</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={fVm} onValueChange={setFVm}>
-                <SelectTrigger className="h-11 w-[150px] text-xs md:h-8" aria-label="Filtrar por VM"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas as VMs</SelectItem>
-                  {vmOptions.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <SelectBusca
-                className="h-11 w-[200px] text-xs md:h-8" ariaLabel="Filtrar por versão" value={fVersao} onChange={setFVersao}
-                opcoes={[{ valor: "all", rotulo: "Todas as versões" }, ...versaoOptions.map((v) => ({ valor: v, rotulo: v }))]}
-                buscaPlaceholder="Buscar versão…" vazio="Nenhuma versão encontrada."
-              />
-            </div>
+            <Select value={fVm} onValueChange={setFVm}>
+              <SelectTrigger className="h-11 w-full text-sm sm:w-[180px] md:h-9" aria-label="Filtrar por VM">
+                <Monitor className="mr-2 h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as VMs</SelectItem>
+                {vmOptions.map((v) => <SelectItem key={v} value={v}>{formatarVm(v)}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           {moduloOptions.length > 1 && (
@@ -550,7 +525,7 @@ export default function ReexecutarTestes() {
                     className="h-11 w-11 shrink-0 md:h-7 md:w-7"
                     aria-label="Copiar caminho dos logs"
                     title="Copiar caminho dos logs"
-                    onClick={() => { navigator.clipboard.writeText(selectedRun.caminho_logs || ""); toast.success("Caminho copiado"); }}
+                    onClick={(e) => copiarTexto(selectedRun.caminho_logs || "", "Caminho copiado", e.currentTarget)}
                   >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>

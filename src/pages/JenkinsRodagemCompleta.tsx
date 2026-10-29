@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import { copiarTexto } from "@/lib/copiar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,7 @@ import { invalidateRerunRequests, useMergeBranches } from "@/services/queries";
 import { MANTER_BRANCH, VM_OPTIONS, branchDoPedido, opcoesBranch } from "@/lib/branchVm";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
 import { RunPresetBar } from "@/components/RunPresetBar";
+import { SeletorDataHora } from "@/components/SeletorDataHora";
 import { SemPermissao } from "@/components/SemPermissao";
 import { useModulos, usePermissao } from "@/hooks/use-permissao";
 import { MODULOS_ACESSO } from "@/lib/permissoes";
@@ -33,12 +35,6 @@ const MODULOS = ["folha", "fiscal", "contabil", "financeiro", "geral", "gestao"]
   const m = MODULOS_ACESSO.find((x) => x.slug === slug)!;
   return { nome: m.nome, codigo: m.codigos.map((c) => `[${c}]`).join(", "), slug };
 });
-
-/** "yyyy-MM-ddTHH:mm" do horario local, o formato do campo datetime-local. */
-function paraCampoData(d: Date): string {
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-}
 
 type ErrosSimplificada = { versao?: string; data?: string };
 
@@ -199,10 +195,7 @@ export default function JenkinsRodagemCompleta() {
     }
   };
 
-  const copyJson = (obj: unknown) => {
-    navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
-    toast.success("Configuração copiada");
-  };
+  const copyJson = (obj: unknown) => copiarTexto(JSON.stringify(obj, null, 2), "Configuração copiada");
 
   return (
     <div className="mx-auto max-w-7xl p-4 sm:p-6 lg:p-10 animate-fade-in">
@@ -314,16 +307,12 @@ export default function JenkinsRodagemCompleta() {
                     <span className="opacity-70">(agora − 1 min, dispara imediatamente)</span>
                   </p>
                 ) : (
-                  <Input
+                  <SeletorDataHora
                     id="rc-data"
-                    className="mt-2"
-                    type="datetime-local"
-                    aria-label="Data e hora do agendamento"
                     value={sDataCampo}
-                    min={paraCampoData(new Date())}
-                    aria-invalid={!!erros.data}
-                    aria-describedby={erros.data ? "rc-data-erro" : undefined}
-                    onChange={(e) => { setSDataCampo(e.target.value); if (erros.data) setErros((x) => ({ ...x, data: undefined })); }}
+                    invalido={!!erros.data}
+                    descricaoId={erros.data ? "rc-data-erro" : undefined}
+                    onChange={(v) => { setSDataCampo(v); if (erros.data) setErros((x) => ({ ...x, data: undefined })); }}
                   />
                 )}
               </Field>

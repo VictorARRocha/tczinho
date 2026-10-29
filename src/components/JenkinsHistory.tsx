@@ -1,5 +1,6 @@
 import { memo, useId, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { copiarTexto } from "@/lib/copiar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -126,28 +127,7 @@ function safeError(s?: string | null): string | null {
 }
 
 function copiarConfig(r: RerunRequest, origem?: HTMLElement) {
-  const texto = JSON.stringify(r.config_json, null, 2);
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(texto).then(
-      () => toast.success("Configuração copiada"),
-      () => toast.error("Não foi possível copiar"),
-    );
-    return;
-  }
-  // O dashboard roda em http (sem HTTPS), onde nao existe navigator.clipboard: copia pelo jeito antigo.
-  // O textarea vai dentro da janela de detalhes, senao o foco preso do Dialog desfaz a selecao.
-  const area = document.createElement("textarea");
-  area.value = texto;
-  area.setAttribute("readonly", "");
-  area.style.position = "fixed";
-  area.style.opacity = "0";
-  (origem?.parentElement ?? document.body).appendChild(area);
-  area.focus();
-  area.select();
-  const copiou = typeof document.execCommand === "function" && document.execCommand("copy");
-  area.remove();
-  if (copiou) toast.success("Configuração copiada");
-  else toast.error("Não foi possível copiar");
+  copiarTexto(JSON.stringify(r.config_json, null, 2), "Configuração copiada", origem);
 }
 
 function SeloStatus({ status }: { status: string }) {

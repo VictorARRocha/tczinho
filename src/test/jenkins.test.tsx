@@ -2,6 +2,8 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
+import { addMonths, format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import type { RerunRequest } from "@/services/qa";
 import type { RunPreset } from "@/services/data";
 
@@ -611,18 +613,31 @@ describe("auditoria parte 3: rodagem completa", () => {
     renderPage(<JenkinsRodagemCompleta />);
     fireEvent.change(screen.getByLabelText("Versão"), { target: { value: "PROXIMA" } });
     fireEvent.click(screen.getByRole("radio", { name: "Agendar" }));
-    const futuro = new Date(Date.now() + 86_400_000);
-    const p = (n: number) => String(n).padStart(2, "0");
-    const valor = `${futuro.getFullYear()}-${p(futuro.getMonth() + 1)}-${p(futuro.getDate())}T22:30`;
-    fireEvent.change(screen.getByLabelText("Data e hora do agendamento"), { target: { value: valor } });
-    fireEvent.click(screen.getByRole("radio", { name: "Agora" }));
-    fireEvent.click(screen.getByRole("radio", { name: "Agendar" }));
-    // O campo volta com a data escolhida (antes voltava vazio e a data seguia escondida no pedido).
-    expect(screen.getByLabelText("Data e hora do agendamento")).toHaveValue(valor);
-    fireEvent.change(screen.getByLabelText("Data e hora do agendamento"), { target: { value: "" } });
+    // Sem data escolhida: erro e nada enviado.
     fireEvent.click(screen.getByRole("button", { name: /Enviar rodagem/ }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Escolha a data e a hora.");
     expect(api.createRerunRequest).not.toHaveBeenCalled();
+
+    // Calendario: dois meses para frente, dia 15, 22:30.
+    const dia = addMonths(new Date(), 2);
+    dia.setDate(15);
+    fireEvent.click(screen.getByRole("button", { name: "Data e hora do agendamento" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próximo mês" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próximo mês" }));
+    fireEvent.click(screen.getByRole("button", { name: format(dia, "EEEE, d 'de' MMMM 'de' yyyy", { locale: ptBR }) }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Hora" }));
+    fireEvent.click(await screen.findByRole("option", { name: "22" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Minuto" }));
+    fireEvent.click(await screen.findByRole("option", { name: "30" }));
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    const esperado = format(dia, "dd/MM/yyyy") + " às 22:30";
+    expect(screen.getByRole("button", { name: "Data e hora do agendamento" })).toHaveTextContent(esperado);
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Trocar Agora/Agendar mantem a data escolhida (antes voltava vazio e a data seguia escondida no pedido).
+    fireEvent.click(screen.getByRole("radio", { name: "Agora" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Agendar" }));
+    expect(screen.getByRole("button", { name: "Data e hora do agendamento" })).toHaveTextContent(esperado);
   });
 
   it("versao vazia: erro embaixo do campo e o campo marcado", async () => {
@@ -662,6 +677,20 @@ describe("auditoria parte 3: rodagem completa", () => {
       fireEvent.click(within(detalhes).getByRole("button", { name: "Copiar" }));
       expect(execCommand).toHaveBeenCalledWith("copy");
       expect(JSON.parse(copiado)).toEqual({ vm_name: "a09", branch: "Folha_sustentação" });
+    } finally {
+      delete (document as { execCommand?: unknown }).execCommand;
+    }
+  });
+
+  it("copiar da configuracao que sera enviada funciona sem navigator.clipboard (dashboard em http)", async () => {
+    let copiado = "";
+    const execCommand = vi.fn(() => { copiado = (document.activeElement as HTMLTextAreaElement).value; return true; });
+    Object.defineProperty(document, "execCommand", { value: execCommand, configurable: true });
+    try {
+      renderPage(<JenkinsRodagemCompleta />);
+      fireEvent.click(await screen.findByRole("button", { name: "Copiar" }));
+      expect(execCommand).toHaveBeenCalledWith("copy");
+      expect(JSON.parse(copiado)).toEqual(expect.objectContaining({ casos_teste: expect.any(String), ct_desmarcar: "[0.3]" }));
     } finally {
       delete (document as { execCommand?: unknown }).execCommand;
     }

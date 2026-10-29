@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { toast } from "sonner";
+import { copiarTexto } from "@/lib/copiar";
 import { pairBaseAtual, type ComparisonPair } from "@/lib/occurrence";
 import { useFocoDeVolta, useUltimoValor } from "@/hooks/usePainel";
 
@@ -307,7 +308,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
                   className="absolute right-1.5 top-1.5 h-8 w-8"
                   aria-label="Copiar mensagem de erro"
                   title="Copiar"
-                  onClick={() => { navigator.clipboard.writeText(erro); toast.success("Mensagem copiada"); }}
+                  onClick={(e) => copiarTexto(erro, "Mensagem copiada", e.currentTarget)}
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
@@ -462,7 +463,7 @@ function TextPreviewDialog({ title, content, open, onOpenChange }: { title: stri
         <div className="flex items-center gap-2 pb-2 pr-8 border-b border-border">
           <FileText className="h-4 w-4 text-warning" />
           <DialogTitle className="text-sm font-medium truncate">{title}</DialogTitle>
-          <Button variant="ghost" size="sm" className="ml-auto h-8 text-xs" onClick={() => { navigator.clipboard.writeText(content); toast.success("Copiado"); }}>
+          <Button variant="ghost" size="sm" className="ml-auto h-8 text-xs" onClick={(e) => copiarTexto(content, "Copiado", e.currentTarget)}>
             <Copy className="h-3 w-3 mr-1" /> Copiar
           </Button>
         </div>
@@ -603,7 +604,7 @@ function EvidenceItem({ ev, priority, hideCaption }: { ev: Evidencia; priority?:
                 variant="ghost" size="sm" className="h-8 px-2 text-xs"
                 disabled={!canCopy}
                 aria-label="Copiar conteúdo"
-                onClick={() => { if (txtContent) { navigator.clipboard.writeText(txtContent); toast.success("TXT copiado"); } }}
+                onClick={(e) => { if (txtContent) copiarTexto(txtContent, "TXT copiado", e.currentTarget); }}
               >
                 <Copy className="h-3 w-3" /><span className="max-sm:sr-only">Copiar</span>
               </Button>

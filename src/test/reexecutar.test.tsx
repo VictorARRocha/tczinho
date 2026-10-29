@@ -133,20 +133,12 @@ describe("Reexecutar rodagens (etapas)", () => {
       .toEqual(["PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES", "CONTABIL_DERE", "FOLHA_SUSTENTACAO_2026"]);
   });
 
-  it("filtro de VM limita o filtro de versao ao que a VM ja rodou", async () => {
+  it("filtro so por VM (o de versao saiu)", async () => {
     renderPagina();
     await screen.findAllByRole("radio");
-    let lista = await abrirSelect("Filtrar por versão");
-    expect(within(lista).getAllByRole("option").map((o) => o.textContent))
-      .toEqual(["Todas as versões", "PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES", "FOLHA_SUSTENTACAO_2026"]);
-    fireEvent.keyDown(lista, { key: "Escape" });
-
-    lista = await abrirSelect("Filtrar por VM");
+    expect(screen.queryByRole("combobox", { name: "Filtrar por versão" })).toBeNull();
+    const lista = await abrirSelect("Filtrar por VM");
     fireEvent.click(within(lista).getByText("A08"));
-    lista = await abrirSelect("Filtrar por versão");
-    expect(within(lista).getAllByRole("option").map((o) => o.textContent))
-      .toEqual(["Todas as versões", "PROXIMA1.26.10.0", "PROXIMA1.26.9.99", "PRE-CLIENTES"]);
-    fireEvent.keyDown(lista, { key: "Escape" });
     await waitFor(() => expect(screen.getAllByRole("radio")).toHaveLength(3));
   });
 
