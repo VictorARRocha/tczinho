@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useParams, Link, useSearchParams, useNavigate, Navigate } from "react-router-dom";
 import { findRodagemBySlug, rodagemSlugFor } from "@/lib/rodagemSlug";
 import { fetchRunsByModule, fetchRunById, fetchFailuresByRun, fetchEvidenceByRun, fetchGroupsByRun, fetchNextStepsByRun, fetchPerformanceByRun, fetchGroupLinksByRun, fetchResultadosReexecucao, fetchCasosInstaveis, type CasoInstavel, type ResultadoReexecucao, type TestcaseHierarchyNode } from "@/services/data";
@@ -17,6 +18,7 @@ import { useUltimoValor } from "@/hooks/usePainel";
 import { nomeModulo, SEM_MODULO } from "@/lib/permissoes";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab, montarItensFalhas } from "./module/FalhasTab";
+import { mapaReexecucao, rotuloExecucao, temResultado } from "./module/reexecucao";
 import { HistoricoTab } from "./module/HistoricoTab";
 import { CompararTab } from "./module/CompararTab";
 import { ModuleHeader } from "./module/ModuleHeader";
@@ -86,6 +88,8 @@ function PaginaDoModulo() {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedFalha, setSelectedFalha] = useState<Falha | null>(null);
+  // Execucao do caso aberta no painel: "original" (esta rodagem) ou o id da rodagem de uma reexecucao.
+  const [execucao, setExecucao] = useState("original");
   const [comparePair, setComparePair] = useState<{ pair: ComparisonPair; falha: Falha } | null>(null);
 
   // Controle de race condition: cada loadAll incrementa o id; respostas atrasadas são ignoradas
@@ -125,6 +129,28 @@ function PaginaDoModulo() {
       return false;
     });
   }, [evidencias, falhaPainel]);
+  // Reexecucoes do caso aberto no painel (so as que ja tem resultado) e a falha dele na reexecucao escolhida.
+  const mapaReex = useMemo(() => mapaReexecucao(reexecucoes), [reexecucoes]);
+  const casoPainel = String(falhaPainel?.id_caso_teste || "").trim();
+  const execucoesCaso = useMemo(() => (mapaReex.get(casoPainel) || []).filter(temResultado), [mapaReex, casoPainel]);
+  const { data: falhasReexecucao, isLoading: carregandoReexecucao } = useQuery({
+    queryKey: ["falhas-rodagem", execucao],
+    queryFn: () => fetchFailuresByRun(execucao),
+    enabled: execucao !== "original",
+    staleTime: 60_000,
+  });
+  const execucaoAberta = execucoesCaso.find((e) => e.rodagemId === execucao);
+  const falhaReexecucao = execucaoAberta
+    ? falhasReexecucao?.find((f) => String(f.id_caso_teste || "").trim() === casoPainel)
+    : undefined;
+  const abrirFalha = useCallback((f: Falha) => { setExecucao("original"); setSelectedFalha(f); }, []);
+  // Clique no selo da reexecucao: o painel abre no caso desta rodagem, ja na reexecucao.
+  const abrirReexecucao = useCallback((casoId: string, rodagemReexecucao: string) => {
+    const f = falhas.find((x) => String(x.id_caso_teste || "").trim() === casoId);
+    if (!f) return;
+    setExecucao(rodagemReexecucao);
+    setSelectedFalha(f);
+  }, [falhas]);
   const recarregarPerformance = () => {
     if (rodagem) fetchPerformanceByRun(rodagem.id).then(setPerformance);
   };
@@ -402,11 +428,11 @@ function PaginaDoModulo() {
           </div>
 
           <TabsContent value="resumo" className="mt-6"><ResumoTab rodagem={rodagem} historico={historico} falhas={falhas} evidencias={evidencias} performance={performance} onOpenPerformance={() => setActiveTab("performance")} onOpenFalhas={(sub) => setParams({ tab: "falhas", filtro: sub === "todos" ? null : sub })} /></TabsContent>
-          <TabsContent value="falhas" className="mt-6"><FalhasTab slug={slug} reexecucoes={reexecucoes} instaveis={instaveis} acaoReexecutar={acaoReexecutar} moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={setSelectedFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} /></TabsContent>
-          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={setSelectedFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
+          <TabsContent value="falhas" className="mt-6"><FalhasTab slug={slug} reexecucoes={reexecucoes} instaveis={instaveis} acaoReexecutar={acaoReexecutar} moduloNome={modulo?.nome || ""} falhas={falhas} evidencias={evidencias} hierarchy={hierarchy} subTab={falhasSubTab} setSubTab={setFalhasSubTab} onSelect={abrirFalha} onCompare={(pair, falha) => setComparePair({ pair, falha })} versaoOrigem={rodagem.versao_sistema} onAbrirReexecucao={abrirReexecucao} /></TabsContent>
+          <TabsContent value="agrupamentos" className="mt-6"><AgrupamentosTab runId={rodagem.id} grupos={grupos} falhas={falhas} links={groupLinks} onSelect={abrirFalha} onReload={() => loadAll(rodagem.id)} /></TabsContent>
           <TabsContent value="performance" className="mt-6"><PerformanceTab data={performance} moduloSlug={slug} onBaseTrocada={recarregarPerformance} /></TabsContent>
           <TabsContent value="historico" className="mt-6"><HistoricoTab runs={historico} currentId={rodagem.id} onPick={openRunFromHistory} /></TabsContent>
-          <TabsContent value="comparar" className="mt-6"><CompararTab runs={historico} currentRunId={rodagem.id} onOpenFailure={setSelectedFalha} /></TabsContent>
+          <TabsContent value="comparar" className="mt-6"><CompararTab runs={historico} currentRunId={rodagem.id} onOpenFailure={abrirFalha} /></TabsContent>
 
         </Tabs>
       )}
@@ -414,11 +440,33 @@ function PaginaDoModulo() {
       {falhaPainel && (
         <Suspense fallback={null}>
           <FailureDetailSheet
-            falha={falhaPainel}
+            falha={falhaReexecucao || falhaPainel}
             open={!!selectedFalha}
             onClose={() => setSelectedFalha(null)}
             linkRegravar
-            evidencias={evidenciasDaFalha}
+            evidencias={execucaoAberta ? undefined : evidenciasDaFalha}
+            execucoes={execucoesCaso.length ? [
+              { chave: "original", rotulo: `Execução original · ${formatDateTime(rodagem?.data_inicio_rodagem)}` },
+              ...execucoesCaso.map((e) => ({ chave: e.rodagemId, rotulo: rotuloExecucao(e, rodagem?.versao_sistema) })),
+            ] : undefined}
+            execucaoAtual={execucaoAberta ? execucao : "original"}
+            onTrocarExecucao={setExecucao}
+            substituto={!execucaoAberta || falhaReexecucao ? undefined : carregandoReexecucao ? (
+              <p className="text-sm text-muted-foreground">Carregando o resultado da reexecução…</p>
+            ) : execucaoAberta.resultado === "passou" ? (
+              <Card className="space-y-2 border-success/40 bg-success/10 p-5">
+                <p className="text-sm font-semibold text-success">Passou nesta reexecução</p>
+                <p className="text-sm text-muted-foreground">
+                  {rotuloExecucao(execucaoAberta, rodagem?.versao_sistema)}{execucaoAberta.vm ? ` · ${execucaoAberta.vm.toUpperCase()}` : ""}.
+                  Sem falha, não há evidências deste caso.
+                </p>
+                <Link to={`/modulo/${slug}?run=${encodeURIComponent(execucaoAberta.rodagemId)}&tab=resumo`} className="inline-block text-sm text-primary hover:underline">
+                  Abrir a rodagem da reexecução
+                </Link>
+              </Card>
+            ) : (
+              <p className="text-sm text-muted-foreground">A falha deste caso não foi encontrada na rodagem da reexecução.</p>
+            )}
           />
         </Suspense>
       )}

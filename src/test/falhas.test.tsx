@@ -4,6 +4,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { Evidencia, Falha } from "@/types/db";
 import type { ResultadoReexecucao } from "@/services/data";
 import { FalhasTab, montarItensFalhas } from "@/pages/module/FalhasTab";
+import { rotuloExecucao, textoSelo, type ExecucaoReexecucao } from "@/pages/module/reexecucao";
 
 const falha = (id: string, caso: string, extra: Partial<Falha> = {}) =>
   ({ id, id_caso_teste: caso, caso_teste_provavel: `Caso ${caso}`, erro_principal: "Object not found", ...extra }) as Falha;
@@ -69,26 +70,45 @@ describe("aba Falhas", () => {
 });
 
 describe("aba Falhas: resultado das reexecucoes", () => {
-  it("cada caso reexecutado ganha o selo da reexecucao mais recente, com link para a rodagem dela", async () => {
-    const { MemoryRouter } = await import("react-router-dom");
+  it("selo da reexecucao mais recente; clicar abre o painel naquela reexecucao (e nao o caso original)", async () => {
     window.localStorage.setItem("agenttc.falhas.view", "lista");
     const reexecucoes: ResultadoReexecucao[] = [
       { pedido_id: "p1", criado_em: "2026-10-27T12:00:00Z", vm_name: "a07", status: "finalizado_falha", rodagem_id: null,
         casos: { "1.2.1": { resultado: "nao_rodou" } } },
-      { pedido_id: "p2", criado_em: "2026-10-27T15:00:00Z", vm_name: "a07", status: "finalizado_ocorrencias", rodagem_id: "rod_reexec",
+      { pedido_id: "p2", criado_em: "2026-10-27T15:00:00Z", vm_name: "a07", versao: "PROXIMA1.26.11.0", status: "finalizado_ocorrencias", rodagem_id: "rod_reexec",
         casos: { "1.2.1": { resultado: "passou" }, "1.2.2": { resultado: "quebrou_de_novo" as const, tipo: "diferenca" } } },
+      { pedido_id: "p3", criado_em: "2026-10-28T09:00:00Z", vm_name: "a07", versao: "proxima1.26.11.99", status: "rodando", rodagem_id: null,
+        casos: { "1.3.1": { resultado: "rodando" } } },
     ];
+    const onSelect = vi.fn();
+    const onAbrir = vi.fn();
     render(
-      <MemoryRouter>
-        <FalhasTab slug="folha" reexecucoes={reexecucoes} acaoReexecutar={<a href="/jenkins/reexecutar?run=r1">Reexecutar casos</a>}
-          moduloNome="Folha" falhas={FALHAS} evidencias={[]} hierarchy={[]} subTab="todos" setSubTab={vi.fn()} onSelect={vi.fn()} onCompare={vi.fn()} />
-      </MemoryRouter>,
+      <FalhasTab slug="folha" reexecucoes={reexecucoes} acaoReexecutar={<a href="/jenkins/reexecutar?run=r1">Reexecutar casos</a>} versaoOrigem="PROXIMA1.26.11.0"
+        onAbrirReexecucao={onAbrir} moduloNome="Folha" falhas={FALHAS} evidencias={[]} hierarchy={[]} subTab="todos" setSubTab={vi.fn()} onSelect={onSelect} onCompare={vi.fn()} />,
     );
     expect(screen.getByRole("link", { name: "Reexecutar casos" })).toBeInTheDocument();
-    const passou = screen.getAllByRole("link", { name: /Passou na reexecução/ })[0];
-    expect(passou).toHaveAttribute("href", "/modulo/folha?run=rod_reexec&tab=falhas");
-    expect(screen.getAllByRole("link", { name: /Quebrou de novo/ }).length).toBeGreaterThan(0);
     expect(screen.queryByText(/Não rodou na reexecução/)).toBeNull(); // a reexecucao antiga foi substituida
+    expect(screen.getByText("Reexecutando")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reexecutado com falha" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reexecutado com sucesso" }));
+    expect(onAbrir).toHaveBeenCalledWith("1.2.1", "rod_reexec");
+    expect(onSelect).not.toHaveBeenCalled(); // o clique no selo nao abre o caso original
+  });
+});
+
+describe("textos da reexecucao", () => {
+  const exec = (resultado: ExecucaoReexecucao["resultado"], versao: string | null = "PROXIMA1.26.11.0") =>
+    ({ resultado, rodagemId: "r", criadoEm: "2026-10-27T15:00:00Z", vm: "a07", versao });
+  it("fila, rodando, sucesso/falha e outra versao", () => {
+    expect(textoSelo(exec("aguardando"), "PROXIMA1.26.11.0")).toBe("Aguardando reexecução");
+    expect(textoSelo(exec("rodando"), "PROXIMA1.26.11.0")).toBe("Reexecutando");
+    expect(textoSelo(exec("passou"), "PROXIMA1.26.11.0")).toBe("Reexecutado com sucesso");
+    expect(textoSelo(exec("quebrou_de_novo"), "PROXIMA1.26.11.0")).toBe("Reexecutado com falha");
+    expect(textoSelo(exec("passou", "proxima1.26.11.99"), "PROXIMA1.26.11.0")).toBe("Reexecutado na versão Próxima 11.99 com sucesso");
+    expect(textoSelo(exec("quebrou_de_novo", "proxima1.26.11.99"), "PROXIMA1.26.11.0")).toBe("Reexecutado na versão Próxima 11.99 com falha");
+    // Mesma versao escrita de outro jeito (pedido ao Jenkins x nome da rodagem) nao vira "outra versao".
+    expect(textoSelo(exec("passou", "pre-cliente"), "PRE-CLIENTES")).toBe("Reexecutado com sucesso");
+    expect(rotuloExecucao(exec("passou", "proxima1.26.11.99"), "PROXIMA1.26.11.0")).toMatch(/^Reexecução na Próxima 11\.99 · /);
   });
 });
 

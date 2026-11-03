@@ -285,6 +285,7 @@ function SubTabBtn({ ativo, label, count, tone, onClick }: { ativo: boolean; lab
 
 export function FalhasTab({
   moduloNome, falhas, evidencias, hierarchy, subTab, setSubTab, onSelect, onCompare, slug = "", reexecucoes, instaveis, acaoReexecutar,
+  versaoOrigem, onAbrirReexecucao,
 }: {
   moduloNome: string;
   falhas: Falha[];
@@ -301,12 +302,16 @@ export function FalhasTab({
   instaveis?: Record<string, CasoInstavel>;
   /** Botao "Reexecutar casos" (montado pela pagina, que sabe a rodagem e a permissao). */
   acaoReexecutar?: ReactNode;
+  /** Versao da rodagem aberta (reexecucao em outra versao aparece como "na versão X"). */
+  versaoOrigem?: string | null;
+  /** Clique no selo da reexecucao: abre o painel do caso naquela reexecucao. */
+  onAbrirReexecucao?: (casoId: string, rodagemId: string) => void;
 }) {
   const reexecucaoCtx = useMemo(
     () => (reexecucoes?.length || (instaveis && Object.keys(instaveis).length)
-      ? { mapa: mapaReexecucao(reexecucoes || []), slug, instaveis: instaveis || {} }
+      ? { mapa: mapaReexecucao(reexecucoes || []), slug, instaveis: instaveis || {}, versaoOrigem, onAbrir: onAbrirReexecucao }
       : null),
-    [reexecucoes, instaveis, slug],
+    [reexecucoes, instaveis, slug, versaoOrigem, onAbrirReexecucao],
   );
   const [q, setQ] = useState("");
   const [view, setView] = useState<FalhasView>(readStoredView);

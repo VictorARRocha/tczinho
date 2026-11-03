@@ -89,9 +89,12 @@ export interface ResultadoReexecucao {
   criado_em: string | null;
   vm_name: string | null;
   status: string;
+  /** Versao pedida na reexecucao (pode ser outra que a da rodagem de origem). */
+  versao?: string | null;
   /** Rodagem gerada pela reexecucao (null enquanto nao foi importada). */
   rodagem_id: string | null;
-  casos: Record<string, { resultado: "passou" | "quebrou_de_novo" | "nao_rodou" | "aguardando" | "aguardando_importacao"; tipo?: string | null }>;
+  /** "aguardando" = na fila do Jenkins; "rodando" = o build ja comecou na VM. */
+  casos: Record<string, { resultado: "passou" | "quebrou_de_novo" | "nao_rodou" | "aguardando" | "rodando" | "aguardando_importacao"; tipo?: string | null }>;
 }
 
 /** Caso que alterna entre falhar e passar nas ultimas rodagens da mesma VM (historico da mais antiga para a mais nova). */

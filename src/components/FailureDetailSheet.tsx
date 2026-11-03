@@ -215,9 +215,17 @@ interface Props {
   evidencias?: Evidencia[];
   /** Mostra o link "Regravar arquivos" (fora da propria tela de regravacao). */
   linkRegravar?: boolean;
+  /** Execucoes do caso (original e reexecucoes): vira um seletor no topo do painel. */
+  execucoes?: { chave: string; rotulo: string }[];
+  execucaoAtual?: string;
+  onTrocarExecucao?: (chave: string) => void;
+  /** No lugar das evidencias (ex.: o caso passou na reexecucao, ou ela ainda esta carregando). */
+  substituto?: React.ReactNode;
 }
 
-export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp, linkRegravar = false }: Props) {
+export function FailureDetailSheet({
+  falha, open, onClose, evidencias: evidsProp, linkRegravar = false, execucoes, execucaoAtual, onTrocarExecucao, substituto,
+}: Props) {
   const [evidencias, setEvidencias] = useState<Evidencia[]>([]);
   const [comparePair, setComparePair] = useState<ComparisonPair | null>(null);
   const comparacaoPainel = useUltimoValor(comparePair);
@@ -294,6 +302,31 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
           )}
         </div>
 
+        {execucoes && execucoes.length > 1 && onTrocarExecucao && (
+          <div className="px-4 sm:px-7 pt-4">
+            <div role="tablist" aria-label="Execuções deste caso" className="flex flex-wrap gap-1 rounded-lg bg-muted/60 p-1">
+              {execucoes.map((ex) => (
+                <button
+                  key={ex.chave}
+                  type="button"
+                  role="tab"
+                  aria-selected={ex.chave === execucaoAtual}
+                  onClick={() => onTrocarExecucao(ex.chave)}
+                  className={cn(
+                    "rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    ex.chave === execucaoAtual ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {ex.rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {substituto ? (
+          <div className="px-4 sm:px-7 py-5 sm:py-6">{substituto}</div>
+        ) : (
         <div className="px-4 sm:px-7 py-5 sm:py-6 space-y-6 sm:space-y-8">
 
 
@@ -398,6 +431,7 @@ export function FailureDetailSheet({ falha, open, onClose, evidencias: evidsProp
             <Card className="p-6 text-center text-sm text-muted-foreground">Nenhuma evidência vinculada a esta falha.</Card>
           )}
         </div>
+        )}
       </ResizableSheetContent>
       {comparacaoPainel && (
         <Suspense fallback={null}>
