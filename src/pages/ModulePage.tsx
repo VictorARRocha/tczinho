@@ -460,9 +460,6 @@ function PaginaDoModulo() {
                   {rotuloExecucao(execucaoAberta, rodagem?.versao_sistema)}{execucaoAberta.vm ? ` · ${execucaoAberta.vm.toUpperCase()}` : ""}.
                   Sem falha, não há evidências deste caso.
                 </p>
-                <Link to={`/modulo/${slug}?run=${encodeURIComponent(execucaoAberta.rodagemId)}&tab=resumo`} className="inline-block text-sm text-primary hover:underline">
-                  Abrir a rodagem da reexecução
-                </Link>
               </Card>
             ) : (
               <p className="text-sm text-muted-foreground">A falha deste caso não foi encontrada na rodagem da reexecução.</p>

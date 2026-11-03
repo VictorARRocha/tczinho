@@ -101,8 +101,6 @@ describe("painel do caso nas reexecucoes", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Reexecutado com sucesso" }));
     const painel = await screen.findByRole("dialog");
     expect(await within(painel).findByText("Passou nesta reexecução")).toBeInTheDocument();
-    expect(within(painel).getByRole("link", { name: "Abrir a rodagem da reexecução" }))
-      .toHaveAttribute("href", `/modulo/contabil?run=${REEXEC}&tab=resumo`);
     fireEvent.click(within(painel).getByRole("tab", { name: /Execução original/ }));
     expect(await within(painel).findByText("Outro erro original")).toBeInTheDocument();
   });
