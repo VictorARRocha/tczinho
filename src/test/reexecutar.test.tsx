@@ -165,10 +165,44 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
-      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]", ct_desmarcar: "[0.3]", branch: "", source_run_id: "rod_a08",
+      vm_name: "a08", versao: "proxima1.26.10.0", casos_teste: "[0.1], [3.1.1]", ct_desmarcar: "[0.3]", branch: "", source_run_id: "rod_a08",
     });
     // Depois de enviar volta para a etapa 1.
     expect(await screen.findByRole("heading", { name: "Escolha a rodagem" })).toBeInTheDocument();
+  });
+
+  it("etapa 3: edita o JSON antes de enviar; JSON quebrado nao envia; desfazer volta ao montado", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Configuração técnica enviada/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Editar/ }));
+    const editor = screen.getByLabelText("JSON do pedido") as HTMLTextAreaElement;
+    const config = JSON.parse(editor.value);
+    expect(config).toMatchObject({ vm_name: "a08", casos_teste: "[0.1], [3.1.1]" });
+
+    fireEvent.change(editor, { target: { value: "{ quebrado" } });
+    expect(screen.getByText(/JSON inválido/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Enviar JSON editado" }));
+    expect(api.createRerunRequest).not.toHaveBeenCalled();
+
+    fireEvent.change(editor, { target: { value: JSON.stringify({ ...config, casos_teste: "[3.1.1], [3.1.2]", paralelo: "a09" }) } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar JSON editado" }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    // Vai o editado, ainda ligado a rodagem de origem.
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
+      vm_name: "a08", casos_teste: "[3.1.1], [3.1.2]", paralelo: "a09", source_run_id: "rod_a08",
+    });
+  });
+
+  it("etapa 3: desfazer a edicao volta ao pedido montado pela tela", async () => {
+    await irParaConfirmacao();
+    fireEvent.click(screen.getByRole("button", { name: /Configuração técnica enviada/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Editar/ }));
+    fireEvent.change(screen.getByLabelText("JSON do pedido"), { target: { value: "{}" } });
+    fireEvent.click(screen.getByRole("button", { name: /Desfazer edição/ }));
+    expect(screen.queryByLabelText("JSON do pedido")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
+    await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[0.1], [3.1.1]", ct_desmarcar: "[0.3]" });
   });
 
   it("manter base atual (desligado por padrao) desmarca [0.4] e [0.5]", async () => {
@@ -195,7 +229,7 @@ describe("Reexecutar rodagens (etapas)", () => {
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
     expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({
-      vm_name: "a03", versao: "proxima1.26.10.0", casos_teste: "[3.1.1]",
+      vm_name: "a03", versao: "proxima1.26.10.0", casos_teste: "[0.1], [3.1.1]",
     });
   });
 
@@ -214,7 +248,7 @@ describe("Reexecutar rodagens (etapas)", () => {
     expect(screen.getByText(/Só a versão muda no pedido/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
-    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ vm_name: "a08", versao: "clientes", casos_teste: "[3.1.1]" });
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ vm_name: "a08", versao: "clientes", casos_teste: "[0.1], [3.1.1]" });
   });
 
   it("financeiro: inclui o [5.0] Configura base no pedido", async () => {
@@ -223,7 +257,7 @@ describe("Reexecutar rodagens (etapas)", () => {
     expect(screen.getByText(/Configura base/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Rodar 1 caso de novo/ }));
     await waitFor(() => expect(api.createRerunRequest).toHaveBeenCalledTimes(1));
-    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[5.0], [5.1.2]" });
+    expect(api.createRerunRequest.mock.calls[0][0]).toMatchObject({ casos_teste: "[0.1], [5.0], [5.1.2]" });
   });
 
   it("financeiro com base mantida nao manda o [5.0]", async () => {

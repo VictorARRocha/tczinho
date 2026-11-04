@@ -218,14 +218,17 @@ export default function RegravarBases() {
     setOutraBranch(false);
     setBranchUrl("");
   }, [runId]);
-  // Arquivo que deixou de ser regravavel (ex.: entrou num pedido) sai da selecao.
+  // Arquivo que deixou de ser regravavel (ex.: entrou num pedido) sai da selecao. Enquanto a lista
+  // recarrega (ex.: trocou para outra branch) ela vem vazia: so confere depois que chegar, senao a
+  // selecao inteira sumia.
   useEffect(() => {
+    if (!candidatos) return;
     setMarcados((prev) => {
       const ok = new Set(regravaveis.map((i) => i.difference_id));
       const next = new Set([...prev].filter((id) => ok.has(id)));
       return next.size === prev.size ? prev : next;
     });
-  }, [regravaveis]);
+  }, [candidatos, regravaveis]);
 
   const selecionados = useMemo(() => itens.filter((i) => marcados.has(i.difference_id)), [itens, marcados]);
   const padrao = useMemo(
@@ -237,8 +240,9 @@ export default function RegravarBases() {
     if (!mensagemEditada) setMensagem(padrao);
   }, [padrao, mensagemEditada]);
 
-  // Sem ordenacao escolhida, fica na ordem da API.
-  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  // Padrao: pelo codigo do caso (2.6.1.2.1.18 antes de 2.6.1.2.10.31); a API devolve por texto.
+  // "Ordem original" (null) continua disponivel na lista do celular.
+  const [sortKey, setSortKey] = useState<SortKey | null>("caso");
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));

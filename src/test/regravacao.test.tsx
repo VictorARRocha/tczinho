@@ -213,7 +213,8 @@ describe("tela de regravacao", () => {
     await waitFor(() => expect(api.branchPedida).toBe(proxima));
     expect(screen.getByText("Regravar em:")).toBeInTheDocument();
 
-    fireEvent.click(await screen.findByLabelText("Selecionar d1_Atual.txt"));
+    // A selecao feita antes de trocar a branch continua (a lista recarrega vazia e antes limpava tudo).
+    expect(await screen.findByLabelText("Selecionar d1_Atual.txt")).toBeChecked();
     revisar();
     fireEvent.click(screen.getByRole("button", { name: "Regravar 1 arquivo na branch Proxima10_0" }));
     const dialog = await screen.findByRole("dialog");
@@ -283,10 +284,12 @@ describe("tela de regravacao", () => {
     const ordem = () =>
       screen.getAllByRole("checkbox", { name: /^Selecionar / }).map((c) => c.getAttribute("aria-label")!.replace("Selecionar ", ""));
 
-    fireEvent.click(screen.getByRole("button", { name: "Caso" }));
+    // Sem clicar: ja vem pelo codigo do caso (a API manda 2.5.1.1.12 antes de 2.5.1.1.5).
     expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]);
     fireEvent.click(screen.getByRole("button", { name: "Caso" }));
     expect(ordem()).toEqual(["c_outro_Atual.txt", "b_lanc_Atual.txt", "a_serv_Atual.txt"]);
+    fireEvent.click(screen.getByRole("button", { name: "Caso" }));
+    expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]);
 
     fireEvent.click(screen.getByRole("button", { name: "Arquivo atual" }));
     expect(ordem()).toEqual(["a_serv_Atual.txt", "b_lanc_Atual.txt", "c_outro_Atual.txt"]);

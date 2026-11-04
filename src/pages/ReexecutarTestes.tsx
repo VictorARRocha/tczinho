@@ -13,6 +13,8 @@ import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { copiarTexto } from "@/lib/copiar";
+import { configToText, parseConfigText, trimConfigStrings, validateConfigForSubmit } from "@/lib/jenkinsConfig";
+import { Textarea } from "@/components/ui/textarea";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -56,6 +58,8 @@ import {
   Circle,
   CircleCheck,
   Monitor,
+  Pencil,
+  RotateCcw,
 } from "lucide-react";
 import {
   fetchCasosReexecutaveis,
@@ -65,6 +69,7 @@ import {
   type RodagemListItem,
   type CasoReexecutavel,
   type RerunRequest,
+  type CreateRerunPayload,
 } from "@/services/data";
 import { invalidateRerunRequests, useAllRuns } from "@/services/queries";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
@@ -150,6 +155,9 @@ export default function ReexecutarTestes() {
   const [loadingCasos, setLoadingCasos] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  // JSON editado a mao na confirmacao (null = o montado pela tela). Sair da etapa descarta.
+  const [jsonEditado, setJsonEditado] = useState<string | null>(null);
+  useEffect(() => { if (etapa !== 3) setJsonEditado(null); }, [etapa]);
   const [fVm, setFVm] = useState<string>("all");
   const [fModulo, setFModulo] = useState<string>("all");
   const [mostrarTodas, setMostrarTodas] = useState(false);
@@ -319,7 +327,9 @@ export default function ReexecutarTestes() {
       ),
     );
     // Financeiro usa base propria: o mod_xml ja tira [0.4]/[0.5], mas so marca o [5.0] (Configura base) se ele vier no pedido.
-    if (!manterBase && ids.some((id) => id.startsWith("5."))) ids.unshift("5.0");
+    if (!manterBase && ids.some((id) => id.startsWith("5.")) && !ids.includes("5.0")) ids.unshift("5.0");
+    // Sem "Manter base atual" o pedido leva tambem o [0.1].
+    if (!manterBase && !ids.includes("0.1")) ids.unshift("0.1");
     return ids.map((id) => `[${id}]`).join(", ");
   }, [casosSelecionados, manterBase]);
   const financeiro = casosSelecionados.some((c) => (c.id_caso_teste || "").trim().startsWith("5."));
@@ -346,9 +356,17 @@ export default function ReexecutarTestes() {
     if (!vmPedido) { toast.error("VM não identificada para esta rodagem"); return; }
     if (!versao) { toast.error("Versão ausente na rodagem"); return; }
     if (!casosTesteString) { toast.error("Selecione ao menos um caso de teste"); return; }
+    // JSON editado: vai como esta (mesma validacao da rodagem completa), ligado a rodagem de origem.
+    let editado: CreateRerunPayload | null = null;
+    if (jsonEditado !== null) {
+      const lido = parseConfigText(jsonEditado);
+      const erro = lido.error ?? validateConfigForSubmit(lido.config!);
+      if (erro) { toast.error("JSON inválido", { description: erro }); return; }
+      editado = { ...trimConfigStrings(lido.config!), source_run_id: selectedRun.id_rodagem } as unknown as CreateRerunPayload;
+    }
     setSubmitting(true);
     try {
-      await createRerunRequest({
+      await createRerunRequest(editado ?? {
         vm_name: vmPedido,
         versao,
         casos_teste: casosTesteString,
@@ -362,6 +380,7 @@ export default function ReexecutarTestes() {
         description: "O pedido foi para a fila do Jenkins.",
       });
       setMarcados(new Set());
+      setJsonEditado(null);
       setOutraVm(false);
       setVmEscolhida("");
       setOutraVersao(false);
@@ -814,9 +833,35 @@ export default function ReexecutarTestes() {
               </button>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <pre className="mt-2 text-xs bg-muted/40 border border-border rounded-lg p-3 overflow-x-auto">
+              {jsonEditado === null ? (
+                <div className="relative mt-2">
+                  <pre className="text-xs bg-muted/40 border border-border rounded-lg p-3 pr-24 overflow-x-auto">
 {JSON.stringify(configJsonPreview, null, 2)}
-              </pre>
+                  </pre>
+                  <Button size="sm" variant="ghost" className="absolute right-2 top-2" disabled={!podeSolicitar}
+                    onClick={() => setJsonEditado(configToText(configJsonPreview))}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" aria-hidden /> Editar
+                  </Button>
+                </div>
+              ) : (
+                <div className="mt-2 space-y-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs text-warning">Vai o JSON editado: VM, versão, casos e opções acima não valem mais.</p>
+                    <Button size="sm" variant="ghost" onClick={() => setJsonEditado(null)}>
+                      <RotateCcw className="h-3.5 w-3.5 mr-1" aria-hidden /> Desfazer edição
+                    </Button>
+                  </div>
+                  <Textarea
+                    aria-label="JSON do pedido"
+                    value={jsonEditado}
+                    onChange={(e) => setJsonEditado(e.target.value)}
+                    spellCheck={false}
+                    className="min-h-[220px] font-mono text-xs leading-relaxed"
+                    aria-invalid={!!parseConfigText(jsonEditado).error}
+                  />
+                  <p aria-live="polite" className="text-xs text-destructive empty:hidden">{parseConfigText(jsonEditado).error || ""}</p>
+                </div>
+              )}
             </CollapsibleContent>
           </Collapsible>
 
@@ -844,7 +889,7 @@ export default function ReexecutarTestes() {
                 className="max-sm:w-full"
               >
                 <PlayCircle className="h-4 w-4 mr-2" />
-                {submitting ? "Enviando…" : `Rodar ${casosDoPedido.length} ${casosDoPedido.length === 1 ? "caso" : "casos"} de novo`}
+                {submitting ? "Enviando…" : jsonEditado !== null ? "Enviar JSON editado" : `Rodar ${casosDoPedido.length} ${casosDoPedido.length === 1 ? "caso" : "casos"} de novo`}
               </Button>
             </div>
           </div>
