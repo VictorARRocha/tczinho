@@ -6,7 +6,7 @@ import { useFocoNaEtapa } from "@/hooks/usePainel";
 import { usePermissao } from "@/hooks/use-permissao";
 import { useAuth } from "@/contexts/AuthContext";
 import { mensagemDaApi } from "@/lib/apiErro";
-import { nomeModulo, podeNoModulo } from "@/lib/permissoes";
+import { LINHA_VISUAL, nomeModulo, podeNoModulo } from "@/lib/permissoes";
 import { VM_OPTIONS } from "@/lib/branchVm";
 import { formatDateTime } from "@/lib/format";
 import { formatarVersao, formatarVm, ordenarVersoes } from "@/lib/rodagemTexto";
@@ -132,10 +132,11 @@ const runModulo = (r: RodagemListItem) => (r.modulo_slug || r.sistema || "").toS
 export default function ReexecutarTestes() {
   const podeSolicitar = usePermissao("rodagem");
   const { data: todasRodagens = [] } = useAllRuns();
-  // So as rodagens dos modulos da pessoa (a API confere de novo no envio).
+  // So as rodagens dos modulos da pessoa (a API confere de novo no envio). Suprema e Practice ficam
+  // de fora: o Jenkins so roda o projeto do Unico.
   const { profile, isAdmin } = useAuth();
   const runs = useMemo(
-    () => todasRodagens.filter((r) => podeNoModulo(profile, isAdmin, r.modulo_slug)),
+    () => todasRodagens.filter((r) => podeNoModulo(profile, isAdmin, r.modulo_slug) && !LINHA_VISUAL.includes(String(r.modulo_slug || ""))),
     [todasRodagens, profile, isAdmin],
   );
   const isMobile = useIsMobile();

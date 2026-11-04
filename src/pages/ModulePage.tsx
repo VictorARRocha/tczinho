@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { useModulos, usePermissao } from "@/hooks/use-permissao";
 import { useUltimoValor } from "@/hooks/usePainel";
-import { nomeModulo, SEM_MODULO } from "@/lib/permissoes";
+import { LINHA_VISUAL, nomeModulo, SEM_MODULO } from "@/lib/permissoes";
 import { AgrupamentosTab } from "./module/AgrupamentosTab";
 import { FalhasTab, montarItensFalhas } from "./module/FalhasTab";
 import { mapaReexecucao, rotuloExecucao, temResultado } from "./module/reexecucao";
@@ -307,7 +307,8 @@ function PaginaDoModulo() {
     return () => { vivo = false; };
   }, [rodagemId]);
 
-  const acaoReexecutar = podePedirRodagem && rodagemId && falhas.length > 0 ? (
+  // O Jenkins so roda o projeto do Unico: Suprema e Practice nao tem reexecucao.
+  const acaoReexecutar = podePedirRodagem && rodagemId && falhas.length > 0 && !LINHA_VISUAL.includes(slug) ? (
     <Button asChild size="sm" variant="outline" className="h-11 w-full text-xs sm:w-auto md:h-8">
       <Link to={`/jenkins/reexecutar?run=${encodeURIComponent(rodagemId)}`}>
         <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Reexecutar casos
