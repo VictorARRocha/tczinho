@@ -29,6 +29,9 @@ export interface AppUserProfile {
   permissions?: string[];
   /** Modulos em que pode agir: slugs ("folha", ...) ou ["*"] = todos. Ausente (API antiga) = todos. */
   modules?: string[];
+  /** Esqueci a senha (so na visao do admin): quando pediu e ate quando vale o link gerado. */
+  password_reset_requested_at?: string | null;
+  password_reset_expires_at?: string | null;
 }
 
 export interface LocalAuthSession {
@@ -167,6 +170,41 @@ export const authApi = {
       method: "PATCH",
       headers: getAuthHeader(),
       body: JSON.stringify(data),
+    });
+  },
+
+  requestPasswordReset(username: string) {
+    return request<{ ok: boolean }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ username: normalizeUsername(username) }),
+    });
+  },
+
+  checkPasswordReset(token: string) {
+    return request<{ ok: boolean; username: string }>("/auth/password-reset/check", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  },
+
+  confirmPasswordReset(token: string, password: string) {
+    return request<{ ok: boolean; username: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    });
+  },
+
+  createPasswordResetLink(userId: string) {
+    return request<{ ok: boolean; token: string; expires_at: string }>(`/auth/users/${encodeURIComponent(userId)}/password-reset`, {
+      method: "POST",
+      headers: getAuthHeader(),
+    });
+  },
+
+  discardPasswordReset(userId: string) {
+    return request<{ ok: boolean; user: AppUserProfile }>(`/auth/users/${encodeURIComponent(userId)}/password-reset/discard`, {
+      method: "POST",
+      headers: getAuthHeader(),
     });
   },
 };

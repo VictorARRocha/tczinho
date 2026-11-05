@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw, SlidersHorizontal, Search, Check } from "lucide-react";
+import { Loader2, ShieldCheck, ShieldOff, UserCheck, UserX, Ban, RotateCcw, SlidersHorizontal, Search, Check, KeyRound, X, Copy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatDateTime } from "@/lib/format";
 import { MODULOS_ACESSO, PERMISSOES, TODOS_MODULOS, nomeModulo, type Permissao } from "@/lib/permissoes";
 
 type AppUserRow = AppUserProfile;
@@ -22,6 +23,12 @@ const STATUS_LABEL: Record<AppUserRow["status"], string> = {
   rejected: "Rejeitado",
   disabled: "Desativado",
 };
+
+/** Abas: os status do cadastro e os pedidos de "Esqueci a senha". */
+type Aba = AppUserRow["status"] | "senha";
+const ABAS: Aba[] = ["pending", "approved", "rejected", "disabled", "senha"];
+const ABA_LABEL: Record<Aba, string> = { ...STATUS_LABEL, senha: "Redefinir senha" };
+const naAba = (u: AppUserRow, aba: Aba) => (aba === "senha" ? !!u.password_reset_requested_at : u.status === aba);
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
@@ -38,7 +45,8 @@ export default function AdminUsuarios() {
   const { profile, refreshProfile } = useAuth();
   const [users, setUsers] = useState<AppUserRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<AppUserRow["status"]>("pending");
+  const [tab, setTab] = useState<Aba>("pending");
+  const [linkGerado, setLinkGerado] = useState<{ username: string; url: string; expires_at: string } | null>(null);
   const [rejectFor, setRejectFor] = useState<AppUserRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [edicao, setEdicao] = useState<Edicao | null>(null);
@@ -51,10 +59,11 @@ export default function AdminUsuarios() {
     try {
       const { users } = await authApi.users();
       setUsers(users ?? []);
-      // Sem cadastro pendente, abre direto nos aprovados (em vez de uma lista vazia).
+      // Sem cadastro pendente, abre nos pedidos de senha ou nos aprovados (em vez de uma lista vazia).
       if (primeiraCarga.current) {
         primeiraCarga.current = false;
-        if (!(users ?? []).some((u) => u.status === "pending")) setTab("approved");
+        const lista = users ?? [];
+        if (!lista.some((u) => u.status === "pending")) setTab(lista.some((u) => naAba(u, "senha")) ? "senha" : "approved");
       }
     } catch (error) {
       toast.error("Erro ao carregar usuários", { description: errorMessage(error, "Falha ao carregar usuários.") });
@@ -97,9 +106,39 @@ export default function AdminUsuarios() {
     return updateUser(u, { role: newRole });
   }
 
+  async function gerarLink(u: AppUserRow) {
+    try {
+      const { token, expires_at } = await authApi.createPasswordResetLink(u.id);
+      setLinkGerado({ username: u.username, url: `${window.location.origin}/redefinir-senha?token=${encodeURIComponent(token)}`, expires_at });
+      await load();
+    } catch (error) {
+      toast.error("Não foi possível gerar o link", { description: errorMessage(error, "Falha ao gerar o link.") });
+    }
+  }
+
+  async function descartarPedido(u: AppUserRow) {
+    try {
+      await authApi.discardPasswordReset(u.id);
+      toast.success(`Pedido de ${u.username} descartado`);
+      await load();
+    } catch (error) {
+      toast.error("Não foi possível descartar", { description: errorMessage(error, "Falha ao descartar o pedido.") });
+    }
+  }
+
+  async function copiarLink() {
+    if (!linkGerado) return;
+    try {
+      await navigator.clipboard.writeText(linkGerado.url);
+      toast.success("Link copiado");
+    } catch {
+      toast.error("Não foi possível copiar", { description: "Selecione o link e copie manualmente." });
+    }
+  }
+
   const termo = busca.trim().toLowerCase();
   const filtered = useMemo(
-    () => users.filter((u) => u.status === tab && (!termo || `${u.username} ${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(termo))),
+    () => users.filter((u) => naAba(u, tab) && (!termo || `${u.username} ${u.first_name} ${u.last_name} ${u.email}`.toLowerCase().includes(termo))),
     [users, tab, termo],
   );
 
@@ -112,12 +151,12 @@ export default function AdminUsuarios() {
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as AppUserRow["status"])}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Aba)}>
         <div className="flex flex-wrap items-center gap-3">
         <TabsList className="max-sm:h-auto max-sm:flex-wrap max-sm:justify-start">
-          {(["pending", "approved", "rejected", "disabled"] as const).map((s) => (
+          {ABAS.map((s) => (
             <TabsTrigger key={s} value={s}>
-              {STATUS_LABEL[s]} <Badge variant="secondary" className="ml-2">{users.filter((u) => u.status === s).length}</Badge>
+              {ABA_LABEL[s]} <Badge variant="secondary" className="ml-2">{users.filter((u) => naAba(u, s)).length}</Badge>
             </TabsTrigger>
           ))}
         </TabsList>
@@ -129,12 +168,12 @@ export default function AdminUsuarios() {
         )}
         </div>
 
-        {(["pending", "approved", "rejected", "disabled"] as const).map((s) => (
+        {ABAS.map((s) => (
           <TabsContent key={s} value={s} className="space-y-2 mt-4">
             {loading ? (
               <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</div>
             ) : filtered.length === 0 ? (
-              <p className="py-6 text-sm text-muted-foreground">{termo ? "Ninguém encontrado com essa busca." : `Nenhum usuário ${STATUS_LABEL[s].toLowerCase()}.`}</p>
+              <p className="py-6 text-sm text-muted-foreground">{termo ? "Ninguém encontrado com essa busca." : s === "senha" ? "Nenhum pedido de nova senha." : `Nenhum usuário ${STATUS_LABEL[s].toLowerCase()}.`}</p>
             ) : (
               filtered.map((u) => (
                 <Card key={u.id} aria-label={`Usuário ${u.username}`} className="flex flex-wrap items-center gap-3 px-4 py-3 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)_auto]">
@@ -150,8 +189,21 @@ export default function AdminUsuarios() {
                       <p className="text-xs text-muted-foreground mt-0.5">Motivo: {u.rejection_reason}</p>
                     )}
                   </div>
-                  {(u.status === "approved" || u.status === "pending") ? <ResumoAcesso user={u} /> : <div className="hidden lg:block" />}
+                  {s === "senha" ? (
+                    <div className="flex-[2] min-w-[240px] text-xs text-muted-foreground space-y-0.5">
+                      <p>Pediu nova senha em <span className="text-foreground/90">{formatDateTime(u.password_reset_requested_at)}</span></p>
+                      {u.password_reset_expires_at && new Date(u.password_reset_expires_at) > new Date() && (
+                        <p>Link gerado, vale até <span className="text-foreground/90">{formatDateTime(u.password_reset_expires_at)}</span></p>
+                      )}
+                    </div>
+                  ) : (u.status === "approved" || u.status === "pending") ? <ResumoAcesso user={u} /> : <div className="hidden lg:block" />}
                   <div className="flex flex-wrap gap-2 lg:justify-end">
+                    {s === "senha" ? (
+                      <>
+                        <Button size="sm" onClick={() => gerarLink(u)}><KeyRound className="h-4 w-4 mr-1" />{u.password_reset_expires_at ? "Gerar novo link" : "Aprovar e gerar link"}</Button>
+                        <Button size="sm" variant="ghost" onClick={() => descartarPedido(u)}><X className="h-4 w-4 mr-1" />Descartar</Button>
+                      </>
+                    ) : <>
                     {u.status === "pending" && (
                       <>
                         <Button size="sm" onClick={() => setEdicao({ user: u, modo: "aprovar" })}><UserCheck className="h-4 w-4 mr-1" />Revisar e aprovar</Button>
@@ -180,6 +232,7 @@ export default function AdminUsuarios() {
                     {(u.status === "rejected" || u.status === "disabled") && (
                       <Button size="sm" onClick={() => reactivate(u)}><RotateCcw className="h-4 w-4 mr-1" />Reativar</Button>
                     )}
+                    </>}
                   </div>
                 </Card>
               ))
@@ -208,6 +261,22 @@ export default function AdminUsuarios() {
           onRejeitar={() => { setRejectFor(edicao.user); setRejectReason(""); setEdicao(null); }}
         />
       )}
+
+      <Dialog open={!!linkGerado} onOpenChange={(open) => !open && setLinkGerado(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Link de redefinição de {linkGerado?.username}</DialogTitle>
+            <DialogDescription>
+              Mande este link para a pessoa. Ele é de uso único e vale até {formatDateTime(linkGerado?.expires_at)}. Gerar outro invalida este.
+            </DialogDescription>
+          </DialogHeader>
+          <Input readOnly aria-label="Link de redefinição" value={linkGerado?.url ?? ""} onFocus={(e) => e.currentTarget.select()} />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinkGerado(null)}>Fechar</Button>
+            <Button onClick={copiarLink}><Copy className="h-4 w-4 mr-1" />Copiar link</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!desativarFor} onOpenChange={(open) => !open && setDesativarFor(null)}>
         <DialogContent>

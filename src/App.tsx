@@ -14,6 +14,8 @@ import Login from "./pages/Login";
 import Cadastro from "./pages/Cadastro";
 import AguardandoAprovacao from "./pages/AguardandoAprovacao";
 import AcessoNegado from "./pages/AcessoNegado";
+import EsqueciSenha from "./pages/EsqueciSenha";
+import RedefinirSenha from "./pages/RedefinirSenha";
 
 const ModulePage = lazy(() => import("./pages/ModulePage"));
 const ReexecutarTestes = lazy(() => import("./pages/ReexecutarTestes"));
@@ -47,6 +49,8 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/cadastro" element={<Cadastro />} />
             <Route path="/aguardando-aprovacao" element={<AguardandoAprovacao />} />
+            <Route path="/esqueci-senha" element={<EsqueciSenha />} />
+            <Route path="/redefinir-senha" element={<RedefinirSenha />} />
 
             {/* protegidas */}
             <Route
