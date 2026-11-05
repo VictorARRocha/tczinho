@@ -3,6 +3,9 @@ import App from "./App.tsx";
 import "./index.css";
 import { ThemeProvider } from "./components/ThemeProvider";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { recarregarAposPublicacao } from "./lib/recarregarAposPublicacao";
+
+window.addEventListener("vite:preloadError", (e) => recarregarAposPublicacao(e));
 
 createRoot(document.getElementById("root")!).render(
   <ThemeProvider>
