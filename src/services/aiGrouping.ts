@@ -85,3 +85,19 @@ export async function requestAiGrouping(runId: string, dryRun = false): Promise<
   if (!res.ok) throw await parseError(res);
   return (await res.json()) as AiGroupStatusResponse;
 }
+
+// Chat lateral: POST /chat. A IA so le dados, pelas mesmas rotas e modulos de quem pergunta.
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function askChat(messages: ChatMessage[]): Promise<string> {
+  const res = await fetch(`${baseUrl()}/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(true) },
+    body: JSON.stringify({ messages }),
+  });
+  if (!res.ok) throw await parseError(res);
+  return ((await res.json()) as { resposta: string }).resposta;
+}

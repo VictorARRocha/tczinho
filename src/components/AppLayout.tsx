@@ -4,6 +4,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./AppSidebar";
 import { ThemeToggle } from "./ThemeToggle";
+import { ChatLateral } from "./ChatLateral";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -52,6 +53,7 @@ export function AppLayout() {
               <span className="min-w-0 truncate text-sm font-semibold md:hidden">{pageTitle}</span>
             )}
             <div className="ml-auto flex items-center gap-2">
+              {profile && <ChatLateral />}
               <ThemeToggle />
               {profile && (
                 <DropdownMenu>
