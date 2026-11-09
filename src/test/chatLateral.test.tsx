@@ -6,15 +6,20 @@ vi.mock("@/services/aiGrouping", () => ({ askChat: (...a: unknown[]) => askChat(
 
 import { ChatLateral } from "@/components/ChatLateral";
 
-describe("chat lateral", () => {
-  it("envia o historico e mostra a resposta", async () => {
-    askChat.mockResolvedValueOnce("Fiscal: 4 falhas.");
+describe("assistente flutuante", () => {
+  it("envia o historico, mostra a resposta com negrito e mantem a conversa ao fechar", async () => {
+    askChat.mockResolvedValueOnce("Fiscal teve **4 falhas**.");
     render(<ChatLateral />);
     fireEvent.click(screen.getByRole("button", { name: "Assistente de IA" }));
     fireEvent.change(screen.getByLabelText("Pergunta"), { target: { value: "resuma o fiscal" } });
     fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
-    expect(await screen.findByText("Fiscal: 4 falhas.")).toBeInTheDocument();
+    expect(await screen.findByText("4 falhas")).toHaveProperty("tagName", "STRONG");
     expect(askChat).toHaveBeenCalledWith([{ role: "user", content: "resuma o fiscal" }]);
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Assistente de IA" }));
+    expect(screen.getByText("4 falhas")).toBeInTheDocument();
   });
 
   it("mostra o erro da API", async () => {

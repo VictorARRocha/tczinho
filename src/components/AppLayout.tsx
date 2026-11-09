@@ -53,7 +53,6 @@ export function AppLayout() {
               <span className="min-w-0 truncate text-sm font-semibold md:hidden">{pageTitle}</span>
             )}
             <div className="ml-auto flex items-center gap-2">
-              {profile && <ChatLateral />}
               <ThemeToggle />
               {profile && (
                 <DropdownMenu>
@@ -90,6 +89,8 @@ export function AppLayout() {
           </main>
         </div>
       </div>
+      {/* Fora do header: o backdrop-blur dele prenderia o "fixed" da bolinha dentro do cabecalho. */}
+      {profile && <ChatLateral />}
     </SidebarProvider>
   );
 }
