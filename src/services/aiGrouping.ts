@@ -92,12 +92,27 @@ export interface ChatMessage {
   content: string;
 }
 
-export async function askChat(messages: ChatMessage[]): Promise<string> {
+/** Pedido montado pela IA: nada foi enviado; o botao Confirmar usa as rotas de sempre. */
+export interface PropostaChat {
+  tipo: "rodagem" | "reexecucao" | "cancelamento";
+  titulo: string;
+  itens: [string, string][];
+  payload?: import("./data/types").CreateRerunPayload;
+  pedido_id?: string;
+}
+
+export interface RespostaChat {
+  resposta: string;
+  propostas: PropostaChat[];
+}
+
+export async function askChat(messages: ChatMessage[]): Promise<RespostaChat> {
   const res = await fetch(`${baseUrl()}/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders(true) },
     body: JSON.stringify({ messages }),
   });
   if (!res.ok) throw await parseError(res);
-  return ((await res.json()) as { resposta: string }).resposta;
+  const body = (await res.json()) as Partial<RespostaChat>;
+  return { resposta: body.resposta || "", propostas: body.propostas || [] };
 }

@@ -1,11 +1,76 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { Loader2, Send, Sparkles, X } from "lucide-react";
+import { Check, Loader2, Send, Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { askChat, type AiGroupError, type ChatMessage } from "@/services/aiGrouping";
+import { mensagemDaApi } from "@/lib/apiErro";
+import { askChat, type AiGroupError, type ChatMessage, type PropostaChat } from "@/services/aiGrouping";
+import { cancelRerunRequest, createRerunRequest, formatNowBr, formatNowMinusOneMinuteBr } from "@/services/data";
+import { invalidateRerunRequests } from "@/services/queries";
 
 const EXEMPLOS = ["Como foi a última rodagem de cada módulo?", "Resuma as falhas do Fiscal na última semana"];
+
+type Mensagem = ChatMessage & { propostas?: PropostaChat[] };
+type EstadoProposta = { fase: "pendente" | "enviando" | "feito" | "descartado" } | { fase: "erro"; mensagem: string };
+
+/** Envia a proposta com o login de quem clicou, pelas mesmas rotas e validacoes das telas. */
+async function confirmarProposta(p: PropostaChat) {
+  if (p.tipo === "cancelamento") {
+    await cancelRerunRequest(p.pedido_id!, "Cancelado pelo assistente do dashboard.");
+  } else {
+    // "Agora" e a hora do clique, como nas telas (Rodagem completa usa um minuto antes).
+    const agora = p.tipo === "rodagem" ? formatNowMinusOneMinuteBr() : formatNowBr();
+    await createRerunRequest({ ...p.payload!, data_hora: p.payload!.data_hora || agora });
+  }
+  invalidateRerunRequests();
+}
+
+function CartaoProposta({ proposta }: { proposta: PropostaChat }) {
+  const [estado, setEstado] = useState<EstadoProposta>({ fase: "pendente" });
+  const confirmar = async () => {
+    setEstado({ fase: "enviando" });
+    try {
+      await confirmarProposta(proposta);
+      setEstado({ fase: "feito" });
+    } catch (e) {
+      setEstado({ fase: "erro", mensagem: mensagemDaApi(e) });
+    }
+  };
+  const cancelamento = proposta.tipo === "cancelamento";
+  return (
+    <div className="mr-auto w-[90%] rounded-xl border border-border bg-card p-3 text-sm">
+      <p className="mb-2 font-semibold">{proposta.titulo}</p>
+      <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1">
+        {proposta.itens.map(([rotulo, valor]) => (
+          <Fragment key={rotulo}>
+            <dt className="text-muted-foreground">{rotulo}</dt>
+            <dd className="whitespace-pre-wrap [overflow-wrap:anywhere]">{valor}</dd>
+          </Fragment>
+        ))}
+      </dl>
+      {estado.fase === "feito" ? (
+        <p role="status" className="mt-3 flex items-center gap-1.5 text-success">
+          <Check className="h-4 w-4" /> {cancelamento ? "Cancelamento pedido." : "Pedido enviado para a fila do Jenkins."}
+        </p>
+      ) : estado.fase === "descartado" ? (
+        <p className="mt-3 text-muted-foreground">Descartado. Nada foi enviado.</p>
+      ) : (
+        <>
+          {estado.fase === "erro" && <p role="alert" className="mt-3 break-words text-destructive">{estado.mensagem}</p>}
+          <div className="mt-3 flex gap-2">
+            <Button size="sm" variant={cancelamento ? "destructive" : "default"} disabled={estado.fase === "enviando"} onClick={confirmar}>
+              {estado.fase === "enviando" && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+              {cancelamento ? "Confirmar cancelamento" : "Confirmar"}
+            </Button>
+            <Button size="sm" variant="ghost" disabled={estado.fase === "enviando"} onClick={() => setEstado({ fase: "descartado" })}>
+              Descartar
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 /** Texto da IA: so **negrito** vira <strong>; o resto fica como texto (quebras de linha mantidas). */
 function TextoIa({ texto }: { texto: string }) {
@@ -26,7 +91,7 @@ function TextoIa({ texto }: { texto: string }) {
  *  A conversa fica so na tela: fechar mantem, recarregar a pagina apaga. */
 export function ChatLateral() {
   const [aberto, setAberto] = useState(false);
-  const [mensagens, setMensagens] = useState<ChatMessage[]>([]);
+  const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [texto, setTexto] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [erro, setErro] = useState("");
@@ -50,14 +115,15 @@ export function ChatLateral() {
   async function enviar(pergunta: string) {
     pergunta = pergunta.trim();
     if (!pergunta || enviando) return;
-    const historico: ChatMessage[] = [...mensagens, { role: "user", content: pergunta }];
+    const historico: Mensagem[] = [...mensagens, { role: "user", content: pergunta }];
     setMensagens(historico);
     setTexto("");
     setErro("");
     setEnviando(true);
     try {
-      const resposta = await askChat(historico);
-      setMensagens([...historico, { role: "assistant", content: resposta }]);
+      // A API recebe so o texto da conversa; as propostas ficam na tela.
+      const { resposta, propostas } = await askChat(historico.map(({ role, content }) => ({ role, content })));
+      setMensagens([...historico, { role: "assistant", content: resposta, propostas }]);
     } catch (e) {
       setErro((e as AiGroupError).message || "Não foi possível falar com a IA.");
     } finally {
@@ -77,7 +143,7 @@ export function ChatLateral() {
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
             <div className="min-w-0 flex-1">
               <h2 className="text-sm font-semibold">Assistente</h2>
-              <p className="text-xs text-muted-foreground">Consulta rodagens, falhas e reexecuções. Não pede rodagens.</p>
+              <p className="text-xs text-muted-foreground">Consulta rodagens e falhas. Pedidos só são enviados quando você confirma.</p>
             </div>
             <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" onClick={() => setAberto(false)} aria-label="Fechar assistente">
               <X className="h-4 w-4" />
@@ -101,17 +167,19 @@ export function ChatLateral() {
               </div>
             )}
             {mensagens.map((m, i) => (
-              <div
-                key={i}
-                className={cn(
-                  "max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere]",
-                  m.role === "user"
-                    ? "ml-auto rounded-br-sm bg-primary text-primary-foreground"
-                    : "mr-auto rounded-bl-sm bg-secondary",
-                )}
-              >
-                {m.role === "assistant" ? <TextoIa texto={m.content} /> : m.content}
-              </div>
+              <Fragment key={i}>
+                <div
+                  className={cn(
+                    "w-fit max-w-[85%] whitespace-pre-wrap break-words rounded-2xl px-3 py-2 text-sm [overflow-wrap:anywhere]",
+                    m.role === "user"
+                      ? "ml-auto rounded-br-sm bg-primary text-primary-foreground"
+                      : "mr-auto rounded-bl-sm bg-secondary",
+                  )}
+                >
+                  {m.role === "assistant" ? <TextoIa texto={m.content} /> : m.content}
+                </div>
+                {m.propostas?.map((p, j) => <CartaoProposta key={j} proposta={p} />)}
+              </Fragment>
             ))}
             {enviando && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
