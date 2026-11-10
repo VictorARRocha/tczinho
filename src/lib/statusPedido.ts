@@ -25,6 +25,8 @@ const ERRO = TOM_STATUS.erro;
 
 export const STATUS_PEDIDO: Record<string, MetaStatus> = {
   solicitado: { label: "Solicitado", selo: ESPERA, barra: "bg-muted-foreground/40" },
+  // So na tela: pedido ainda nao terminado com o data_hora no futuro (o Jenkins espera ate la).
+  aguardando_horario: { label: "Aguardando horário agendado", selo: ESPERA, barra: "bg-muted-foreground/40" },
   processando: { label: "Processando", selo: ANDAMENTO, barra: "bg-primary", animado: true },
   enviado_jenkins: { label: "Enviado ao Jenkins", selo: ANDAMENTO, barra: "bg-primary" },
   na_fila: { label: "Na fila", selo: ANDAMENTO, barra: "bg-primary" },
@@ -46,6 +48,16 @@ export function metaDoStatus(status: string): MetaStatus {
   return STATUS_PEDIDO[status] || { label: status.replace(/_/g, " "), selo: ESPERA, barra: "bg-muted-foreground/40" };
 }
 
-export function statusDoPedido(r: RerunRequest): string {
-  return rerunStatusKey(r);
+/** Estados de espera ou execucao que viram "aguardando horario" enquanto o agendamento nao chega. */
+const ANTES_DO_INICIO = new Set(["solicitado", "processando", "enviado_jenkins", "na_fila", "rodando"]);
+
+/** data_hora do pedido (dd/MM/yyyy HH:mm:ss, hora local) em milissegundos; invalida = NaN. */
+function horarioAgendado(dataHora: string | null | undefined): number {
+  const m = (dataHora || "").match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})(?::(\d{2}))?$/);
+  return m ? new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5], +(m[6] || 0)).getTime() : NaN;
+}
+
+export function statusDoPedido(r: RerunRequest, agora: number = Date.now()): string {
+  const status = rerunStatusKey(r);
+  return ANTES_DO_INICIO.has(status) && horarioAgendado(r.data_hora) > agora ? "aguardando_horario" : status;
 }

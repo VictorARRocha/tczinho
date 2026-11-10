@@ -648,6 +648,22 @@ describe("auditoria parte 3: rodagem completa", () => {
     expect(api.createRerunRequest).not.toHaveBeenCalled();
   });
 
+  it("historico mostra so a hora agendada (inicio da rodagem), sem a hora do pedido", async () => {
+    api.requests = [{ ...request("r1", "2026-10-01T10:00:00Z", "na_fila"), data_hora: "01/10/2026 22:00:00" } as RerunRequest];
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(await screen.findByText("01/10/2026 22:00:00")).toBeInTheDocument();
+    const cabecalho = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    expect(cabecalho).toContain("Agendado");
+    expect(cabecalho).not.toContain("Data/hora");
+  });
+
+  it("pedido agendado para o futuro aparece como aguardando horario", async () => {
+    api.requests = [{ ...request("r1", "2026-10-01T10:00:00Z", "rodando"), data_hora: "01/01/2099 22:00:00" } as RerunRequest];
+    renderPage(<JenkinsRodagemCompleta />);
+    expect(await screen.findByText("Aguardando horário agendado")).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+
   it("VM e Modulo tem nome; status em portugues e acoes do historico com nome", async () => {
     api.requests = [request("r1", "2026-10-01T10:00:00Z", "na_fila"), request("r2", "2026-10-01T09:00:00Z", "finalizado_sucesso")];
     renderPage(<JenkinsRodagemCompleta />);

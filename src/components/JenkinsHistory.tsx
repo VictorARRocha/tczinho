@@ -41,7 +41,7 @@ const MODO_LABEL: Record<string, string> = {
 };
 
 const CANCELABLE_STATUSES = new Set<string>([
-  "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento",
+  "solicitado", "processando", "enviado_jenkins", "na_fila", "rodando", "erro_monitoramento", "aguardando_horario",
 ]);
 
 const CANCEL_PENDING_STATUSES = new Set<string>(["cancel_requested", "cancelando"]);
@@ -234,13 +234,12 @@ export const JenkinsHistory = memo(function JenkinsHistory({
                 return (
                   <li key={r.id} className="space-y-2 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-xs">{new Date(r.created_at).toLocaleString("pt-BR")}</span>
+                      <span className="text-xs text-muted-foreground">Agendado: <span className="font-mono text-foreground">{agendado(r)}</span></span>
                     </div>
                     <p className="text-sm">
                       <span className="font-mono">{r.vm_name}</span> · {r.versao}{r.branch && ` · ${r.branch}`} · {r.modulo_nome || r.modulo_codigo || "—"}
                     </p>
                     {r.casos_teste && <p className="break-all text-[11px] text-muted-foreground">Casos: {r.casos_teste}</p>}
-                    {r.data_hora && <p className="text-[11px] text-muted-foreground">Agendado: <span className="font-mono">{r.data_hora}</span></p>}
                     {erro && <p className="break-words text-[11px] text-destructive">{erro}</p>}
                     <StatusOuProgresso r={r} status={status} />
                     <div className="flex flex-wrap gap-2">
@@ -273,13 +272,12 @@ export const JenkinsHistory = memo(function JenkinsHistory({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Data/hora</TableHead>
+                  <TableHead>Agendado</TableHead>
                   <TableHead>VM</TableHead>
                   <TableHead>Versão</TableHead>
                   <TableHead>Branch TC</TableHead>
                   <TableHead>Módulo</TableHead>
                   <TableHead>Casos</TableHead>
-                  <TableHead>Agendado</TableHead>
                   <TableHead className="w-[180px]">Status</TableHead>
                   <TableHead className="w-px whitespace-nowrap text-center">Cancelar</TableHead>
                   <TableHead className="w-px text-right">Ações</TableHead>
@@ -287,21 +285,20 @@ export const JenkinsHistory = memo(function JenkinsHistory({
               </TableHeader>
               <TableBody>
                 {history.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Nenhuma solicitação ainda.</TableCell></TableRow>
                 ) : pedidosDaPagina.map((r) => {
                   const status = statusDoPedido(r);
                   const erro = safeError(r.erro);
-                  const quando = new Date(r.created_at).toLocaleString("pt-BR");
+                  const quando = agendado(r);
                   // Linha clicavel com o mouse; pelo teclado, o botao "Detalhes" da coluna Acoes.
                   return (
                     <TableRow key={r.id} className="cursor-pointer" onClick={() => setDetail(r)}>
-                      <TableCell className="text-xs">{quando}</TableCell>
+                      <TableCell className="text-xs font-mono">{quando}</TableCell>
                       <TableCell className="text-xs font-mono">{r.vm_name}</TableCell>
                       <TableCell className="text-xs">{r.versao}</TableCell>
                       <TableCell className="text-xs">{r.branch || "—"}</TableCell>
                       <TableCell className="text-xs">{r.modulo_nome || r.modulo_codigo || "—"}</TableCell>
                       <TableCell className="text-xs max-w-[180px] truncate" title={r.casos_teste}>{r.casos_teste}</TableCell>
-                      <TableCell className="text-xs font-mono">{r.data_hora || "—"}</TableCell>
                       <TableCell className="max-w-[220px]">
                         <StatusOuProgresso r={r} status={status} />
                         {erro && <p className="mt-1 truncate text-xs text-destructive" title={erro}>{erro}</p>}
@@ -368,6 +365,11 @@ export const JenkinsHistory = memo(function JenkinsHistory({
     </TooltipProvider>
   );
 });
+
+/** Hora em que a rodagem foi marcada para comecar (data_hora do pedido); pedido antigo sem ela: a hora do pedido. */
+function agendado(r: RerunRequest): string {
+  return r.data_hora || new Date(r.created_at).toLocaleString("pt-BR");
+}
 
 function FragmentRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
