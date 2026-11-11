@@ -136,6 +136,12 @@ export interface MergeBranches {
   updated_at: string | null;
 }
 
+/** Versoes do Unico lidas do menu do Gerenciador SCI na D01 (VersoesUnico), no formato que o TC entende. */
+export interface VersoesUnico {
+  versoes: string[];
+  updated_at: string | null;
+}
+
 export interface MergeRevisao {
   revisao: string;
   autor: string | null;
@@ -280,6 +286,7 @@ export interface QaDataSource {
 
   // Merge entre branches do TC (SVN)
   fetchMergeBranches(): Promise<MergeBranches>;
+  fetchVersoesUnico(): Promise<VersoesUnico>;
   fetchMerges(): Promise<MergePedido[]>;
   createMerge(payload: CreateMergePayload): Promise<MergePedido>;
   confirmMerge(id: string, payload: ConfirmMergePayload): Promise<MergePedido>;

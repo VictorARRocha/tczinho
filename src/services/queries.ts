@@ -21,6 +21,7 @@ import {
   fetchRegravacaoCandidatos,
   fetchRegravacoes,
   fetchMergeBranches,
+  fetchVersoesUnico,
   fetchMerges,
   fetchImports,
   type ImportPedido,
@@ -45,6 +46,7 @@ export const queryKeys = {
   regravacaoCandidatos: (runId: string) => ["regravacao-candidatos", runId] as const,
   regravacoes: (runId: string) => ["regravacoes", runId] as const,
   mergeBranches: ["merge-branches"] as const,
+  versoesUnico: ["versoes-unico"] as const,
   merges: ["merges"] as const,
   imports: ["imports"] as const,
   runEvidences: (runId: string) => ["run-evidences", runId] as const,
@@ -168,6 +170,11 @@ export function mergeRefetchInterval(pedidos: MergePedido[] | undefined): number
 /** Lista de branches do TC (o MergeBridge atualiza a cada ~2 minutos). */
 export function useMergeBranches() {
   return useQuery({ queryKey: queryKeys.mergeBranches, queryFn: fetchMergeBranches, staleTime: 60_000, refetchInterval: 120_000 });
+}
+
+/** Versoes do Unico (o VersoesUnico atualiza uma vez por dia). */
+export function useVersoesUnico() {
+  return useQuery({ queryKey: queryKeys.versoesUnico, queryFn: fetchVersoesUnico, staleTime: 10 * 60_000, retry: false });
 }
 
 export function useMerges() {

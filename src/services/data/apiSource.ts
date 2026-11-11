@@ -22,7 +22,7 @@
 import type {
   QaDataSource, CreateRerunPayload, ModuleLatestRun, RunPreset, SaveRunPresetPayload, CasoDesativado, HistoricoTempo,
   RegravacaoCandidatos, RegravacaoPedido, CreateRegravacaoPayload,
-  MergeBranches, MergePedido, ConfirmMergePayload, CreateMergePayload,
+  MergeBranches, VersoesUnico, MergePedido, ConfirmMergePayload, CreateMergePayload,
   ImportPedido,
 } from "./types";
 import type {
@@ -385,6 +385,8 @@ export const ApiQaDataSource: QaDataSource = {
     req<unknown>(`/regravacoes/${encodeURIComponent(id)}/cancel`, { method: "POST", body: "{}" }).then(() => undefined),
 
   fetchMergeBranches: () => req<MergeBranches>(`/merge/branches`),
+
+  fetchVersoesUnico: () => req<VersoesUnico>(`/versoes-unico`),
 
   fetchMerges: () => req<MergePedido[]>(`/merges`),
 

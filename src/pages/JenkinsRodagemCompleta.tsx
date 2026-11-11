@@ -4,13 +4,13 @@ import { toast } from "sonner";
 import { copiarTexto } from "@/lib/copiar";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SelectBusca } from "@/components/SelectBusca";
+import { CampoVersao } from "@/components/CampoVersao";
 import { PlayCircle, ChevronLeft, Copy, Clock, AlertTriangle } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
@@ -262,12 +262,12 @@ export default function JenkinsRodagemCompleta() {
               </Field>
 
               <Field label="Versão" id="rc-versao" erro={erros.versao}>
-                <Input
+                <CampoVersao
                   id="rc-versao"
                   value={sVersao}
-                  aria-invalid={!!erros.versao}
-                  aria-describedby={erros.versao ? "rc-versao-erro" : undefined}
-                  onChange={(e) => { setSVersao(e.target.value); if (erros.versao) setErros((x) => ({ ...x, versao: undefined })); }}
+                  invalido={!!erros.versao}
+                  descritoPor={erros.versao ? "rc-versao-erro" : undefined}
+                  onChange={(v) => { setSVersao(v); if (erros.versao) setErros((x) => ({ ...x, versao: undefined })); }}
                 />
               </Field>
 

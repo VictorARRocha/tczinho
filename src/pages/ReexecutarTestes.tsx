@@ -19,7 +19,6 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -73,6 +72,7 @@ import {
 } from "@/services/data";
 import { invalidateRerunRequests, useAllRuns } from "@/services/queries";
 import { JenkinsHistory } from "@/components/JenkinsHistory";
+import { CampoVersao } from "@/components/CampoVersao";
 import { TIPO_COR, TipoBadge as SeloTipo } from "./module/common";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -799,19 +799,17 @@ export default function ReexecutarTestes() {
                   Reexecutar casos em outra versão
                 </label>
                 {outraVersao && (
-                  <>
-                    <Input
+                  <div className="ml-6 w-[260px] max-w-[calc(100%-1.5rem)]">
+                    <CampoVersao
                       value={versaoEscolhida}
-                      onChange={(e) => setVersaoEscolhida(e.target.value)}
-                      list="versoes-reexecucao"
+                      onChange={setVersaoEscolhida}
+                      sugestoes={outrasVersoes}
+                      sugestoesId="versoes-reexecucao"
                       placeholder="Ex.: clientes"
-                      aria-label="Versão para reexecutar"
-                      className="ml-6 h-9 w-[260px] max-w-[calc(100%-1.5rem)] font-mono text-sm"
+                      ariaLabel="Versão para reexecutar"
+                      className="h-9 font-mono text-sm"
                     />
-                    <datalist id="versoes-reexecucao">
-                      {outrasVersoes.map((v) => <option key={v} value={v} />)}
-                    </datalist>
-                  </>
+                  </div>
                 )}
                 {trocas.length > 0 && (
                   <p className="flex items-start gap-1.5 text-xs text-warning">
