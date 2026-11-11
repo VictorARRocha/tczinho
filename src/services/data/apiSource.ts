@@ -388,6 +388,8 @@ export const ApiQaDataSource: QaDataSource = {
 
   fetchVersoesUnico: () => req<VersoesUnico>(`/versoes-unico`),
 
+  atualizarVersoesUnico: () => req<VersoesUnico>(`/versoes-unico/atualizar`, { method: "POST", body: "{}" }),
+
   fetchMerges: () => req<MergePedido[]>(`/merges`),
 
   createMerge: (payload: CreateMergePayload) =>

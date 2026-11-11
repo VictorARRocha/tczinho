@@ -172,9 +172,15 @@ export function useMergeBranches() {
   return useQuery({ queryKey: queryKeys.mergeBranches, queryFn: fetchMergeBranches, staleTime: 60_000, refetchInterval: 120_000 });
 }
 
-/** Versoes do Unico (o VersoesUnico atualiza uma vez por dia). */
+/** Versoes do Unico (o VersoesUnico atualiza uma vez por dia; com pedido do admin em andamento, confere a cada 10 s). */
 export function useVersoesUnico() {
-  return useQuery({ queryKey: queryKeys.versoesUnico, queryFn: fetchVersoesUnico, staleTime: 10 * 60_000, retry: false });
+  return useQuery({
+    queryKey: queryKeys.versoesUnico,
+    queryFn: fetchVersoesUnico,
+    staleTime: 10 * 60_000,
+    retry: false,
+    refetchInterval: (query) => (query.state.data?.pedido_pendente ? 10_000 : false),
+  });
 }
 
 export function useMerges() {

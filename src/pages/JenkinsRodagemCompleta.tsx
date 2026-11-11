@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SelectBusca } from "@/components/SelectBusca";
 import { CampoVersao } from "@/components/CampoVersao";
+import { useAuth } from "@/contexts/AuthContext";
 import { PlayCircle, ChevronLeft, Copy, Clock, AlertTriangle } from "lucide-react";
 import {
   createRerunRequest, formatNowMinusOneMinuteBr, formatNowBr, type CreateRerunPayload, type RunPreset,
@@ -41,6 +42,7 @@ type ErrosSimplificada = { versao?: string; data?: string };
 export default function JenkinsRodagemCompleta() {
   const podeSolicitar = usePermissao("rodagem");
   const acessoModulos = useModulos();
+  const { isAdmin } = useAuth();
   // ---- Simplificada ----
   const [sVm, setSVm] = useState("a07");
   const [sModulo, setSModulo] = useState(MODULOS[1].nome); // Fiscal default
@@ -265,6 +267,7 @@ export default function JenkinsRodagemCompleta() {
                 <CampoVersao
                   id="rc-versao"
                   value={sVersao}
+                  mostrarAtualizar={isAdmin}
                   invalido={!!erros.versao}
                   descritoPor={erros.versao ? "rc-versao-erro" : undefined}
                   onChange={(v) => { setSVersao(v); if (erros.versao) setErros((x) => ({ ...x, versao: undefined })); }}

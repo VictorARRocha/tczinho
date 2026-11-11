@@ -140,6 +140,10 @@ export interface MergeBranches {
 export interface VersoesUnico {
   versoes: string[];
   updated_at: string | null;
+  /** Botao "Atualizar lista" (admin): o MergeBridge dispara a leitura na D01. */
+  pedido_em?: string | null;
+  pedido_por?: string | null;
+  pedido_pendente?: boolean;
 }
 
 export interface MergeRevisao {
@@ -287,6 +291,7 @@ export interface QaDataSource {
   // Merge entre branches do TC (SVN)
   fetchMergeBranches(): Promise<MergeBranches>;
   fetchVersoesUnico(): Promise<VersoesUnico>;
+  atualizarVersoesUnico(): Promise<VersoesUnico>;
   fetchMerges(): Promise<MergePedido[]>;
   createMerge(payload: CreateMergePayload): Promise<MergePedido>;
   confirmMerge(id: string, payload: ConfirmMergePayload): Promise<MergePedido>;

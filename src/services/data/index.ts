@@ -70,6 +70,7 @@ export const createRegravacao = (payload: import("./types").CreateRegravacaoPayl
 export const cancelRegravacao = (id: string) => qaData.cancelRegravacao(id);
 export const fetchMergeBranches = () => qaData.fetchMergeBranches();
 export const fetchVersoesUnico = () => qaData.fetchVersoesUnico();
+export const atualizarVersoesUnico = () => qaData.atualizarVersoesUnico();
 export const fetchMerges = () => qaData.fetchMerges();
 export const createMerge = (payload: import("./types").CreateMergePayload) => qaData.createMerge(payload);
 export const confirmMerge = (id: string, payload: import("./types").ConfirmMergePayload) => qaData.confirmMerge(id, payload);
