@@ -214,6 +214,7 @@ describe("Casos de teste (lista do modulo)", () => {
       { ...no("3.2.2", "So na procedure", "caso"), procedure_name: "pConsultaFeriado_245993" },
       no("3.2.3", "Sem codigo", "caso", "Caso antigo, sem chamado."),
       no("3.2.4", "Dois chamados", "caso", "DAPI/MG - sem movimento #74934 #93721"),
+      no("3.2.5", "Dois no inicio", "caso", "#239134 e #251535 - Relatorio de apoio"),
     ];
     renderAba(<CasosTab hierarchy={arvore} />);
     fireEvent.click(screen.getByRole("button", { name: /Kanboard/ }));
@@ -228,8 +229,12 @@ describe("Casos de teste (lista do modulo)", () => {
     expect(link(/Abrir #175763 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/175763");
     expect(link(/Abrir #74934 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/74934");
     expect(link(/Abrir #93721 no Kanboard/)).toHaveAttribute("href", "https://kanboard.sci.com.br/sprint/0/solicitacao/93721");
-    // Sem codigo: nada de link na linha (2 + procedure + 2 = 5).
-    expect(screen.getAllByRole("link", { name: /no Kanboard/ })).toHaveLength(5);
+    // Sem codigo: nada de link na linha (2 + procedure + 2 + 2 = 7).
+    expect(screen.getAllByRole("link", { name: /no Kanboard/ })).toHaveLength(7);
+    // Varios codigos no inicio ("#a e #b -"): todos na linha, nenhum sobra na descricao.
+    abrirCaso("3.2.5");
+    expect(screen.getByText("Relatorio de apoio")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "#251535" })).not.toBeInTheDocument();
     // O texto aberto continua inteiro, com os chamados como link.
     abrirCaso("3.2.4");
     expect(screen.getByRole("link", { name: "#93721" })).toBeInTheDocument();

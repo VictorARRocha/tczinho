@@ -378,8 +378,8 @@ function LinhaCaso({ no, mostrarCaminho }: { no: No; mostrarCaminho?: boolean })
   const info = useDesativado()(no.id);
   const [aberto, setAberto] = useState(false);
   const marcado = info?.linha;
-  // O codigo do inicio da descricao ja aparece na linha; o resto do texto fica como esta.
-  const descricao = no.descricao.replace(/^\s*#\s?\d{4,}\s*[-–:,.]?\s*/, "");
+  // Os codigos do inicio da descricao ("#239134 e #251535 -") ja aparecem na linha; o resto do texto fica como esta.
+  const descricao = no.descricao.replace(/^\s*#\s?\d{4,}(?:\s*(?:[,;/&]|e(?=\s))?\s*#\s?\d{4,})*\s*[-–:,.]?\s*/, "");
   return (
     <div className={cn("group rounded-md", aberto && "bg-muted/40")}>
       {/* A linha toda abre o caso; o chamado e um link para o Kanboard (nao abre a linha). */}

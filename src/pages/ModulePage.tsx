@@ -8,7 +8,7 @@ import type { Rodagem, Falha, Evidencia, Agrupamento, ProximoPasso, Modulo, Atra
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Lock, RefreshCw, RotateCcw } from "lucide-react";
+import { ChevronLeft, Lock, RefreshCw, RotateCcw, Upload } from "lucide-react";
 import { formatDateTime } from "@/lib/format";
 import { type ComparisonPair } from "@/lib/occurrence";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -83,6 +83,7 @@ function PaginaDoModulo() {
   const [reexecucoes, setReexecucoes] = useState<ResultadoReexecucao[]>([]);
   const [instaveis, setInstaveis] = useState<Record<string, CasoInstavel>>({});
   const podePedirRodagem = usePermissao("rodagem");
+  const podeRegravar = usePermissao("regravar");
   const [loading, setLoading] = useState(true);
   const [runLoading, setRunLoading] = useState(false);
   const [notFound, setNotFound] = useState(false);
@@ -308,12 +309,26 @@ function PaginaDoModulo() {
   }, [rodagemId]);
 
   // O Jenkins so roda o projeto do Unico: Suprema e Practice nao tem reexecucao.
-  const acaoReexecutar = podePedirRodagem && rodagemId && falhas.length > 0 && !LINHA_VISUAL.includes(slug) ? (
-    <Button asChild size="sm" variant="outline" className="h-11 w-full text-xs sm:w-auto md:h-8">
-      <Link to={`/jenkins/reexecutar?run=${encodeURIComponent(rodagemId)}`}>
-        <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Reexecutar casos
-      </Link>
-    </Button>
+  const reexecutar = podePedirRodagem && rodagemId && falhas.length > 0 && !LINHA_VISUAL.includes(slug);
+  // Regravacao ja aberta nesta rodagem (o mesmo link do painel da falha).
+  const regravar = podeRegravar && rodagemId && falhas.length > 0;
+  const acaoReexecutar = reexecutar || regravar ? (
+    <div className="flex gap-2 max-sm:flex-col">
+      {regravar && (
+        <Button asChild size="sm" variant="outline" className="h-11 w-full text-xs sm:w-auto md:h-8">
+          <Link to={`/regravar?rodagem=${encodeURIComponent(rodagemId)}`}>
+            <Upload className="h-3.5 w-3.5" aria-hidden /> Regravar arquivos
+          </Link>
+        </Button>
+      )}
+      {reexecutar && (
+        <Button asChild size="sm" variant="outline" className="h-11 w-full text-xs sm:w-auto md:h-8">
+          <Link to={`/jenkins/reexecutar?run=${encodeURIComponent(rodagemId)}`}>
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden /> Reexecutar casos
+          </Link>
+        </Button>
+      )}
+    </div>
   ) : null;
 
 

@@ -94,6 +94,14 @@ describe("painel do caso nas reexecucoes", () => {
     expect(await within(painel).findByText("Erro na reexecucao")).toBeInTheDocument();
   });
 
+  it("aba Falhas leva a rodagem aberta para a Regravacao e para a Reexecucao", async () => {
+    queryClient.clear();
+    renderPagina();
+    await abrirAbaFalhas();
+    expect(await screen.findByRole("link", { name: /Regravar arquivos/ })).toHaveAttribute("href", `/regravar?rodagem=${ORIGEM}`);
+    expect(screen.getByRole("link", { name: /Reexecutar casos/ })).toHaveAttribute("href", `/jenkins/reexecutar?run=${ORIGEM}`);
+  });
+
   it("caso que passou na reexecucao: o painel diz que passou, sem evidencias", async () => {
     queryClient.clear();
     renderPagina();

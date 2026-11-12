@@ -328,7 +328,8 @@ export default function ReexecutarTestes() {
     );
     // Financeiro usa base propria: o mod_xml ja tira [0.4]/[0.5], mas so marca o [5.0] (Configura base) se ele vier no pedido.
     if (!manterBase && ids.some((id) => id.startsWith("5.")) && !ids.includes("5.0")) ids.unshift("5.0");
-    // Sem "Manter base atual" o pedido leva tambem o [0.1].
+    // Toda reexecucao leva o [0.6]; sem "Manter base atual", tambem o [0.1].
+    if (!ids.includes("0.6")) ids.unshift("0.6");
     if (!manterBase && !ids.includes("0.1")) ids.unshift("0.1");
     return ids.map((id) => `[${id}]`).join(", ");
   }, [casosSelecionados, manterBase]);
